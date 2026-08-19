@@ -2,6 +2,25 @@
 
 This document records the primary specifications and provider APIs used to ground the OpenMatter design. Links point to official documentation or official specification repositories where available.
 
+## API, event, and data standards
+
+| Standard | Reference | OpenMatter relevance |
+| --- | --- | --- |
+| OpenAPI 3.1.1 | [Specification](https://spec.openapis.org/oas/v3.1.1.html) | Primary compiler input for HTTP operations, schemas, security requirements, servers, callbacks, and webhooks. |
+| AsyncAPI 3.1 | [Specification](https://www.asyncapi.com/docs/reference/specification/v3.1.0) | Event channels, messages, operations, correlation information, and protocol bindings. |
+| JSON Schema 2020-12 | [Specification](https://json-schema.org/draft/2020-12) | Canonical portable schema dialect for Work Profiles and operation payloads. |
+| CloudEvents 1.0 | [Specification repository](https://github.com/cloudevents/spec) | Transport-neutral WorkEvent envelope and event identity baseline. |
+| JSONPath | [RFC 9535](https://www.rfc-editor.org/rfc/rfc9535.html) | Portable selectors for Resource, actor, anchor, and result extraction. |
+| GraphQL | [Specification](https://spec.graphql.org/October2021/) | Introspection plus named query or mutation documents as an additional compiler source. |
+
+OpenMatter reuses these standards rather than replacing them. Work Profile adds agent-work semantics and provider binding references around them.
+
+## Runtime implementation
+
+| System | Reference | OpenMatter relevance |
+| --- | --- | --- |
+| Effect | [Documentation](https://effect.website/docs/) | Internal services, scopes, streams, cancellation, retry, testing, and tracing. Public APIs remain ordinary TypeScript. |
+
 ## Agent runtimes
 
 | System | Reference | OpenMatter relevance |

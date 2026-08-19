@@ -1,47 +1,102 @@
 # OpenMatter
 
-**The integration and context framework for work agents.**
+**The SDK that turns work APIs into interfaces agents can work with.**
 
-> Put agents into real work without putting their minds inside another framework.
+> Compile APIs and events. Keep context and policy in your application. Leave the mind to the agent.
 
-OpenMatter is an open, embeddable TypeScript framework for connecting agents to chat, issue trackers, code hosts, kanban systems, forms, and scheduled work.
+OpenMatter is an open, embeddable TypeScript SDK for putting external agents into chat, issue trackers, code hosts, kanban systems, forms, documents, and scheduled work.
 
-It is code-first. Applications write ordinary code to decide:
+It has two parts:
 
-- which events activate an agent;
-- which scope, matter, and work thread an event belongs to;
-- what context the agent receives;
-- whether an agent session is created or resumed;
-- which operations the agent may perform;
-- which reaction, including an explicit null reaction, completes the event.
+1. A compiler turns OpenAPI and other machine descriptions into a portable **Work Profile**.
+2. A runtime uses that Profile to normalize work events, construct authorized context, manage agent sessions, and execute approved operations.
 
-OpenMatter supplies the integrations, lifecycle, persistence ports, observability, and runtime mechanics around that code. It does not replace the agent's reasoning or tool loop.
+OpenMatter does not require a hosted connector service and does not require its maintainers to integrate every SaaS. A raw OpenAPI description provides generic operations immediately. Optional user or community profiles add work semantics such as Resources, event subjects, threading, risk, and interactions.
 
-## Core flow
+## Architecture
 
 ```text
-Work platform or schedule
-          ↓
-      WorkEvent
-          ↓
- AgentScope → Matter → WorkThread
-          ↓
- AgentSession → Turn → OpenMAEvent stream
-          ↓
-       Reaction
-          ↓
-       WorkEffect
+                         build time
+
+OpenAPI / AsyncAPI / GraphQL + optional semantic overlay
+                            ↓
+                    OpenMatter Compiler
+                            ↓
+                    Work Profile JSON
+
+                         runtime
+
+work event → Scope → Matter → WorkThread → Agent Session
+     ↑                                           ↓
+work binding ← authorized Operation ← Reaction ← Turn
+                            ↕
+                    ACP / managed agent
 ```
 
-Every accepted `WorkEvent` reaches one terminal `Reaction`. A reaction may contain replies, reactions, forms, approvals, work-item mutations, or no effects at all.
+OpenAPI describes how an API can be called. A Work Profile adds what an agent needs to understand work:
 
-## Framework shape
+- operations and their input/output schemas;
+- events and structured human interactions;
+- Resource identities, aliases, and relationships;
+- authority, capability, risk, confirmation, and idempotency metadata;
+- provider bindings without live credentials.
+
+## Compile a Work Profile
+
+```ts
+import { compileWorkProfile, openapi, overlay } from "@openmatter/compiler";
+
+const result = await compileWorkProfile({
+  sources: [openapi("./work-api.yaml")],
+  overlays: [overlay("./work-semantics.yaml")],
+});
+
+for (const diagnostic of result.diagnostics) {
+  console.log(diagnostic.severity, diagnostic.message);
+}
+
+await result.write("./dist/work-profile.json");
+```
+
+The compiler generates invocation mechanics and conservative safety defaults. It never invents a stable Resource identity or permission merely because a response contains a field named `id`.
+
+Semantic enrichment is optional and serializable:
+
+```ts
+export default defineWorkProfile({
+  source: openapi("./work-api.yaml"),
+
+  resources: {
+    issue: resource({
+      identity: select("output", "$.id"),
+      aliases: [select("output", "$.identifier")],
+    }),
+  },
+
+  operations: {
+    createIssueComment: operation({
+      id: "issue.comment.create",
+      target: "issue",
+      class: "write",
+      idempotency: "key",
+    }),
+  },
+});
+```
+
+The authoring API emits equivalent Work Profile JSON. It is not a closed workflow language.
+
+## Run it with an agent
 
 ```ts
 const app = createOpenMatter({
-  integrations: {
-    slack: slackIntegration({ token: process.env.SLACK_TOKEN }),
-    linear: linearIntegration({ apiKey: process.env.LINEAR_API_KEY }),
+  work: {
+    project: createWorkSurface({
+      profile,
+      authority: { profile: profile.id, id: "workspace-1" },
+      operations: openApiOperations({ credentials, fetch }),
+      events: [projectWebhooks],
+    }),
   },
 
   agents: {
@@ -51,30 +106,28 @@ const app = createOpenMatter({
   store: postgresStore(db),
 });
 
-app.on("slack.message.mentioned", async (work) => {
-  const scope = await work.scopes.resolve("project");
+app.on("issue.updated", async (work) => {
+  const scope = await work.scopes.resolve(resolveProjectScope);
   const matters = await work.matters.resolve(work.event);
   const thread = await work.threads.continue({
     scope,
-    key: matters.primary?.id ?? work.event.source.threadId,
+    key: matters.primary?.id ?? work.event.subject,
+    matters,
   });
 
-  const context = await work.context.build(async (context) => {
-    context.add(work.event);
-    context.add(await work.integration("slack").readThread());
-
-    for (const matter of matters.resolved) {
-      context.add(await work.matters.materialize(matter));
-    }
+  const context = await work.context.project({
+    scope,
+    thread,
+    event: work.event,
   });
 
-  const result = await work
-    .agent("worker")
-    .session({ scope, thread })
-    .turn({
-      context,
-      allow: ["slack.reply", "slack.react", "linear.comment.create"],
-    });
+  const result = await work.agent("worker").session({
+    scope,
+    thread,
+  }).turn({
+    context,
+    allow: ["issue.read", "issue.comment.create"],
+  });
 
   return work.react(result);
 });
@@ -82,76 +135,64 @@ app.on("slack.message.mentioned", async (work) => {
 await app.run();
 ```
 
-The SDK provides conventions and typed boundaries, not a closed configuration language. Custom functions can participate at every stage.
+Every valid received `WorkEvent` reaches one terminal `Reaction`. A reaction may request operations or deliberately contain no effects at all. Filtering is therefore observable as an explicit null reaction rather than a silent drop.
 
-## Two replaceable boundaries
+## Work context
 
-OpenMatter composes two semantic interfaces:
+OpenMatter keeps distinct concepts distinct:
 
-- **Work Integration** maps provider events, references, context, capabilities, authentication, and effects into OpenMatter.
-- **Agent Driver** maps sessions, turns, event streams, permissions, cancellation, and results to ACP, Claude managed runtimes, in-process SDKs, or custom agents.
+- `ResourceAddress` identifies a provider resource.
+- `Matter` identifies the durable thing being worked on and may link several provider resources.
+- `AgentScope` owns shared authority, policy, bindings, and candidate context.
+- `WorkThread` owns the structured continuity of one piece of work across events and providers.
+- `ContextProjection` is the authorized snapshot delivered to one Turn.
+- `AgentSession` is an external runtime continuity handle, not the only durable source of truth.
 
-ACP is the first open Agent Driver binding. HTTP, WebSocket, webhooks, polling, and SDK calls are transport choices of a binding, not new core domains.
+A Channel is not automatically a Scope, WorkThread, or Agent Session. Multiple channels can share a Scope; one Matter can connect a message thread, issue, pull request, and document.
 
-## Matter
+## Agent boundary
 
-A `Matter` is a durable identity for “the thing being worked on.” It may be represented by a Linear issue ID, GitHub pull request, URL, channel thread, team alias, natural-language phrase, or several of these at once.
+OpenMatter does not implement another agent brain. `AgentDriver` maps OpenMatter sessions, turns, operation grants, event streams, permissions, and cancellation to:
 
-OpenMatter does not require every mention to resolve. Unknown or ambiguous references retain their raw text and provenance until application code, a deterministic resolver, an agent proposal, or a user confirmation links them.
+- Agent Client Protocol;
+- managed-agent runtimes;
+- in-process SDKs;
+- MCP-backed tools;
+- custom agents.
 
-## Scheduled work
+The agent owns reasoning, planning, transcript, and private tool state. OpenMatter owns work-side context, authority, continuity, reactions, and effect receipts.
 
-Proactive behavior is ordinary scheduled code:
+## Proactive work
+
+Schedules are ordinary event sources:
 
 ```ts
-app.schedule("issue-patrol", cron("*/15 * * * *"), async (work) => {
-  const issues = await work.integration("linear").issues.list({ state: "open" });
-
-  if (issues.length === 0) {
-    return work.react.none("No open issues require attention");
-  }
-
-  const result = await work.agent("worker").session({
-    scope: await work.scopes.resolve("project"),
-    thread: await work.threads.continue("issue-patrol"),
-  }).turn({ context: issues });
-
-  return work.react(result);
-});
+app.schedule("issue-patrol", cron("*/15 * * * *"), patrolHandler);
 ```
 
-Each schedule tick becomes a `WorkEvent` and follows the same scope, context, session, turn, and reaction lifecycle as provider events.
-
-## Serializable where it matters
-
-OpenMatter does not try to serialize application code. It emits versioned JSON records for:
-
-- component manifests;
-- provider capabilities;
-- normalized events and references;
-- scopes, matters, work threads, sessions, turns, and reactions;
-- context provenance and authorization decisions;
-- execution traces and effect receipts.
-
-These records support visualization, auditing, replay, conformance testing, and storage neutrality while leaving the application fully programmable.
+Each tick becomes a WorkEvent and follows the same Scope, Matter, WorkThread, Session, Turn, and Reaction lifecycle. OpenMatter can use an embedded scheduler or accept ticks from an external one.
 
 ## What OpenMatter is not
 
-- Not another prompt-chain, graph, planner, or agent-brain framework.
-- Not a replacement for ACP, model SDKs, or agent-internal tools.
-- Not a mandatory Hub, SaaS control plane, database, queue, or cloud.
-- Not a closed JSON DSL that limits application behavior.
-- Not tied to one IM, kanban product, runtime, transport, or deployment shape.
+- Not a connector catalog that must hand-code every SaaS.
+- Not a partial wrapper around Activepieces, Zapier, or another workflow runtime.
+- Not another prompt graph, planner, or model SDK.
+- Not a replacement for ACP, OpenAPI, AsyncAPI, GraphQL, or MCP.
+- Not a mandatory Hub, SaaS control plane, credential service, database, queue, or cloud.
+- Not a closed JSON workflow DSL.
 
 ## Documentation
 
-- [Product and architecture brief](docs/BRIEF.md)
-- [Current design decisions](docs/DECISIONS.md)
+- [OpenMatter SDK specification](docs/SDK_SPEC.md)
+- [Technical design](docs/TECHNICAL_DESIGN.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Product brief](docs/BRIEF.md)
+- [Current decisions](docs/DECISIONS.md)
 - [Domain model](docs/DOMAIN_MODEL.md)
-- [Code-first SDK shape](docs/SDK_SHAPE.md)
-- [Work integrations and Matter references](docs/INTEGRATIONS.md)
+- [SDK shape](docs/SDK_SHAPE.md)
+- [Work Profiles, bindings, and Matter references](docs/INTEGRATIONS.md)
 - [Agent runtime and session lifecycle](docs/AGENT_RUNTIME.md)
-- [Design references and platform APIs](docs/REFERENCES.md)
+- [Standards and platform references](docs/REFERENCES.md)
 
 > [!IMPORTANT]
-> OpenMatter is in its design and framework setup stage. The current interfaces are directional and will be validated through reference integrations, drivers, and a conformance harness before becoming a compatibility promise.
+> OpenMatter is in its v0 design stage. Work Profile, binding, runtime, and AgentDriver interfaces remain provisional until exercised by reference implementations and a black-box conformance harness.
