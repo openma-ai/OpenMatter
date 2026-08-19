@@ -2,167 +2,156 @@
 
 **The integration and context framework for work agents.**
 
-> Context that puts agents to work, not another way to build them.
+> Put agents into real work without putting their minds inside another framework.
 
-OpenMatter is an open, embeddable orchestration framework for bringing agents into chat, issue trackers, code hosts, kanban systems, forms, and scheduled work.
+OpenMatter is an open, embeddable TypeScript framework for connecting agents to chat, issue trackers, code hosts, kanban systems, forms, and scheduled work.
 
-It composes two abstract protocols:
+It is code-first. Applications write ordinary code to decide:
 
-- the **Work Protocol**, defined by OpenMatter, normalizes platform events, resources, effects, capabilities, and authentication;
-- the **Agent Protocol** normalizes agent sessions, attempts, streaming updates, permission requests, cancellation, and results. It has bindings for [Agent Client Protocol (ACP)](https://agentclientprotocol.com/get-started/introduction) and may support managed agent runtimes.
+- which events activate an agent;
+- which scope, matter, and work thread an event belongs to;
+- what context the agent receives;
+- whether an agent session is created or resumed;
+- which operations the agent may perform;
+- which reaction, including an explicit null reaction, completes the event.
 
-The OpenMatter orchestrator resolves scopes, projects context, freezes durable runs, executes attempts through an Agent Protocol binding, and sends typed effects back through a Work Protocol binding.
-
-> [!IMPORTANT]
-> OpenMatter is at the design and framework setup stage. The API sketches below explain the intended developer experience; they are not yet a released compatibility promise.
-
-## Why OpenMatter?
-
-Agents already know how to reason, use tools, and generate results. Putting them into real work introduces a different set of problems:
-
-- Which workspace, project, channel, thread, or work item does an event belong to?
-- What context is relevant and authorized for this run?
-- How can retries stay reproducible while source conversations keep changing?
-- How should an agent reply, react, request approval, update a form, or mutate a work item?
-- How can one application run with different providers, stores, agents, and deployment topologies?
-
-OpenMatter makes those concerns explicit and programmable.
+OpenMatter supplies the integrations, lifecycle, persistence ports, observability, and runtime mechanics around that code. It does not replace the agent's reasoning or tool loop.
 
 ## Core flow
 
-```mermaid
-flowchart LR
-    P["Work platform"] <-->|"Work Protocol"| O["OpenMatter orchestrator"]
-    O --> S["Scope resolution"]
-    S --> C["Context projection"]
-    C --> R["Immutable run"]
-    R --> T["Attempt"]
-    T <-->|"Agent Protocol"| A["ACP / managed agent"]
-    A --> X["Result"]
-    X --> O
+```text
+Work platform or schedule
+          ↓
+      WorkEvent
+          ↓
+ AgentScope → Matter → WorkThread
+          ↓
+ AgentSession → Turn → OpenMAEvent stream
+          ↓
+       Reaction
+          ↓
+       WorkEffect
 ```
 
-Every normalized event produces an explicit reaction. The reaction may be a reply, update, approval request, tool-backed effect, or a deliberate null effect.
+Every accepted `WorkEvent` reaches one terminal `Reaction`. A reaction may contain replies, reactions, forms, approvals, work-item mutations, or no effects at all.
 
-## Integration first
-
-The first OpenMatter milestone focuses on Work Protocol integrations. An integration is more than a webhook wrapper; it maps four surfaces between a work system and the orchestrator:
-
-| Surface | Responsibility |
-| --- | --- |
-| **Events** | Normalize messages, mentions, commands, forms, work-item changes, schedules, and callbacks into WorkEvent. |
-| **Context** | Expose threads, records, files, boards, repositories, and other resources for authorized materialization. |
-| **Effects** | Compile replies, reactions, forms, approvals, updates, and work mutations into provider API calls. |
-| **Capabilities** | Declare supported operations, authentication requirements, permission scopes, and platform limits. |
-
-Provider integrations should remain independently installable and testable against a shared harness. Agent Protocol bindings should be equally replaceable; ACP is the first open binding rather than the definition of the whole framework.
-
-## Framework sketch
-
-OpenMatter is intended to feel like a framework, not a hosted control plane:
+## Framework shape
 
 ```ts
-const app = defineOpenMatter({
-  integrations: [chat, codeHost, kanban],
-  agents: [acpAgent, managedClaudeAgent],
-  store,
-  queue,
-
-  scopes: {
-    project: projectScope({ bindBy: ["repository", "channel", "board"] }),
-    private: privateScope({ isolateBy: "actor" }),
+const app = createOpenMatter({
+  integrations: {
+    slack: slackIntegration({ token: process.env.SLACK_TOKEN }),
+    linear: linearIntegration({ apiKey: process.env.LINEAR_API_KEY }),
   },
 
-  routes: [
-    when(messageMentioned())
-      .useScopes("project", "thread")
-      .collect(trigger(), recentThread(), referencedResources())
-      .startRun(),
+  agents: {
+    worker: acpAgent({ endpoint: process.env.ACP_ENDPOINT }),
+  },
 
-    when(schedule("*/15 * * * *"))
-      .useScopes("project", "patrol")
-      .collect(eventsSinceCursor(), openWorkItems())
-      .startRun(),
-  ],
+  store: postgresStore(db),
+});
+
+app.on("slack.message.mentioned", async (work) => {
+  const scope = await work.scopes.resolve("project");
+  const matters = await work.matters.resolve(work.event);
+  const thread = await work.threads.continue({
+    scope,
+    key: matters.primary?.id ?? work.event.source.threadId,
+  });
+
+  const context = await work.context.build(async (context) => {
+    context.add(work.event);
+    context.add(await work.integration("slack").readThread());
+
+    for (const matter of matters.resolved) {
+      context.add(await work.matters.materialize(matter));
+    }
+  });
+
+  const result = await work
+    .agent("worker")
+    .session({ scope, thread })
+    .turn({
+      context,
+      allow: ["slack.reply", "slack.react", "linear.comment.create"],
+    });
+
+  return work.react(result);
 });
 
 await app.run();
 ```
 
-Applications describe policy and context. OpenMatter performs the mechanical event, snapshot, attempt, and effect loop.
+The SDK provides conventions and typed boundaries, not a closed configuration language. Custom functions can participate at every stage.
 
-## Core model
+## Two replaceable boundaries
 
-| Concept | Meaning |
-| --- | --- |
-| **WorkEvent** | A normalized event from an IM, code host, kanban system, form, schedule, or custom source. |
-| **AgentScope** | A user-defined boundary for resource bindings, context sources, policy, memory, and capabilities. |
-| **ContextProjection** | The authorized, relevant, budgeted projection of active scopes for one run. |
-| **Run** | A durable request with an immutable input and context snapshot. |
-| **Attempt** | One disposable execution of a run. A retry creates a new attempt without silently changing the run input. |
-| **Effect** | A structured outcome applied back to a provider, including an explicit null effect. |
+OpenMatter composes two semantic interfaces:
 
-## What OpenMatter is
+- **Work Integration** maps provider events, references, context, capabilities, authentication, and effects into OpenMatter.
+- **Agent Driver** maps sessions, turns, event streams, permissions, cancellation, and results to ACP, Claude managed runtimes, in-process SDKs, or custom agents.
 
-- A framework for work-event ingestion, scope resolution, context engineering, durable runs, attempts, and effects.
-- An orchestrator between Work Protocol and Agent Protocol implementations.
-- A set of neutral interfaces, schemas, reference implementations, and a conformance harness.
-- A library that can be embedded in infrastructure you own.
+ACP is the first open Agent Driver binding. HTTP, WebSocket, webhooks, polling, and SDK calls are transport choices of a binding, not new core domains.
+
+## Matter
+
+A `Matter` is a durable identity for “the thing being worked on.” It may be represented by a Linear issue ID, GitHub pull request, URL, channel thread, team alias, natural-language phrase, or several of these at once.
+
+OpenMatter does not require every mention to resolve. Unknown or ambiguous references retain their raw text and provenance until application code, a deterministic resolver, an agent proposal, or a user confirmation links them.
+
+## Scheduled work
+
+Proactive behavior is ordinary scheduled code:
+
+```ts
+app.schedule("issue-patrol", cron("*/15 * * * *"), async (work) => {
+  const issues = await work.integration("linear").issues.list({ state: "open" });
+
+  if (issues.length === 0) {
+    return work.react.none("No open issues require attention");
+  }
+
+  const result = await work.agent("worker").session({
+    scope: await work.scopes.resolve("project"),
+    thread: await work.threads.continue("issue-patrol"),
+  }).turn({ context: issues });
+
+  return work.react(result);
+});
+```
+
+Each schedule tick becomes a `WorkEvent` and follows the same scope, context, session, turn, and reaction lifecycle as provider events.
+
+## Serializable where it matters
+
+OpenMatter does not try to serialize application code. It emits versioned JSON records for:
+
+- component manifests;
+- provider capabilities;
+- normalized events and references;
+- scopes, matters, work threads, sessions, turns, and reactions;
+- context provenance and authorization decisions;
+- execution traces and effect receipts.
+
+These records support visualization, auditing, replay, conformance testing, and storage neutrality while leaving the application fully programmable.
 
 ## What OpenMatter is not
 
-- Not another model, prompt-chain, or agent-brain framework.
-- Not a replacement for ACP, a model SDK, or an agent-internal tool loop.
-- Not a required hosted hub, SaaS control plane, or central broker.
-- Not tied to one IM, kanban product, database, queue, cloud, or deployment topology.
-
-## Neutral by design
-
-OpenMatter core depends on ports rather than infrastructure products:
-
-- **WorkIntegration** supplies provider events, context resources, effects, capabilities, and auth.
-- **AgentDriver** supplies sessions, attempts, updates, permission handling, cancellation, and results.
-- **ScopeResolver** selects active scopes for an event.
-- **ContextProjector** collects, authorizes, filters, ranks, budgets, and snapshots context.
-- **RunStore** persists scopes, runs, attempts, effects, leases, and audit records.
-- **AttemptRunner** executes a frozen run context through a selected AgentDriver.
-- **EffectDispatcher** applies idempotent outcomes to source systems.
-
-An implementation may use memory, SQLite, Postgres, object storage, queues, or a custom durable backend. It may run as an embedded library, a single process, a sidecar, a worker service, a serverless function, or a distributed deployment.
-
-## Relationship to agent frameworks
-
-OpenMatter manages the work around an agent. The selected Agent Protocol binding may use ACP, a managed agent API, or another compatible runtime; the agent may use any model or internal framework.
-
-```text
-Slack / Lark / Teams / GitHub / Kanban
-                    |
-              Work Protocol
-                    |
-          OpenMatter Orchestrator
-                    |
-              Agent Protocol
-              /            \
-            ACP      managed runtime
-             |              |
-       Claude / Codex / custom agent
-       LangChain / LangGraph / other runtime
-```
+- Not another prompt-chain, graph, planner, or agent-brain framework.
+- Not a replacement for ACP, model SDKs, or agent-internal tools.
+- Not a mandatory Hub, SaaS control plane, database, queue, or cloud.
+- Not a closed JSON DSL that limits application behavior.
+- Not tied to one IM, kanban product, runtime, transport, or deployment shape.
 
 ## Documentation
 
 - [Product and architecture brief](docs/BRIEF.md)
-- API reference, integrations, deployment guides, and examples will arrive with the first executable release.
+- [Current design decisions](docs/DECISIONS.md)
+- [Domain model](docs/DOMAIN_MODEL.md)
+- [Code-first SDK shape](docs/SDK_SHAPE.md)
+- [Work integrations and Matter references](docs/INTEGRATIONS.md)
+- [Agent runtime and session lifecycle](docs/AGENT_RUNTIME.md)
+- [Design references and platform APIs](docs/REFERENCES.md)
 
-## Initial direction
-
-The integration-first milestone is expected to include:
-
-- an integration contract covering Events, Context, Effects, and Capabilities;
-- an Agent Protocol contract plus ACP and managed-runtime bindings;
-- one complete reference work-system integration;
-- a harness for provider capability, idempotency, and effect behavior;
-- neutral schemas for events, scopes, context, runs, attempts, and effects;
-- an in-memory runtime plus storage and deployment ports.
-
-OpenMatter is being designed in the open. The repository will evolve from this brief into executable schemas, integrations, agent drivers, and a stable orchestrator.
+> [!IMPORTANT]
+> OpenMatter is in its design and framework setup stage. The current interfaces are directional and will be validated through reference integrations, drivers, and a conformance harness before becoming a compatibility promise.
