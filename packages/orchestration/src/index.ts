@@ -79,7 +79,14 @@ export const installClaudeTag = (
       if (!isRecord(work.event.payload)) {
         throw new Error("Claude Tag requires a Slack message payload");
       }
-      const { activation, channelId, threadTs, surface } = work.event.payload;
+      const {
+        activation,
+        channelId,
+        contextTeamId,
+        messageTs,
+        threadTs,
+        surface,
+      } = work.event.payload;
       if (
         work.event.type === `${integrationId}.message.received` &&
         activation !== "direct"
@@ -90,26 +97,36 @@ export const installClaudeTag = (
       }
       if (
         typeof channelId !== "string" ||
+        typeof messageTs !== "string" ||
         typeof threadTs !== "string" ||
         (surface !== "channel" && surface !== "dm")
       ) {
-        throw new Error("Claude Tag requires channelId, threadTs, and surface");
+        throw new Error(
+          "Claude Tag requires channelId, messageTs, threadTs, and surface",
+        );
       }
       const scopeId = `${integrationId}:${work.event.source.authority}:${surface}:${channelId}`;
-      const workThreadId = `${integrationId}:${work.event.source.authority}:${channelId}:thread:${threadTs}`;
+      const isDmConversation = surface === "dm" && threadTs === messageTs;
+      const operation = isDmConversation ? "message.post" : "message.reply";
+      const workThreadId = isDmConversation
+        ? `${integrationId}:${work.event.source.authority}:${channelId}:dm`
+        : `${integrationId}:${work.event.source.authority}:${channelId}:thread:${threadTs}`;
       const { context, turn } = yield* projectAndTurn(
         work,
         scopeId,
         workThreadId,
-        `${integrationId}.message.reply`,
+        `${integrationId}.${operation}`,
       );
       const reply = yield* work.effect(context, {
         integrationId,
-        operation: "message.reply",
+        operation,
         input: {
           teamId: work.event.source.authority,
           channelId,
-          threadTs,
+          ...(typeof contextTeamId === "string"
+            ? { clientContextTeamId: contextTeamId }
+            : {}),
+          ...(operation === "message.reply" ? { threadTs } : {}),
           text: outputText(turn.output),
         },
       });

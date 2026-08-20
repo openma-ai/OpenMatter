@@ -12,6 +12,10 @@ export default defineConfig({
       "@openmatter/store-memory": fromRoot(
         "./packages/store-memory/src/index.ts",
       ),
+      "@openmatter/inbox": fromRoot("./packages/inbox/src/index.ts"),
+      "@openmatter/inbox-sqlite": fromRoot(
+        "./packages/inbox-sqlite/src/index.ts",
+      ),
       "@openmatter/integration": fromRoot(
         "./packages/integration/src/index.ts",
       ),

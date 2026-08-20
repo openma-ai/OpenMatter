@@ -14,7 +14,7 @@ export interface SlackCredentials {
 }
 
 export type SlackCredentialResolver = (
-  teamId: string,
+  authorityId: string,
 ) =>
   | SlackCredentials
   | Promise<SlackCredentials>
@@ -36,7 +36,10 @@ export interface SlackIntegration {
 }
 
 export interface SlackThreadContextInput {
+  /** Credential installation authority (workspace or Enterprise org ID). */
   readonly teamId: string;
+  /** Workspace perspective for a channel reached through an org-wide token. */
+  readonly contextTeamId?: string;
   readonly channelId: string;
   readonly threadTs: string;
   readonly limit?: number;
@@ -45,6 +48,7 @@ export interface SlackThreadContextInput {
 
 export interface SlackHistoryContextInput {
   readonly teamId: string;
+  readonly contextTeamId?: string;
   readonly channelId: string;
   readonly limit?: number;
   readonly cursor?: string;
@@ -61,6 +65,7 @@ export interface SlackContextReader {
   ) => Effect.Effect<ContextItem, IntegrationError>;
   readonly conversation: (input: {
     readonly teamId: string;
+    readonly contextTeamId?: string;
     readonly channelId: string;
   }) => Effect.Effect<ContextItem, IntegrationError>;
   readonly user: (input: {

@@ -4,7 +4,7 @@ import { isRecord } from "./shared.js";
 import type { SlackCredentials, SlackIntegrationOptions } from "./types.js";
 
 export type SlackCredentialsFor = (
-  teamId: string | undefined,
+  authorityId: string | undefined,
 ) => Effect.Effect<SlackCredentials, IntegrationError>;
 
 export const makeSlackCredentialsFor = (
@@ -30,22 +30,22 @@ export const makeSlackCredentialsFor = (
         );
 
   const credentialsFor = (
-    teamId: string | undefined,
+    authorityId: string | undefined,
   ): Effect.Effect<SlackCredentials, IntegrationError> => {
     if (typeof options.credentials !== "function") {
       return validateCredentials(options);
     }
-    if (teamId === undefined) {
+    if (authorityId === undefined) {
       return Effect.fail(
         new IntegrationError({
-          message: "Slack authority teamId is required to resolve credentials",
+          message: "Slack authority ID is required to resolve credentials",
           retryable: false,
         }),
       );
     }
     return Effect.suspend(() => {
       try {
-        const result = options.credentials(teamId);
+        const result = options.credentials(authorityId);
         if (Effect.isEffect(result)) {
           return result.pipe(Effect.flatMap(validateCredentials));
         }
@@ -54,7 +54,7 @@ export const makeSlackCredentialsFor = (
             try: () => result,
             catch: (cause) =>
               new IntegrationError({
-                message: `Unable to resolve Slack credentials for ${teamId}`,
+                message: `Unable to resolve Slack credentials for ${authorityId}`,
                 retryable: true,
                 cause,
               }),
@@ -64,7 +64,7 @@ export const makeSlackCredentialsFor = (
       } catch (cause) {
         return Effect.fail(
           new IntegrationError({
-            message: `Unable to resolve Slack credentials for ${teamId}`,
+            message: `Unable to resolve Slack credentials for ${authorityId}`,
             retryable: true,
             cause,
           }),

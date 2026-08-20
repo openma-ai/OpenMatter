@@ -76,6 +76,9 @@ importers:
       "@openmatter/host-local":
         specifier: workspace:*
         version: link:../../packages/host-local
+      "@openmatter/inbox":
+        specifier: workspace:*
+        version: link:../../packages/inbox
       "@openmatter/integration-slack":
         specifier: workspace:*
         version: link:../../packages/integration-slack
@@ -152,6 +155,12 @@ importers:
 
   packages/host-local:
     dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/inbox":
+        specifier: workspace:*
+        version: link:../inbox
       "@openmatter/runtime":
         specifier: workspace:*
         version: link:../runtime
@@ -163,6 +172,21 @@ importers:
         version: 7.29.0
 
   packages/http: {}
+
+  packages/inbox:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+
+  packages/inbox-sqlite:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/inbox":
+        specifier: workspace:*
+        version: link:../inbox
 
   packages/integration:
     dependencies:

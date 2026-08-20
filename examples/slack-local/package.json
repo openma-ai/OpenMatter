@@ -6,6 +6,7 @@
   "dependencies": {
     "@openmatter/agent": "workspace:*",
     "@openmatter/host-local": "workspace:*",
+    "@openmatter/inbox": "workspace:*",
     "@openmatter/integration-slack": "workspace:*",
     "@openmatter/orchestration": "workspace:*",
     "@openmatter/runtime": "workspace:*",

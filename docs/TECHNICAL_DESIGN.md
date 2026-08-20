@@ -62,6 +62,8 @@ claim token, or fencing token.
 @openmatter/core              immutable records and Effect Schemas
 @openmatter/store             durable Store port
 @openmatter/store-memory      in-process reference Store
+@openmatter/inbox             durable transport-envelope port
+@openmatter/inbox-sqlite      embedded Node inbox adapter
 @openmatter/integration       WorkIntegration port
 @openmatter/integration-mock  reference work adapter
 @openmatter/agent             AgentDriver and OpenMAEvent port
@@ -78,11 +80,13 @@ databases, ACP clients, cloud runtimes, and HTTP frameworks belong in adapters,
 not in core or runtime.
 
 Host packages are thin lifecycle bindings, not alternate runtimes. They do not
-own context, policy, Session semantics, or persistence. The Cloudflare binding
+own context, policy, or Session semantics. The Cloudflare binding
 ACKs signed HTTP ingress by enqueueing a portable input and invokes the same
 application from its Queue consumer. The local binding uses Slack's official
-Socket Mode client and passes pre-authenticated envelopes to the same Slack
-integration.
+Socket Mode client, persists pre-authenticated envelopes through a separately
+injected `DurableInbox`, ACKs only after that commit, and passes claimed bodies
+to the same Slack integration. Transport-inbox persistence stays separate from
+the domain Store.
 
 ## 4. Work Integration
 

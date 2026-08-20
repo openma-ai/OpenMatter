@@ -93,7 +93,7 @@ code. A credential store plugs in through the authority resolver:
 
 ```ts
 const slack = makeSlackIntegration({
-  credentials: (teamId) => credentialStore.slack(teamId),
+  credentials: (authorityId) => credentialStore.slack(authorityId),
 });
 ```
 
@@ -101,11 +101,15 @@ The same resolver is used for ingress bot identity, Context reads, and Effect
 delivery. Tokens are never placed in WorkEvents, Context, Agent input, or
 provider receipts. For Slack Connect, authority is the app installation in
 `authorizations[0].team_id`, not necessarily the workspace that originated the
-message. Org-wide interactions fall back to the installed team recorded by the
-view or user. With static single-workspace credentials, `botToken` and
-`botUserId` remain supported directly. Effects using a resolver carry the
-non-secret authority `teamId` in their input; the built-in Claude Tag preset
-adds it automatically.
+message. For an organization-wide installation, authority is its Enterprise ID
+and selects the org token. Slack's separate incoming `context_team_id` is the
+workspace perspective of the channel; normalized events expose it as
+`contextTeamId` only when it differs from authority, and channel operations send
+it back as `client_context_team_id`. This follows Slack's
+[organization-ready app model](https://docs.slack.dev/enterprise/developing-for-enterprise-orgs/)
+instead of conflating credential ownership with resource location. With static
+single-workspace credentials, `botToken` and `botUserId` remain supported
+directly.
 
 Slack surfaces that require a synchronous, payload-bearing acknowledgement are
 not disguised as durable Agent work. This v0 does not expose external-select
@@ -133,15 +137,18 @@ The preset follows these defaults:
 
 | Input           | AgentScope                   | WorkThread                  | Output                    |
 | --------------- | ---------------------------- | --------------------------- | ------------------------- |
-| channel mention | Slack workspace + channel    | Slack root thread           | reply in that thread      |
-| direct message  | Slack workspace + DM         | DM root thread              | reply in that DM thread   |
-| slash command   | Slack workspace + channel/DM | isolated command invocation | private ephemeral message |
+| channel mention | Slack authority + channel    | Slack root thread           | reply in that thread      |
+| direct message  | Slack authority + DM         | shared DM conversation      | post in that conversation |
+| threaded DM     | Slack authority + DM         | explicit Slack root thread  | reply in that thread      |
+| slash command   | Slack authority + channel/DM | isolated command invocation | private ephemeral message |
 
 The deterministic Scope and WorkThread bindings cause later activations in the
-same thread to reuse the same durable Agent Session. Every Turn receives a new
-immutable ContextProjection containing the triggering event plus items returned
-by the application's `context` loader. Only the output operation required by
-that activation is granted.
+same channel thread—or ordinary messages in the same DM conversation—to reuse
+the same durable Agent Session. An explicit Slack thread inside a DM gets a
+separate WorkThread. Every Turn receives a new immutable ContextProjection
+containing the triggering event plus items returned by the application's
+`context` loader. Only the output operation required by that activation is
+granted.
 
 ```ts
 installClaudeTag(app, {
@@ -151,11 +158,15 @@ installClaudeTag(app, {
   context: (work) => {
     const payload = work.event.payload as {
       channelId: string;
+      contextTeamId?: string;
       threadTs: string;
     };
     return slack.context
       .thread({
         teamId: work.event.source.authority,
+        ...(payload.contextTeamId === undefined
+          ? {}
+          : { contextTeamId: payload.contextTeamId }),
         channelId: payload.channelId,
         threadTs: payload.threadTs,
         limit: 50,
@@ -237,19 +248,25 @@ When a laptop, private network, or local server cannot expose a Request URL,
 [`@slack/socket-mode`](https://docs.slack.dev/tools/node-slack-sdk/socket-mode)
 client. Socket Mode delivers pre-authenticated envelopes over a reconnecting
 WebSocket, so per-request signature verification is neither required nor
-performed. The host acknowledges each envelope before passing an immutable
-snapshot of its native body through the same Slack integration. It retries
-typed busy and infrastructure failures in-process, owns every processing Fiber,
-and interrupts and waits for them during shutdown. It also owns a 30-second
+performed. The host first validates and persists an immutable snapshot of each
+native body through `DurableInbox`, then acknowledges Slack. A supervised
+consumer claims pending or expired items, renews fenced leases during long
+Agent Turns, and completes or durably reschedules them. The host owns every
+processing Fiber and interrupts and releases them during shutdown. It also owns a 30-second
 durable-effect recovery interval by default; pass `recoveryIntervalMs: false`
 only when an external scheduler calls `service.recover()` instead.
 
 ```ts
+const inbox = makeSqliteInbox({
+  filename: "./data/openmatter-inbox.sqlite",
+});
+
 const service = makeLocalSlackService({
   appToken: process.env.SLACK_APP_TOKEN!,
   botToken: process.env.SLACK_BOT_TOKEN!,
   botUserId: process.env.SLACK_BOT_USER_ID!,
   store,
+  inbox,
   claude: agentDriver,
 });
 
@@ -262,8 +279,9 @@ and billing, while Workers already provide a public HTTP endpoint. Switching
 between these hosts does not alter the WorkEvent, Scope, Session, or Reaction
 model.
 
-Because Socket Mode is acknowledged before durable acceptance, a local process
-crash in that gap can lose an envelope. The built-in local host is therefore a
-best-effort development/private transport, not durability-equivalent to the
-HTTP-plus-Queue host. A production local deployment that requires durable
-ingress should place its own durable queue before `acceptFromEffect`.
+`@openmatter/inbox-sqlite` is the embedded Node adapter; another database or
+queue can implement the same `@openmatter/inbox` port. Completed inbox rows are
+retained for provider-envelope deduplication. The transport inbox does not
+replace `OpenMatterStore`: a crash-safe standalone service needs both on durable
+storage. Slack Web API Effects remain at-least-once where Slack exposes no
+idempotency key.

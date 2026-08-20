@@ -100,6 +100,13 @@ export const slackAuthorityFrom = (input: unknown): string | undefined => {
     : undefined;
   if (
     isRecord(firstAuthorization) &&
+    firstAuthorization.is_enterprise_install === true &&
+    typeof firstAuthorization.enterprise_id === "string"
+  ) {
+    return firstAuthorization.enterprise_id;
+  }
+  if (
+    isRecord(firstAuthorization) &&
     typeof firstAuthorization.team_id === "string"
   ) {
     return firstAuthorization.team_id;
@@ -113,4 +120,30 @@ export const slackAuthorityFrom = (input: unknown): string | undefined => {
     return input.user.team_id;
   }
   return typeof view?.team_id === "string" ? view.team_id : undefined;
+};
+
+/** Resolve the workspace perspective of Slack resources separately from the
+ * installation whose token authorizes the event. */
+export const slackContextTeamIdFrom = (
+  input: unknown,
+  authority: string | undefined,
+): string | undefined => {
+  if (!isRecord(input)) return undefined;
+  if (typeof input.context_team_id === "string") {
+    return input.context_team_id;
+  }
+  if (typeof input.client_context_team_id === "string") {
+    return input.client_context_team_id;
+  }
+  if (typeof input.team_id === "string") return input.team_id;
+  if (typeof input.team === "string") return input.team;
+  if (isRecord(input.team) && typeof input.team.id === "string") {
+    return input.team.id;
+  }
+  if (isRecord(input.user) && typeof input.user.team_id === "string") {
+    return input.user.team_id;
+  }
+  const view = isRecord(input.view) ? input.view : undefined;
+  if (typeof view?.team_id === "string") return view.team_id;
+  return authority?.startsWith("T") ? authority : undefined;
 };

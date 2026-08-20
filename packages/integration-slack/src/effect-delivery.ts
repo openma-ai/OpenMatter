@@ -35,11 +35,38 @@ export const makeSlackEffectDelivery = (input: {
     }
     const teamId =
       typeof effect.input.teamId === "string" ? effect.input.teamId : undefined;
+    const clientContextTeamId = effect.input.clientContextTeamId;
+    if (
+      clientContextTeamId !== undefined &&
+      typeof clientContextTeamId !== "string"
+    ) {
+      return Effect.fail(
+        new IntegrationError({
+          message: `Slack ${effect.operation} clientContextTeamId must be a string`,
+          retryable: false,
+        }),
+      );
+    }
     const call = (
       method: string,
       body: Record<string, unknown>,
       acceptedErrors: readonly string[] = [],
     ) => apiCall(method, body, acceptedErrors, teamId);
+    const callWithChannelContext = (
+      method: string,
+      body: Record<string, unknown>,
+      acceptedErrors: readonly string[] = [],
+    ) =>
+      call(
+        method,
+        {
+          ...body,
+          ...(clientContextTeamId === undefined
+            ? {}
+            : { client_context_team_id: clientContextTeamId }),
+        },
+        acceptedErrors,
+      );
     if (effect.operation === "file.upload") {
       const { filename, content, title, channelId, threadTs, initialComment } =
         effect.input;
@@ -103,7 +130,7 @@ export const makeSlackEffectDelivery = (input: {
             ...(retryAt === undefined ? {} : { retryAt }),
           });
         }
-        return yield* call("files.completeUploadExternal", {
+        return yield* callWithChannelContext("files.completeUploadExternal", {
           files: [{ id: fileId, title: title ?? filename }],
           ...(channelId === undefined ? {} : { channel_id: channelId }),
           ...(threadTs === undefined ? {} : { thread_ts: threadTs }),
@@ -198,7 +225,7 @@ export const makeSlackEffectDelivery = (input: {
           }),
         );
       }
-      return call(
+      return callWithChannelContext(
         "reactions.add",
         {
           channel: channelId,
@@ -223,7 +250,7 @@ export const makeSlackEffectDelivery = (input: {
           }),
         );
       }
-      return call(
+      return callWithChannelContext(
         "reactions.remove",
         { channel: channelId, timestamp: messageTs, name: emoji },
         ["no_reaction"],
@@ -245,7 +272,7 @@ export const makeSlackEffectDelivery = (input: {
           }),
         );
       }
-      return call("chat.update", {
+      return callWithChannelContext("chat.update", {
         channel: channelId,
         ts: messageTs,
         ...(text === undefined ? {} : { text }),
@@ -262,9 +289,11 @@ export const makeSlackEffectDelivery = (input: {
           }),
         );
       }
-      return call("chat.delete", { channel: channelId, ts: messageTs }, [
-        "message_not_found",
-      ]);
+      return callWithChannelContext(
+        "chat.delete",
+        { channel: channelId, ts: messageTs },
+        ["message_not_found"],
+      );
     }
     if (effect.operation === "message.schedule") {
       const { channelId, postAt, text } = effect.input;
@@ -282,7 +311,7 @@ export const makeSlackEffectDelivery = (input: {
           }),
         );
       }
-      return call("chat.scheduleMessage", {
+      return callWithChannelContext("chat.scheduleMessage", {
         channel: channelId,
         post_at: postAt,
         ...(text === undefined ? {} : { text }),
@@ -303,7 +332,7 @@ export const makeSlackEffectDelivery = (input: {
           }),
         );
       }
-      return call("chat.deleteScheduledMessage", {
+      return callWithChannelContext("chat.deleteScheduledMessage", {
         channel: channelId,
         scheduled_message_id: scheduledMessageId,
       });
@@ -318,7 +347,7 @@ export const makeSlackEffectDelivery = (input: {
           }),
         );
       }
-      return call("chat.postMessage", {
+      return callWithChannelContext("chat.postMessage", {
         channel: channelId,
         text,
         ...(blocks === undefined ? {} : { blocks }),
@@ -339,7 +368,7 @@ export const makeSlackEffectDelivery = (input: {
           }),
         );
       }
-      return call("chat.postEphemeral", {
+      return callWithChannelContext("chat.postEphemeral", {
         channel: channelId,
         user: userId,
         text,
@@ -367,7 +396,7 @@ export const makeSlackEffectDelivery = (input: {
         }),
       );
     }
-    return call("chat.postMessage", {
+    return callWithChannelContext("chat.postMessage", {
       channel: channelId,
       thread_ts: threadTs,
       text,

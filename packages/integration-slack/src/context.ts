@@ -70,6 +70,7 @@ export const makeSlackContextReader = (
           ts: input.threadTs,
           limit: input.limit,
           cursor: input.cursor,
+          client_context_team_id: input.contextTeamId,
         },
         input.teamId,
       ).pipe(
@@ -80,6 +81,9 @@ export const makeSlackContextReader = (
             kind: "slack.thread",
             value: {
               teamId: input.teamId,
+              ...(input.contextTeamId === undefined
+                ? {}
+                : { contextTeamId: input.contextTeamId }),
               channelId: input.channelId,
               threadTs: input.threadTs,
               messages: result.messages,
@@ -100,6 +104,7 @@ export const makeSlackContextReader = (
           cursor: input.cursor,
           oldest: input.oldest,
           latest: input.latest,
+          client_context_team_id: input.contextTeamId,
         },
         input.teamId,
       ).pipe(
@@ -110,6 +115,9 @@ export const makeSlackContextReader = (
             kind: "slack.channel-history",
             value: {
               teamId: input.teamId,
+              ...(input.contextTeamId === undefined
+                ? {}
+                : { contextTeamId: input.contextTeamId }),
               channelId: input.channelId,
               messages: result.messages,
               hasMore: result.hasMore,
@@ -122,7 +130,10 @@ export const makeSlackContextReader = (
     conversation: (input) =>
       apiRead(
         "conversations.info",
-        { channel: input.channelId },
+        {
+          channel: input.channelId,
+          client_context_team_id: input.contextTeamId,
+        },
         input.teamId,
       ).pipe(
         Effect.flatMap((payload) =>
@@ -140,7 +151,13 @@ export const makeSlackContextReader = (
           contextItem({
             id: `slack:${input.teamId}:conversation:${input.channelId}`,
             kind: "slack.conversation",
-            value: { teamId: input.teamId, channel },
+            value: {
+              teamId: input.teamId,
+              ...(input.contextTeamId === undefined
+                ? {}
+                : { contextTeamId: input.contextTeamId }),
+              channel,
+            },
             sourceId: `${input.teamId}:${input.channelId}`,
           }),
         ),

@@ -18,6 +18,7 @@ export const normalizeSlackEvents = (
   input: unknown,
   botUserId: string,
   authority: string | undefined,
+  contextTeamId: string | undefined,
   clock: () => string,
 ) =>
   Effect.try({
@@ -55,6 +56,7 @@ export const normalizeSlackEvents = (
               activation: "command",
               surface: input.channel_id.startsWith("D") ? "dm" : "channel",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               channelId: input.channel_id,
               userId: input.user_id,
               command: input.command,
@@ -120,6 +122,7 @@ export const normalizeSlackEvents = (
                     ? "dm"
                     : "channel",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               ...(channelId === undefined ? {} : { channelId }),
               ...(threadTs === undefined ? {} : { threadTs }),
               ...(messageTs === undefined ? {} : { messageTs }),
@@ -189,6 +192,7 @@ export const normalizeSlackEvents = (
                     ? "dm"
                     : "channel",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               ...(channelId === undefined ? {} : { channelId }),
               ...(threadTs === undefined ? {} : { threadTs }),
               ...(messageTs === undefined ? {} : { messageTs }),
@@ -244,6 +248,7 @@ export const normalizeSlackEvents = (
               activation: "form",
               surface: "modal",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               userId: user.id,
               ...(typeof input.trigger_id === "string"
                 ? { triggerId: input.trigger_id }
@@ -296,6 +301,7 @@ export const normalizeSlackEvents = (
               activation: "observation",
               surface: "modal",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               userId: user.id,
               viewId: view.id,
               ...(typeof view.callback_id === "string"
@@ -348,6 +354,7 @@ export const normalizeSlackEvents = (
             payload: {
               activation: "observation",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               eventType:
                 typeof event.subtype === "string"
                   ? `message.${event.subtype}`
@@ -397,6 +404,7 @@ export const normalizeSlackEvents = (
                   ? "dm"
                   : "channel",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               channelId: event.channel,
               threadTs,
               messageTs: message.ts,
@@ -443,6 +451,7 @@ export const normalizeSlackEvents = (
               activation: "observation",
               surface: event.channel.startsWith("D") ? "dm" : "channel",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               channelId: event.channel,
               threadTs,
               messageTs: event.deleted_ts,
@@ -489,6 +498,7 @@ export const normalizeSlackEvents = (
             payload: {
               activation: "observation",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               channelId: item.channel,
               messageTs: item.ts,
               userId: event.user,
@@ -520,6 +530,7 @@ export const normalizeSlackEvents = (
             payload: {
               activation: "observation",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               eventType:
                 typeof event.subtype === "string"
                   ? `message.${event.subtype}`
@@ -565,6 +576,7 @@ export const normalizeSlackEvents = (
             payload: {
               activation: "observation",
               teamId: authority,
+              ...(contextTeamId === undefined ? {} : { contextTeamId }),
               eventType: event.type,
               event: structuredClone(event) as JsonValue,
             },
@@ -615,6 +627,7 @@ export const normalizeSlackEvents = (
             activation,
             surface,
             teamId: authority,
+            ...(contextTeamId === undefined ? {} : { contextTeamId }),
             channelId: event.channel,
             threadTs,
             messageTs: event.ts,

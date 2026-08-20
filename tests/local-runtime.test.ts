@@ -2,12 +2,17 @@ import { createOpenMatter, SessionBusyError } from "@openmatter/runtime";
 import type { OpenMatterApplication } from "@openmatter/runtime";
 import { makeMemoryStore } from "@openmatter/store-memory";
 import { Effect } from "effect";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { makeLocalSlackRuntime } from "../packages/host-local/src/index.js";
+import {
+  makeSqliteInbox,
+  type SqliteInbox,
+} from "../packages/inbox-sqlite/src/index.js";
 import { makeSlackIntegration } from "../packages/integration-slack/src/index.js";
 
 type SocketListener = (event: {
   readonly type: string;
+  readonly envelope_id: string;
   readonly body: unknown;
   readonly ack: () => Promise<void>;
 }) => Promise<void> | void;
@@ -39,17 +44,226 @@ class TestSocketModeClient {
 
   async disconnect(): Promise<void> {}
 
-  async receive(event: string, body: unknown, ack: () => Promise<void>) {
+  async receive(
+    event: string,
+    body: unknown,
+    ack: () => Promise<void>,
+    envelopeId = "socket-envelope-1",
+  ) {
     const listeners = this.listeners.get("slack_event");
     if (listeners === undefined)
       throw new Error("No listener for Slack's universal slack_event");
     for (const listener of listeners) {
-      await listener({ type: event, body, ack });
+      await listener({ type: event, envelope_id: envelopeId, body, ack });
     }
   }
 }
 
+const waitFor = async (
+  predicate: () => boolean | Promise<boolean>,
+  timeoutMs = 500,
+) => {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await predicate())) {
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for state");
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+};
+
 describe("local Slack Socket Mode runtime", () => {
+  const inboxes: SqliteInbox[] = [];
+  const testInbox = () => {
+    const inbox = makeSqliteInbox({ filename: ":memory:" });
+    inboxes.push(inbox);
+    return inbox;
+  };
+
+  afterEach(async () => {
+    for (const inbox of inboxes.splice(0)) {
+      await Effect.runPromise(inbox.close);
+    }
+  });
+
+  it("persists a Socket envelope before acknowledging it", async () => {
+    const order: string[] = [];
+    const client = new TestSocketModeClient();
+    const inbox = {
+      enqueue: () =>
+        Effect.sync(() => {
+          order.push("persisted");
+          return "stored" as const;
+        }),
+      claim: () => Effect.succeed([]),
+      complete: () => Effect.void,
+      retry: () => Effect.void,
+      renew: () => Effect.void,
+    };
+    const application = {
+      acceptFromEffect: () =>
+        Effect.sync(() => {
+          order.push("processed");
+          return [];
+        }),
+      recoverEffectsEffect: () => Effect.succeed([]),
+    } as unknown as OpenMatterApplication;
+    const runtime = makeLocalSlackRuntime({
+      appToken: "xapp-test",
+      application,
+      client,
+      inbox,
+      recoveryIntervalMs: false,
+    } as never);
+
+    await runtime.start();
+    await client.receive(
+      "events_api",
+      { type: "event_callback" },
+      async () => void order.push("acked"),
+    );
+    await runtime.stop();
+
+    expect(order).toEqual(["persisted", "acked"]);
+  });
+
+  it("does not hold Slack acknowledgement open for Agent processing", async () => {
+    const client = new TestSocketModeClient();
+    const application = {
+      acceptFromEffect: () => Effect.never,
+      recoverEffectsEffect: () => Effect.succeed([]),
+    } as unknown as OpenMatterApplication;
+    const runtime = makeLocalSlackRuntime({
+      appToken: "xapp-test",
+      application,
+      inbox: testInbox(),
+      client,
+      recoveryIntervalMs: false,
+      inboxPollIntervalMs: 1,
+    });
+
+    await runtime.start();
+    const receipt = client.receive(
+      "events_api",
+      { type: "event_callback" },
+      async () => undefined,
+    );
+    const outcome = await Promise.race([
+      receipt.then(() => "acknowledged" as const),
+      new Promise<"timed-out">((resolve) =>
+        setTimeout(() => resolve("timed-out"), 50),
+      ),
+    ]);
+    await runtime.stop();
+
+    expect(outcome).toBe("acknowledged");
+  });
+
+  it("does not acknowledge a Socket envelope when durable persistence fails", async () => {
+    const client = new TestSocketModeClient();
+    let acknowledged = false;
+    const inbox = {
+      enqueue: () => Effect.fail(new Error("disk unavailable")),
+      claim: () => Effect.succeed([]),
+      complete: () => Effect.void,
+      retry: () => Effect.void,
+      renew: () => Effect.void,
+    };
+    const application = {
+      acceptFromEffect: () => Effect.succeed([]),
+      recoverEffectsEffect: () => Effect.succeed([]),
+    } as unknown as OpenMatterApplication;
+    const runtime = makeLocalSlackRuntime({
+      appToken: "xapp-test",
+      application,
+      client,
+      inbox,
+      recoveryIntervalMs: false,
+    } as never);
+
+    await runtime.start();
+    await client.receive(
+      "events_api",
+      { type: "event_callback" },
+      async () => void (acknowledged = true),
+    );
+    await runtime.stop();
+
+    expect(acknowledged).toBe(false);
+  });
+
+  it("processes a pending durable envelope when a local runtime starts", async () => {
+    const client = new TestSocketModeClient();
+    let claimed = false;
+    let completed = false;
+    let markProcessed: (() => void) | undefined;
+    const processed = new Promise<void>((resolve) => {
+      markProcessed = resolve;
+    });
+    const inbox = {
+      enqueue: () => Effect.succeed("stored" as const),
+      claim: () =>
+        Effect.sync(() => {
+          if (claimed) return [];
+          claimed = true;
+          return [
+            {
+              item: {
+                id: "slack:socket-envelope-pending",
+                idempotencyKey: "slack:socket-envelope-pending",
+                integrationId: "slack",
+                eventType: "events_api",
+                body: { type: "event_callback", event_id: "EvPending" },
+                receivedAt: "2026-08-20T10:00:00.000Z",
+              },
+              attempt: 1,
+              lease: {
+                token: "lease-1",
+                ownerId: "local-1",
+                expiresAt: "2026-08-20T10:01:00.000Z",
+              },
+            },
+          ];
+        }),
+      complete: () =>
+        Effect.sync(() => {
+          completed = true;
+        }),
+      retry: () => Effect.void,
+      renew: () => Effect.void,
+    };
+    const accepted: unknown[] = [];
+    const application = {
+      acceptFromEffect: (_integrationId: string, input: unknown) =>
+        Effect.sync(() => {
+          accepted.push(input);
+          markProcessed?.();
+          return [];
+        }),
+      recoverEffectsEffect: () => Effect.succeed([]),
+    } as unknown as OpenMatterApplication;
+    const runtime = makeLocalSlackRuntime({
+      appToken: "xapp-test",
+      application,
+      client,
+      inbox,
+      recoveryIntervalMs: false,
+    } as never);
+
+    await runtime.start();
+    const outcome = await Promise.race([
+      processed.then(() => "processed" as const),
+      new Promise<"timed-out">((resolve) =>
+        setTimeout(() => resolve("timed-out"), 50),
+      ),
+    ]);
+    await runtime.stop();
+
+    expect(outcome).toBe("processed");
+    expect(accepted).toEqual([
+      { type: "event_callback", event_id: "EvPending" },
+    ]);
+    expect(completed).toBe(true);
+  });
+
   it("runs durable effect recovery on a host-owned interval", async () => {
     const client = new TestSocketModeClient();
     let markRecovered: (() => void) | undefined;
@@ -69,6 +283,7 @@ describe("local Slack Socket Mode runtime", () => {
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application,
+      inbox: testInbox(),
       client,
       recoveryIntervalMs: 1,
     });
@@ -101,6 +316,7 @@ describe("local Slack Socket Mode runtime", () => {
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application: app,
+      inbox: testInbox(),
       client,
     });
 
@@ -124,6 +340,7 @@ describe("local Slack Socket Mode runtime", () => {
         order.push("acked");
       },
     );
+    await waitFor(() => order.includes("handled"));
     await runtime.stop();
     const snapshot = await Effect.runPromise(store.inspect);
 
@@ -155,6 +372,7 @@ describe("local Slack Socket Mode runtime", () => {
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application: app,
+      inbox: testInbox(),
       client,
     });
 
@@ -172,6 +390,10 @@ describe("local Slack Socket Mode runtime", () => {
       },
       async () => undefined,
     );
+    await waitFor(async () => {
+      const snapshot = await Effect.runPromise(store.inspect);
+      return snapshot.reactions.length === 1;
+    });
     await runtime.stop();
     const snapshot = await Effect.runPromise(store.inspect);
 
@@ -193,6 +415,7 @@ describe("local Slack Socket Mode runtime", () => {
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application,
+      inbox: testInbox(),
       client,
       onError: (error) => errors.push(error),
     });
@@ -205,15 +428,65 @@ describe("local Slack Socket Mode runtime", () => {
         async () => undefined,
       ),
     ).resolves.toBeUndefined();
+    await waitFor(() => errors.length === 1);
     await runtime.stop();
 
     expect(errors).toEqual([
       expect.objectContaining({
         _tag: "LocalRuntimeError",
         phase: "ingest",
-        message: "Unable to process Slack events_api envelope",
+        message: "Unable to process durable events_api envelope",
       }),
     ]);
+  });
+
+  it("keeps the durable consumer alive after an application defect", async () => {
+    const client = new TestSocketModeClient();
+    const errors: unknown[] = [];
+    let attempts = 0;
+    let markSucceeded: (() => void) | undefined;
+    const succeeded = new Promise<void>((resolve) => {
+      markSucceeded = resolve;
+    });
+    const application = {
+      acceptFromEffect: () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("unexpected adapter defect");
+        return Effect.sync(() => {
+          markSucceeded?.();
+          return [];
+        });
+      },
+      recoverEffectsEffect: () => Effect.succeed([]),
+    } as unknown as OpenMatterApplication;
+    const runtime = makeLocalSlackRuntime({
+      appToken: "xapp-test",
+      application,
+      inbox: testInbox(),
+      client,
+      retryDelayMs: 0,
+      inboxPollIntervalMs: 1,
+      recoveryIntervalMs: false,
+      onError: (error) => errors.push(error),
+    });
+
+    await runtime.start();
+    await client.receive(
+      "events_api",
+      { type: "event_callback" },
+      async () => undefined,
+    );
+    const outcome = await Promise.race([
+      succeeded.then(() => "processed" as const),
+      new Promise<"timed-out">((resolve) =>
+        setTimeout(() => resolve("timed-out"), 50),
+      ),
+    ]);
+    await runtime.stop();
+
+    expect(outcome).toBe("processed");
+    expect(attempts).toBe(2);
+    expect(errors).toHaveLength(1);
   });
 
   it("does not duplicate listeners when Socket Mode start is retried", async () => {
@@ -240,6 +513,7 @@ describe("local Slack Socket Mode runtime", () => {
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application,
+      inbox: testInbox(),
       client,
     });
 
@@ -250,6 +524,7 @@ describe("local Slack Socket Mode runtime", () => {
       { type: "event_callback" },
       async () => void (acknowledged += 1),
     );
+    await waitFor(() => accepted === 1);
     await runtime.stop();
 
     expect(acknowledged).toBe(1);
@@ -279,6 +554,7 @@ describe("local Slack Socket Mode runtime", () => {
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application,
+      inbox: testInbox(),
       client,
     });
 
@@ -321,6 +597,7 @@ describe("local Slack Socket Mode runtime", () => {
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application,
+      inbox: testInbox(),
       client,
     });
 
@@ -362,6 +639,7 @@ describe("local Slack Socket Mode runtime", () => {
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application,
+      inbox: testInbox(),
       client,
     });
 
@@ -375,6 +653,10 @@ describe("local Slack Socket Mode runtime", () => {
   it("retries acknowledged work in-process when a Session lease is busy", async () => {
     const client = new TestSocketModeClient();
     let attempts = 0;
+    let markSucceeded: (() => void) | undefined;
+    const succeeded = new Promise<void>((resolve) => {
+      markSucceeded = resolve;
+    });
     const application = {
       acceptFromEffect: () =>
         Effect.suspend(() => {
@@ -387,15 +669,20 @@ describe("local Slack Socket Mode runtime", () => {
                   message: "Session is already leased",
                 }),
               )
-            : Effect.succeed([]);
+            : Effect.sync(() => {
+                markSucceeded?.();
+                return [];
+              });
         }),
     } as unknown as OpenMatterApplication;
     const runtime = makeLocalSlackRuntime({
       appToken: "xapp-test",
       application,
+      inbox: testInbox(),
       client,
       clock: () => Date.parse("2026-08-20T10:00:00.000Z"),
       retryDelayMs: 0,
+      inboxPollIntervalMs: 1,
     });
 
     await runtime.start();
@@ -404,6 +691,7 @@ describe("local Slack Socket Mode runtime", () => {
       { type: "event_callback" },
       async () => undefined,
     );
+    await succeeded;
     await runtime.stop();
 
     expect(attempts).toBe(2);

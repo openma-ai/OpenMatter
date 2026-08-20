@@ -15,6 +15,8 @@
       "@openmatter/core": ["./packages/core/src/index.ts"],
       "@openmatter/store": ["./packages/store/src/index.ts"],
       "@openmatter/store-memory": ["./packages/store-memory/src/index.ts"],
+      "@openmatter/inbox": ["./packages/inbox/src/index.ts"],
+      "@openmatter/inbox-sqlite": ["./packages/inbox-sqlite/src/index.ts"],
       "@openmatter/integration": ["./packages/integration/src/index.ts"],
       "@openmatter/integration-mock": [
         "./packages/integration-mock/src/index.ts"

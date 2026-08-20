@@ -1,9 +1,9 @@
 # Project structure
 
-| Field            | Value                               |
-| ---------------- | ----------------------------------- |
-| Status           | Executable canonical v0 foundation  |
-| Runtime baseline | Node.js 22+, TypeScript 6, Effect 3 |
+| Field            | Value                                 |
+| ---------------- | ------------------------------------- |
+| Status           | Executable canonical v0 foundation    |
+| Runtime baseline | Node.js 22.5+, TypeScript 6, Effect 3 |
 
 The canonical package split follows runtime responsibility rather than provider or product:
 
@@ -12,6 +12,8 @@ packages/
 ├── core                 immutable portable domain Schemas
 ├── store                durable claims, snapshots, outbox and fencing port
 ├── store-memory         process-local Store reference adapter
+├── inbox                durable native-ingress claim and fencing port
+├── inbox-sqlite         embedded Node durable-inbox adapter
 ├── integration          work-platform ingress/egress port
 ├── integration-mock     executable work-platform reference adapter
 ├── integration-slack    Slack events, operations and signed HTTP decoder
@@ -33,6 +35,7 @@ packages/
 
 ```text
 store-memory ──→ store ──┐
+inbox-sqlite ──→ inbox ───┤
 integration-mock → integration ─┼─→ core
 agent-mock ─────→ agent ────────┤
 agent-claude ───→ agent + @openma/common
@@ -40,7 +43,7 @@ runtime ────────→ store + integration + agent + core
 integration-slack → integration + core
 orchestration ───→ runtime + core
 host-cloudflare ─→ runtime + integration-slack + core
-host-local ──────→ runtime + Slack Socket Mode SDK
+host-local ──────→ runtime + inbox + Slack Socket Mode SDK
 fastify / hono ──→ http
 ```
 
@@ -49,6 +52,10 @@ All canonical packages share Effect as a peer dependency so Context tags, Fibers
 ## Storage boundary
 
 The canonical Store is behavior-oriented. It owns authoritative lease time, fencing, immutable snapshots, insert-once decisions, terminal Reactions, effect intents, and delivery receipts. The Memory Store implements the same behavior for tests but is not a production durability claim.
+
+`DurableInbox` is a separate transport boundary. It persists provider-native
+envelopes before an early ACK and replays them into the Runtime. Keeping it
+separate prevents Slack/queue receipt state from leaking into domain storage.
 
 ## Verification
 

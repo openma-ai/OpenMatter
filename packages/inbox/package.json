@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/host-local",
+  "name": "@openmatter/inbox",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,11 +16,7 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/inbox": "workspace:*",
-    "@openmatter/runtime": "workspace:*",
-    "@slack/socket-mode": "3.0.0",
-    "undici": "7.29.0"
+    "@openmatter/core": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

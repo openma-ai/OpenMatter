@@ -281,6 +281,56 @@ describe("Slack WorkIntegration", () => {
     });
   });
 
+  it("separates an org-wide credential authority from the channel context team", async () => {
+    const resolved: string[] = [];
+    const slack = makeSlackIntegration({
+      credentials: (authorityId: string) => {
+        resolved.push(authorityId);
+        return {
+          botToken: `token-${authorityId}`,
+          botUserId: `BOT-${authorityId}`,
+        };
+      },
+      fetch: async () => new Response(JSON.stringify({ ok: true })),
+    });
+
+    const events = await Effect.runPromise(
+      slack.integration.ingest({
+        type: "event_callback",
+        team_id: "TSOURCE",
+        context_team_id: "TCONTEXT",
+        context_enterprise_id: "EORG",
+        authorizations: [
+          {
+            enterprise_id: "EORG",
+            team_id: null,
+            user_id: "BOT-ORG",
+            is_bot: true,
+            is_enterprise_install: true,
+          },
+        ],
+        event_id: "EvOrgWide",
+        event: {
+          type: "app_mention",
+          user: "U01",
+          text: "<@BOT-EORG> inspect the shared incident",
+          ts: "1724140802.000000",
+          channel: "C01",
+          event_ts: "1724140802.000000",
+        },
+      }),
+    );
+
+    expect(resolved).toEqual(["EORG"]);
+    expect(events[0]).toMatchObject({
+      source: { provider: "slack", authority: "EORG" },
+      payload: {
+        teamId: "EORG",
+        contextTeamId: "TCONTEXT",
+      },
+    });
+  });
+
   it("falls back to the installed view team for org-wide interactions", async () => {
     const resolved: string[] = [];
     const slack = makeSlackIntegration({
@@ -844,6 +894,45 @@ describe("Slack WorkIntegration", () => {
         },
       ],
     });
+  });
+
+  it("reads a shared Enterprise channel through its client context team", async () => {
+    const requests: Array<{ url: string; authorization: string | null }> = [];
+    const slack = makeSlackIntegration({
+      credentials: (authorityId) => ({
+        botToken: `token-${authorityId}`,
+        botUserId: `BOT-${authorityId}`,
+      }),
+      fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          url: String(input),
+          authorization: new Headers(init?.headers).get("authorization"),
+        });
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [],
+            response_metadata: { next_cursor: "" },
+          }),
+        );
+      }) as typeof fetch,
+    });
+
+    await Effect.runPromise(
+      slack.context.thread({
+        teamId: "EORG",
+        contextTeamId: "TCONTEXT",
+        channelId: "C01",
+        threadTs: "1724140800.123456",
+      }),
+    );
+
+    expect(requests).toEqual([
+      {
+        url: "https://slack.com/api/conversations.replies?channel=C01&ts=1724140800.123456&client_context_team_id=TCONTEXT",
+        authorization: "Bearer token-EORG",
+      },
+    ]);
   });
 
   it("materializes bounded channel history without implicitly paginating", async () => {

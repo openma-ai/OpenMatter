@@ -5,7 +5,7 @@ import { makeSlackCredentialsFor } from "./credentials.js";
 import { makeSlackEffectDelivery } from "./effect-delivery.js";
 import { normalizeSlackEvents } from "./event-normalization.js";
 import { makeSlackProviderClient } from "./provider-client.js";
-import { slackAuthorityFrom } from "./shared.js";
+import { slackAuthorityFrom, slackContextTeamIdFrom } from "./shared.js";
 import type { SlackIntegration, SlackIntegrationOptions } from "./types.js";
 
 export const makeSlackIntegration = (
@@ -22,9 +22,12 @@ export const makeSlackIntegration = (
 
   const ingest: WorkIntegration["ingest"] = (input) => {
     const authority = slackAuthorityFrom(input);
+    const resolvedContextTeamId = slackContextTeamIdFrom(input, authority);
+    const contextTeamId =
+      resolvedContextTeamId === authority ? undefined : resolvedContextTeamId;
     return credentialsFor(authority).pipe(
       Effect.flatMap(({ botUserId }) =>
-        normalizeSlackEvents(input, botUserId, authority, clock),
+        normalizeSlackEvents(input, botUserId, authority, contextTeamId, clock),
       ),
     );
   };

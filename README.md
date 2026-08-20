@@ -44,6 +44,7 @@ Directional Work Profiles may later describe operations, events, Resource identi
 - `@openmatter/core`, `@openmatter/store`, `@openmatter/integration`, and `@openmatter/agent` define the immutable records and three Effect-native ports.
 - `@openmatter/runtime` provides the Event → Context → Session → Reaction → Effect lifecycle.
 - `@openmatter/store-memory`, `@openmatter/integration-mock`, and `@openmatter/agent-mock` are executable test/reference adapters.
+- `@openmatter/inbox` defines ACK-before-processing transport durability; `@openmatter/inbox-sqlite` is the embedded Node adapter.
 - `@openmatter/agent-claude` bridges the canonical `OpenMAAgentConnector` from the pinned `@openma/common` revision into the Effect-native `AgentDriver`; it does not reimplement Claude's managed SaaS runtime.
 - `@openmatter/integration-slack` is the first full Work Integration: signed HTTP/Socket ingress, semantic events plus passthrough, explicit Context readers, authority-scoped credentials, and separately granted Slack effects.
 - `@openmatter/orchestration` includes the Claude Tag-style Scope/WorkThread/Session preset.
@@ -182,9 +183,10 @@ Both modes share `makeSlackIntegration()` and `installClaudeTag()`. Switching
 transport does not change Scope, ContextProjection, Session, Reaction, or
 effect semantics. A Cloudflare deployment must inject a durable
 `OpenMatterStore`; `store-memory` is intentionally not a production database.
-The Queue host provides durable ingress retries; the local Socket Mode host
-acknowledges before durable acceptance and is intentionally best-effort unless
-the application adds its own durable queue.
+The Queue host provides durable ingress retries. The local Socket Mode host
+persists each native envelope through `DurableInbox` before acknowledging it;
+`@openmatter/inbox-sqlite` supplies the embedded Node implementation. A fully
+durable local deployment needs both that inbox and a durable `OpenMatterStore`.
 
 Cloudflare Cron, EventBridge, Kubernetes CronJob, and Node timers keep their own
 registration, overlap, retry, and wake-up semantics. OpenMatter does not embed a
