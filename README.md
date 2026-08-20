@@ -18,7 +18,7 @@ OpenMatter does not require a hosted connector service and does not require its 
 ```text
                          build time
 
-OpenAPI / AsyncAPI / GraphQL + optional semantic overlay
+OpenAPI + optional semantic overlay
                             ↓
                     OpenMatter Compiler
                             ↓
@@ -26,11 +26,12 @@ OpenAPI / AsyncAPI / GraphQL + optional semantic overlay
 
                          runtime
 
-work event → Scope → Matter → WorkThread → Agent Session
-     ↑                                           ↓
-work binding ← authorized Operation ← Reaction ← Turn
-                            ↕
-                    ACP / managed agent
+work event → OpenMatter Runtime → OpenMA Agent Contract
+     ↑              ↓                    ↓
+ingress adapters  OperationExecutor   ACP / managed agent
+     ↑              ↓
+webhook/stream/  ReactionDecision + durable operation receipts
+timer occurrence
 ```
 
 OpenAPI describes how an API can be called. A Work Profile adds what an agent needs to understand work:
@@ -41,101 +42,75 @@ OpenAPI describes how an API can be called. A Work Profile adds what an agent ne
 - authority, capability, risk, confirmation, and idempotency metadata;
 - provider bindings without live credentials.
 
-## Compile a Work Profile
+## Current packages
+
+- `@openmatter/core` provides portable contracts and ports without Effect.
+- `@openmatter/openapi` builds self-contained HTTP operation plans.
+- `@openmatter/runtime` is the Effect-based event and Reaction runtime.
+- `@openmatter/agent-openma` bridges the existing OpenMA Agent Contract.
+- `@openmatter/testing` provides the Memory Store and Mock Work Adapter.
+- `examples/deployment-shapes` shows the same SDK in embedded Node and
+  Cloudflare-like request/timer/queue hosts.
+
+See [Project structure](docs/PROJECT_STRUCTURE.md) for dependency direction and
+package ownership.
+
+## Build an HTTP operation
 
 ```ts
-import { compileWorkProfile, openapi, overlay } from "@openmatter/compiler";
+import { buildHttpRequest } from "@openmatter/openapi";
 
-const result = await compileWorkProfile({
-  sources: [openapi("./work-api.yaml")],
-  overlays: [overlay("./work-semantics.yaml")],
+const request = buildHttpRequest({
+  kind: "http",
+  operationId: "issue.comment.create",
+  method: "POST",
+  pathTemplate: "/issues/{issueId}/comments",
+  parameters: [{ name: "issueId", in: "path", required: true }],
+  requestBody: { mediaType: "application/json", required: true },
+}, {
+  baseUrl: "https://work.example.com/api",
+  input: {
+    path: { issueId: "WEB-42" },
+    body: { body: "Investigating now." },
+  },
+});
+```
+
+The first implementation slice makes the execution plan explicit. The full
+OpenAPI compiler will generate this structure rather than asking the Runtime to
+re-read a mutable source document.
+
+## Process a work event
+
+```ts
+import { createOpenMatterRuntime } from "@openmatter/runtime";
+import { createMemoryStore } from "@openmatter/testing";
+
+const runtime = createOpenMatterRuntime({
+  store: createMemoryStore(),
+  ownerId: "worker-1",
+  decide: async (event) => ({
+    operationCallIds: [],
+    reason: `Observed ${event.type}`,
+  }),
 });
 
-for (const diagnostic of result.diagnostics) {
-  console.log(diagnostic.severity, diagnostic.message);
+const ingested = await runtime.ingest(event); // persist before acknowledging ingress
+const processed = await runtime.process(ingested.event);
+
+if (processed.status === "completed") {
+  for (const callId of processed.reaction.operationCallIds) {
+    await runtime.deliver(callId);
+  }
 }
-
-await result.write("./dist/work-profile.json");
 ```
 
-The compiler generates invocation mechanics and conservative safety defaults. It never invents a stable Resource identity or permission merely because a response contains a field named `id`.
-
-Semantic enrichment is optional and serializable:
-
-```ts
-export default defineWorkProfile({
-  source: openapi("./work-api.yaml"),
-
-  resources: {
-    issue: resource({
-      identity: select("output", "$.id"),
-      aliases: [select("output", "$.identifier")],
-    }),
-  },
-
-  operations: {
-    createIssueComment: operation({
-      id: "issue.comment.create",
-      target: "issue",
-      class: "write",
-      idempotency: "key",
-    }),
-  },
-});
-```
-
-The authoring API emits equivalent Work Profile JSON. It is not a closed workflow language.
-
-## Run it with an agent
-
-```ts
-const app = createOpenMatter({
-  work: {
-    project: createWorkSurface({
-      profile,
-      authority: { profile: profile.id, id: "workspace-1" },
-      operations: openApiOperations({ credentials, fetch }),
-      events: [projectWebhooks],
-    }),
-  },
-
-  agents: {
-    worker: acpAgent({ endpoint: process.env.ACP_ENDPOINT }),
-  },
-
-  store: postgresStore(db),
-});
-
-app.on("issue.updated", async (work) => {
-  const scope = await work.scopes.resolve(resolveProjectScope);
-  const matters = await work.matters.resolve(work.event);
-  const thread = await work.threads.continue({
-    scope,
-    key: matters.primary?.id ?? work.event.subject,
-    matters,
-  });
-
-  const context = await work.context.project({
-    scope,
-    thread,
-    event: work.event,
-  });
-
-  const result = await work.agent("worker").session({
-    scope,
-    thread,
-  }).turn({
-    context,
-    allow: ["issue.read", "issue.comment.create"],
-  });
-
-  return work.react(result);
-});
-
-await app.run();
-```
-
-Every valid received `WorkEvent` reaches one terminal `Reaction`. A reaction may request operations or deliberately contain no effects at all. Filtering is therefore observable as an explicit null reaction rather than a silent drop.
+Every valid received `WorkEvent` reaches one immutable terminal
+`ReactionDecision`. Operation delivery has its own state and receipts; a null
+decision has no operation intents and is still observable. Embedded Node
+applications may use `runtime.accept(event)` as the convenience composition of
+the same three steps. Serverless applications should queue their serializable
+references between the steps.
 
 ## Work context
 
@@ -164,13 +139,25 @@ The agent owns reasoning, planning, transcript, and private tool state. OpenMatt
 
 ## Proactive work
 
-Schedules are ordinary event sources:
+Schedules are host-owned event sources. A `TimerAdapter` maps one native timer
+occurrence to ordinary WorkEvents:
 
 ```ts
-app.schedule("issue-patrol", cron("*/15 * * * *"), patrolHandler);
+const events = await patrolTimer.decode({
+  id: "issue-patrol:2026-08-20T10:00:00Z",
+  scheduledAt: "2026-08-20T10:00:00.000Z",
+});
+
+for (const event of events) {
+  const receipt = await runtime.ingest(event);
+  await queue.send({ kind: "event.process", event: receipt.event });
+}
 ```
 
-Each tick becomes a WorkEvent and follows the same Scope, Matter, WorkThread, Session, Turn, and Reaction lifecycle. OpenMatter can use an embedded scheduler or accept ticks from an external one.
+Cloudflare Cron, EventBridge, Kubernetes CronJob, and Node timers keep their own
+registration, overlap, retry, and wake-up semantics. OpenMatter does not embed a
+scheduler. Each decoded tick follows the same Scope, Matter, WorkThread,
+Session, Turn, and Reaction lifecycle.
 
 ## What OpenMatter is not
 
@@ -184,6 +171,7 @@ Each tick becomes a WorkEvent and follows the same Scope, Matter, WorkThread, Se
 ## Documentation
 
 - [OpenMatter SDK specification](docs/SDK_SPEC.md)
+- [Project structure](docs/PROJECT_STRUCTURE.md)
 - [Technical design](docs/TECHNICAL_DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Product brief](docs/BRIEF.md)
@@ -195,4 +183,8 @@ Each tick becomes a WorkEvent and follows the same Scope, Matter, WorkThread, Se
 - [Standards and platform references](docs/REFERENCES.md)
 
 > [!IMPORTANT]
-> OpenMatter is in its v0 design stage. Work Profile, binding, runtime, and AgentDriver interfaces remain provisional until exercised by reference implementations and a black-box conformance harness.
+> OpenMatter is in its v0 implementation stage. The executable skeleton covers
+> package boundaries, an Effect Runtime, HTTP plans, Memory Store, Mock Work
+> and Timer Adapters, an OpenMA Agent bridge, and independently retryable
+> ingest/process/deliver units. The wider Work Profile compiler remains
+> provisional.

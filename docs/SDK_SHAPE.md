@@ -113,7 +113,6 @@ const app = createOpenMatter({
   },
 
   store: postgresStore(db),
-  scheduler: externalScheduler(),
   tracing: openTelemetry(),
 });
 ```
@@ -276,13 +275,18 @@ An application can own its HTTP framework and call the Runtime directly:
 
 ```ts
 router.post("/hooks/project", async (request) => {
-  const event = await projectWebhook.toWorkEvent(request);
-  const receipt = await app.accept(event);
-  return Response.json(receipt);
+  const events = await projectWebhook.decode(request);
+  for (const event of events) {
+    const receipt = await app.ingest(event);
+    await queue.send({ kind: "event.process", event: receipt.event });
+  }
+  return new Response(null, { status: 202 });
 });
 ```
 
-This is the primary serverless shape. OpenMatter does not require its own HTTP server.
+This is the primary serverless shape. The queue consumer calls `app.process`
+with the exact event reference, then enqueues each exact operation `callId` for
+`app.deliver`. OpenMatter does not require its own HTTP server, queue, or worker.
 
 ## Custom event binding
 
@@ -303,19 +307,23 @@ The binding only handles provider delivery. Scope, context, sessions, and reacti
 ## Scheduled work
 
 ```ts
-app.schedule(
-  "stale-issue-patrol",
-  cron("*/15 * * * *", { timezone: "Asia/Shanghai" }),
-  patrolHandler,
-  {
-    overlap: "skip",
-    timeout: "10m",
-    retry: 3,
+const staleIssuePatrol: TimerAdapter<ScheduledController> = {
+  id: "stale-issue-patrol",
+  async decode(occurrence) {
+    const scheduledAt = new Date(occurrence.scheduledTime).toISOString();
+    return [profile.events.create("schedule.triggered", {
+      id: `${this.id}:${scheduledAt}`,
+      time: scheduledAt,
+      payload: { scheduleId: this.id },
+    })];
   },
-);
+};
 ```
 
-Each tick becomes a WorkEvent. The same handler may also be invoked by an external scheduler through `app.accept`.
+The deployment host registers the cron and calls `decode` for each occurrence.
+Node `setInterval`, Cloudflare Cron, EventBridge, and another scheduler therefore
+share no fake common scheduling API. Their decoded events share the normal
+OpenMatter lifecycle.
 
 ## Extension interfaces
 
@@ -394,19 +402,16 @@ What operations, events, Resources, interactions, capabilities, and bindings exi
 }
 ```
 
-## Suggested packages
+## Initial packages
 
 ```text
-@openmatter/sdk
-@openmatter/profile
-@openmatter/compiler
-@openmatter/compiler-openapi
-@openmatter/compiler-asyncapi
+@openmatter/core
+@openmatter/openapi
 @openmatter/runtime
-@openmatter/binding-openapi
-@openmatter/agent
-@openmatter/agent-acp
-@openmatter/harness
+@openmatter/agent-openma
+@openmatter/testing
 ```
 
-These are dependency boundaries. The first repository implementation may combine several into fewer physical packages until independent versioning is justified.
+These are the physical v0 packages. A public `@openmatter/sdk` façade and
+independently versioned compiler, storage, or provider packages are added only
+after their entry points need independent release cycles.

@@ -65,19 +65,27 @@ Custom code is explicit and independently packageable. It does not turn the Prof
 ## Runtime binding surfaces
 
 ```ts
-interface OperationBinding {
-  capabilities(): Promise<BindingCapabilities>;
+interface OperationExecutor {
   invoke(call: OperationCall, signal?: AbortSignal): Promise<OperationResult>;
 }
 
-interface EventBinding {
+interface WorkEventDecoder<TInput> {
+  decode(input: TInput): Promise<readonly WorkEvent[]>;
+}
+
+interface WorkEventSource {
   start(
     emit: (event: WorkEvent) => Promise<void>,
     signal?: AbortSignal,
   ): Promise<void>;
 }
 
-interface ResourceBinding {
+interface TimerAdapter<TOccurrence>
+  extends WorkEventDecoder<TOccurrence> {
+  id: string;
+}
+
+interface ResourceMaterializer {
   materialize(
     address: ResourceAddress,
     options?: MaterializeOptions,
@@ -88,9 +96,11 @@ interface ResourceBinding {
 A Work Surface may provide any subset. For example:
 
 ```text
-OpenAPI-only API      OperationBinding
-Webhook-only source  EventBinding
-Rich work platform   all three
+OpenAPI-only API      OperationExecutor
+Webhook callback     WorkEventDecoder
+WebSocket / poller   WorkEventSource
+Host timer           TimerAdapter
+Rich work platform   several capability ports
 External platform    remote binding implementation
 ```
 
@@ -111,7 +121,9 @@ The core does not require a globally closed event enum.
 
 OpenAPI webhooks and callbacks or AsyncAPI messages can generate EventDefinitions. They do not automatically solve subscription registration or provider signature verification; those are binding concerns.
 
-Every successfully normalized event enters the Runtime. Application filtering produces an explicit null Reaction instead of silently dropping the event.
+Every successfully normalized event enters `runtime.ingest`. Application
+filtering during `runtime.process` produces an explicit null Reaction instead
+of silently dropping the event.
 
 ## Operations
 

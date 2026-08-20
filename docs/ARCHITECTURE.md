@@ -188,15 +188,19 @@ Proactive behavior uses the same event path.
 
 ```mermaid
 flowchart LR
-    SCH["Scheduler or external cron"]
-    TICK["Scheduled WorkEvent"]
-    RT["Normal OpenMatter loop"]
+    SCH["Host scheduler / cron"]
+    OCC["Native occurrence"]
+    TA["TimerAdapter.decode"]
+    TICK["WorkEvent"]
+    RT["ingest → process → deliver"]
     OP["Authorized operations"]
 
-    SCH --> TICK --> RT --> OP
+    SCH --> OCC --> TA --> TICK --> RT --> OP
 ```
 
-The scheduler is not an Agent and a proactive Agent is not a special domain type. A schedule tick may reuse a named WorkThread and Agent Session or request fresh continuity.
+The scheduler is not an Agent and a proactive Agent is not a special domain
+type. OpenMatter does not register or wake schedules. A decoded tick may reuse a
+named WorkThread and Agent Session or request fresh continuity.
 
 ## 7. Ownership boundaries
 
@@ -322,26 +326,33 @@ Best for development, bots, plugins, and a single authority.
 ### 11.2 Serverless ingress
 
 ```text
-provider webhook → function → runtime.accept(event) → durable store
-                                      ↓
-                               agent/runtime API
+provider webhook → decoder → runtime.ingest(event) → durable store
+                                  ↓
+                         queue {event reference}
 ```
 
-Long-lived event bindings and schedules are external. `accept` remains the same API.
+The function acknowledges provider delivery only after durable ingestion. It
+does not start hidden background work after returning the HTTP response.
 
 ### 11.3 Ingress plus workers
 
 ```text
-webhooks / sockets / pollers
+webhooks / sockets / pollers / host timers
             ↓
-       durable queue
+    decode + runtime.ingest
             ↓
- OpenMatter worker pool
-      ↙           ↘
-  work APIs     agent runtimes
+ queue {event reference}
+            ↓
+     runtime.process
+            ↓
+ queue {exact callId}
+            ↓
+     runtime.deliver
 ```
 
-Workers coordinate through storage leases and WorkThread/Session ordering keys. No OpenMatter-hosted Hub is required.
+Workers coordinate through storage leases and WorkThread/Session ordering keys.
+`accept` composes the three Runtime calls only for an embedded process. No
+OpenMatter-hosted Hub or deployment runtime is required.
 
 ### 11.4 Sidecar or remote binding
 
