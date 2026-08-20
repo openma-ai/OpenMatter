@@ -83,52 +83,67 @@ interface WorkSurface {
   id: string;
   profile: WorkProfile;
   authority: AuthorityRef;
-  operations?: OperationBinding;
-  events?: EventBinding[];
-  resources?: ResourceBinding;
+  operations?: OperationExecutor;
+  decoders?: WorkEventDecoder<unknown>[];
+  sources?: WorkEventSource[];
+  resources?: ResourceMaterializer;
 }
 ```
 
 Several authorities may use the same immutable Profile. For example, two Slack workspaces share one Slack Profile but have separate credentials, event subscriptions, policies, and IDs.
 
-### 3.3 WorkBinding
+### 3.3 Work bindings and ingress adapters
 
-Bindings are executable edges. The SDK defines small capability-specific interfaces instead of one large provider adapter.
+Bindings are executable edges. The SDK defines small capability-specific ports
+instead of one provider object that also owns a process loop.
 
 ```ts
-interface OperationBinding {
-  capabilities(): Promise<BindingCapabilities>;
+interface OperationExecutor {
   invoke(call: OperationCall, signal?: AbortSignal): Promise<OperationResult>;
 }
 
-interface EventBinding {
+interface WorkEventDecoder<TInput> {
+  decode(input: TInput): Promise<readonly WorkEvent[]>;
+}
+
+interface WorkEventSource {
   start(
     emit: (event: WorkEvent) => Promise<void>,
     signal?: AbortSignal,
   ): Promise<void>;
 }
 
-interface ResourceBinding {
-  materialize(
-    address: ResourceAddress,
-    options?: MaterializeOptions,
-  ): Promise<MaterializedResource>;
+interface TimerAdapter<TOccurrence>
+  extends WorkEventDecoder<TOccurrence> {
+  id: string;
 }
 ```
 
-An OpenAPI-only surface normally uses the generic HTTP `OperationBinding`. A webhook-only integration may provide only `EventBinding`. Custom code can supply any missing facet.
+`WorkEventDecoder` serves request/callback style ingress. `WorkEventSource` is an
+optional host convenience for WebSocket, polling, or SDK streams. `TimerAdapter`
+does not schedule anything: it maps one host-native occurrence to WorkEvents.
+Resource materialization remains a separate capability.
+
+An OpenAPI-only surface normally uses the generic HTTP `OperationExecutor`.
+Provider signature verification, subscription, and webhook parsing can be
+packaged together for authoring convenience without merging the internal ports.
 
 ### 3.4 OpenMatterRuntime
 
 ```ts
 interface OpenMatterRuntime {
-  accept(event: WorkEvent): Promise<ReactionReceipt>;
-  run(signal?: AbortSignal): Promise<void>;
-  close(): Promise<void>;
+  ingest(event: WorkEvent): Promise<EventIngestReceipt>;
+  process(event: WorkEventRef): Promise<EventProcessReceipt>;
+  deliver(callId: string): Promise<OperationDeliveryReceipt>;
+  accept(event: WorkEvent): Promise<AcceptReceipt>;
 }
 ```
 
-`accept` is sufficient for serverless and externally hosted ingress. `run` starts registered long-lived bindings, polling sources, and embedded schedules.
+`ingest`, `process`, and `deliver` are independently retryable durable seams.
+They accept only serializable values, so an application may place a queue or
+workflow engine between them. `accept` is a convenience composition for an
+embedded process. Runtime does not own a server, event loop, scheduler, or
+global pending-operation scan.
 
 ## 4. Authoring API
 
@@ -176,7 +191,7 @@ const surface = createWorkSurface({
     fetch,
     credentials,
   }),
-  events: [
+  sources: [
     customEvents({
       async start(emit, signal) {
         // provider SDK, queue, socket, poller, or application event bus
@@ -346,7 +361,7 @@ The SDK supplies reusable ingress components:
 - generic signed webhook receiver;
 - polling source with durable cursor;
 - queue and stream adapters;
-- schedule source;
+- timer occurrence adapter;
 - custom callback adapter.
 
 Provider-specific signature or subscription behavior is a small binding, not a new runtime. Users and third parties can publish such bindings independently of OpenMatter core.
@@ -360,16 +375,21 @@ const handler = webhookHandler({
 });
 ```
 
-Every successfully normalized event enters `runtime.accept`. Filtering occurs after reception and therefore produces a null Reaction rather than a silent drop.
+Every successfully normalized event enters `runtime.ingest`. The host may then
+enqueue the returned event reference for `runtime.process`. Filtering occurs
+after durable reception and therefore produces a null Reaction rather than a
+silent drop.
 
 ## 9. Runtime design
 
 ### 9.1 Processing pipeline
 
 ```text
-receive WorkEvent
-  → validate
-  → deduplicate
+ingest WorkEvent
+  → validate and persist-if-absent
+  → enqueue event reference (host-owned, optional)
+process event reference
+  → claim event lease
   → resolve AgentScope
   → resolve references and Matters
   → choose or continue WorkThread
@@ -377,9 +397,11 @@ receive WorkEvent
   → create or resume AgentSession
   → run one Turn
   → compile terminal Reaction
-  → persist effect intents
-  → execute authorized operations
-  → persist receipts and terminal state
+  → atomically persist Reaction and operation intents
+deliver exact operation callId
+  → claim operation lease
+  → execute the authorized operation
+  → persist its result
 ```
 
 Application code may replace the middle policy stages. The Runtime owns durable state transitions and observability around them.
@@ -503,32 +525,31 @@ expired     callback, session, or authority is no longer usable
 
 ## 13. Package shape
 
-The intended package boundaries are:
+The initial physical package boundaries are:
 
 ```text
-@openmatter/sdk                 public façade and authoring API
-@openmatter/profile             Work Profile types, schemas, selectors
-@openmatter/compiler            compiler pipeline and overlay engine
-@openmatter/compiler-openapi    OpenAPI 3.1 source adapter
-@openmatter/compiler-asyncapi   event-description source adapter
-@openmatter/runtime             event loop and orchestration
-@openmatter/binding-openapi     generic HTTP operation executor
-@openmatter/agent               AgentDriver and OpenMAEvent contracts
-@openmatter/agent-acp           ACP binding
-@openmatter/harness             profile, binding, and runtime conformance
+@openmatter/core          portable domain contracts and behavioral ports
+@openmatter/openapi       OpenAPI compiler and executable HTTP plans
+@openmatter/runtime       Effect-based event and reaction orchestration
+@openmatter/agent-openma  thin OpenMA Agent Contract bridge
+@openmatter/testing       Memory Store, Mock Work Adapter, and test fixtures
 ```
 
-The repository may begin with fewer physical packages. These boundaries describe dependency direction:
+These packages describe the initial dependency direction:
 
 ```text
-profile ← compiler adapters
-profile ← work bindings
-profile + agent ← runtime
-runtime ← public sdk façade
-harness → all public contracts
+core ← openapi
+core ← testing
+core + Effect ← runtime
+core + OpenMA Agent Contract ← agent-openma
 ```
 
-The core Profile package MUST NOT depend on Effect, an HTTP framework, a database, ACP, or a provider SDK.
+The core package MUST NOT depend on Effect, an HTTP framework, a database, ACP,
+React, or a provider SDK. `agent-openma` reuses the Agent Contract and ACP
+runtime maintained by `openma-common`; it does not implement the protocol
+again. A public `@openmatter/sdk` façade may be added after the entry points are
+exercised. AsyncAPI, GraphQL, and production storage adapters remain later
+packages.
 
 ## 14. Conformance and test strategy
 
@@ -570,21 +591,23 @@ The harness is black-box and implementation-neutral.
 - idempotency header behavior;
 - provider receipt preservation.
 
-## 15. Initial milestone
+## 15. Executable v0 slice
 
-The first executable slice is intentionally narrow:
+The current executable slice is intentionally narrow:
 
-1. Work Profile schemas and validators;
-2. OpenAPI 3.1 compiler for operations and security;
-3. TypeScript semantic overlay authoring API;
-4. generic OpenAPI operation binding using host `fetch`;
-5. `runtime.accept` with in-memory storage;
-6. one custom WorkEvent mapped into one Agent Turn;
-7. fake AgentDriver followed by ACP driver validation;
-8. terminal Reaction and operation receipt;
-9. conformance fixtures and canonical JSON snapshots.
+1. CloudEvents-compatible WorkEvent construction and qualified references;
+2. generic HTTP operation plans using host `fetch`;
+3. independently retryable `ingest`, `process`, and `deliver` Runtime units;
+4. embedded `accept` convenience composition;
+5. behavioral Store with event and operation leases/fencing;
+6. CAS-backed Agent Session and Checkpoint stores;
+7. Memory Store, Mock Work Adapter, WorkEventSource, and TimerAdapter;
+8. OpenMA Agent Contract bridge;
+9. Node embedded and Cloudflare-like deployment compositions.
 
-The reference example uses a small synthetic work API first. Slack or Linear should validate the architecture later, not define the core abstractions prematurely.
+The complete Work Profile compiler, durable production adapters, and concrete
+ACP/managed-agent drivers remain later milestones. Slack or Linear should
+validate the architecture later, not define the core abstractions prematurely.
 
 ## 16. Explicitly rejected approaches
 

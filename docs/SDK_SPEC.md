@@ -620,13 +620,20 @@ Invalid transport input that cannot be normalized into a WorkEvent is a delivery
 
 OpenMatter does not mandate a queue or transport, but conforming runtimes implement these observable semantics:
 
-1. validate the WorkEvent envelope and referenced Profile definition;
-2. record reception using `(source, id)` as the logical deduplication key;
-3. process or deliberately ignore the event according to application policy;
-4. produce exactly one terminal Reaction;
-5. authorize and execute zero or more effects;
-6. retain effect receipts and uncertainty states;
-7. return the existing terminal result on duplicate delivery.
+1. `ingest(event)` validates and durably records reception using `(source, id)` as the logical deduplication key;
+2. `process({ source, id })` claims that exact event, processes or deliberately ignores it, and atomically commits exactly one terminal Reaction plus zero or more operation intents;
+3. `deliver(callId)` claims and executes that exact operation intent and records its result or uncertainty state;
+4. redelivery of any unit returns the existing terminal result or a current processing state rather than creating another logical outcome.
+
+An embedded Runtime MAY provide `accept(event)` as a convenience composition of
+the three units. A distributed or serverless host SHOULD place its own durable
+queue or workflow boundary between them. The Runtime MUST NOT require a global
+pending-operation scan; queue payloads can carry exact event references and
+operation call IDs.
+
+Host-native timer occurrences, webhook requests, SDK callbacks, or stream values
+are not Runtime messages until an adapter converts them into WorkEvents. Timer
+registration, wake-up, overlap, and trigger retry are outside the Runtime.
 
 At-least-once event delivery is supported. Exactly-once provider side effects are not promised; OpenMatter provides idempotency keys, state transitions, and receipts needed to approach effectively-once behavior when the provider supports it.
 

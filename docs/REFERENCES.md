@@ -21,6 +21,14 @@ OpenMatter reuses these standards rather than replacing them. Work Profile adds 
 | --- | --- | --- |
 | Effect | [Documentation](https://effect.website/docs/) | Internal services, scopes, streams, cancellation, retry, testing, and tracing. Public APIs remain ordinary TypeScript. |
 
+## Deployment hosts
+
+| System | Reference | OpenMatter relevance |
+| --- | --- | --- |
+| Cloudflare Workers | [Workers best practices](https://developers.cloudflare.com/workers/best-practices/workers-best-practices/) | Serverless request lifetime, binding types, promise ownership, and generated environment types. |
+| Cloudflare Queues | [JavaScript APIs](https://developers.cloudflare.com/queues/configuration/javascript-apis/) | One concrete host mapping for serializable event-reference and operation-call jobs. |
+| Cloudflare Cron Triggers | [Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/) | A host-native scheduler occurrence that can be decoded by `TimerAdapter`; it is not an OpenMatter scheduler. |
+
 ## Agent runtimes
 
 | System | Reference | OpenMatter relevance |
@@ -39,6 +47,24 @@ OpenMatter reuses these standards rather than replacing them. Work Profile adds 
 | [OpenTag configuration](https://github.com/amplifthq/opentag/blob/main/docs/configuration.md) | Explicit provider and project bindings. |
 
 OpenMatter adopts the separation of conversation anchors, work references, and context pointers. It generalizes the model to many Matters per WorkThread, arbitrary work systems, code-first application policy, and replaceable agent runtimes.
+
+## Photon / Spectrum (comparative reference only)
+
+| Reference | Design observation |
+| --- | --- |
+| [Spectrum introduction](https://photon.codes/docs/spectrum-ts/introduction) | Separates an agent server from interface providers and presents normalized inbound messages. |
+| [Building a custom platform](https://photon.codes/docs/spectrum-ts/custom-platforms) | Shows a cohesive integration-authoring surface spanning configuration, lifecycle, inbound events, outbound actions, and entity resolution. |
+| [Webhooks](https://photon.codes/docs/spectrum-ts/webhooks) | Demonstrates small HTTP-framework adapters around one provider model. |
+| [Production architecture](https://photon.codes/docs/best-practices/architecture) | Recommends queue-backed stages with explicit retry, cancellation, resume, and idempotency seams. |
+| [Recovery and state](https://photon.codes/docs/best-practices/recovery-and-state) | Uses stable send identifiers, cursors, per-resource state, and durable failure records. |
+| [Official repository](https://github.com/photon-hq/spectrum-ts) | Package organization and public TypeScript implementation. |
+
+Photon is not an API template for OpenMatter. Spectrum is centered on messaging
+platforms, spaces, messages, and a long-lived agent-server loop. OpenMatter keeps
+its independently designed work-domain records, durable Reaction/Operation
+ledger, external AgentDriver boundary, and serverless `ingest → process →
+deliver` lifecycle. The comparison validates general integration ergonomics;
+no Photon field names or runtime interfaces are adopted as OpenMatter contracts.
 
 ## IM and collaboration platforms
 

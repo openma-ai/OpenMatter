@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@openmatter/core": ["./packages/core/src/index.ts"],
+      "@openmatter/openapi": ["./packages/openapi/src/index.ts"],
+      "@openmatter/runtime": ["./packages/runtime/src/index.ts"],
+      "@openmatter/agent-openma": ["./packages/agent-openma/src/index.ts"],
+      "@openmatter/testing": ["./packages/testing/src/index.ts"]
+    },
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["packages/**/*.ts", "examples/**/*.ts", "vitest.config.ts"]
+}

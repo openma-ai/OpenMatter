@@ -32,7 +32,7 @@ This document records the active v0 decisions. Earlier briefs that conflict with
 
 - `WorkProfile` describes a work surface.
 - `WorkSurface` binds one Profile to one configured provider authority.
-- Small `OperationBinding`, `EventBinding`, and `ResourceBinding` interfaces replace the earlier monolithic integration boundary.
+- Small `OperationExecutor`, `WorkEventDecoder`, `WorkEventSource`, `TimerAdapter`, and resource interfaces replace the earlier monolithic integration boundary.
 - The generic OpenAPI operation binding performs HTTP invocation without provider-specific client code.
 - Provider-specific webhook verification or subscription behavior may be supplied as small independent bindings.
 - `AgentDriver` remains the semantic boundary for ACP, managed agents, in-process SDKs, and custom runtimes.
@@ -40,11 +40,16 @@ This document records the active v0 decisions. Earlier briefs that conflict with
 ## Programming model
 
 - The public SDK is code-first TypeScript.
+- Node.js 24 LTS is the initial runtime baseline.
+- TypeScript 7, pnpm 11, and Vitest 4 are the initial stable toolchain.
+- Effect 3.22 is the initial stable runtime dependency; beta majors are not a production baseline.
 - Work Profiles and semantic overlays are declarative and JSON-serializable.
 - Application orchestration remains ordinary code rather than a closed workflow DSL.
 - Component manifests, domain state, execution traces, and receipts are serializable; arbitrary user code is not.
 - Effect is used internally for services, scopes, streams, cancellation, retry, and tracing.
 - Public APIs use Promise, AsyncIterable, AbortSignal, and plain values. Users do not need to know Effect or Actors.
+- `core` owns behavioral Storage and Work Adapter ports. `testing` supplies the Memory Store and Mock Work Adapter.
+- `agent-openma` bridges the OpenMA Agent Contract. OpenMatter does not create a second ACP runtime.
 
 ## Domain model
 
@@ -69,9 +74,11 @@ This document records the active v0 decisions. Earlier briefs that conflict with
 ## Scheduled work
 
 - A proactive agent is not a separate domain type.
-- Embedded or external schedulers emit ordinary WorkEvents.
+- The host scheduler emits a native occurrence; a `TimerAdapter` converts it into ordinary WorkEvents.
 - Schedule ticks follow the normal Scope, Matter, WorkThread, Session, Turn, and Reaction lifecycle.
-- Cursor, overlap, timeout, lease, and retry are scheduler/runtime concerns rather than Profile semantics.
+- Schedule registration, wake-up, overlap, timeout, and trigger retry remain host concerns.
+- Cursor/checkpoint state is available through the replaceable `CheckpointStore`.
+- The Runtime has no `trigger` alias and does not scan pending operations. Events enter through `ingest`; an operation worker claims one exact `callId`.
 
 ## Neutrality
 

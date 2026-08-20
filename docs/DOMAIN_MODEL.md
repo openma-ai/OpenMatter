@@ -306,14 +306,17 @@ Each effect is authorized independently and produces an `OperationResult` and pr
 Scheduled work is a source of WorkEvents, not a separate domain model.
 
 ```ts
-app.schedule("project-patrol", cron("*/15 * * * *"), handler, {
-  overlap: "skip",
-  timeout: "10m",
-  retry: 3,
-});
+const events = await projectPatrolTimer.decode(nativeOccurrence);
+
+for (const event of events) {
+  const receipt = await runtime.ingest(event);
+  await queue.send({ kind: "event.process", event: receipt.event });
+}
 ```
 
-Schedules may reuse a fixed WorkThread and AgentSession or create new sessions on each tick. Cursor and checkpoint data use ordinary durable application state.
+The host owns schedule registration, wake-up, overlap, timeout, and retry.
+Schedules may reuse a fixed WorkThread and AgentSession or create new sessions
+on each tick. Cursor and checkpoint data use the replaceable Checkpoint Store.
 
 ## Serialization boundary
 
