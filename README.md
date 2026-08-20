@@ -44,6 +44,7 @@ Directional Work Profiles may later describe operations, events, Resource identi
 - `@openmatter/core`, `@openmatter/store`, `@openmatter/integration`, and `@openmatter/agent` define the immutable records and three Effect-native ports.
 - `@openmatter/runtime` provides the Event → Context → Session → Reaction → Effect lifecycle.
 - `@openmatter/store-memory`, `@openmatter/integration-mock`, and `@openmatter/agent-mock` are executable test/reference adapters.
+- `@openmatter/agent-claude` bridges the canonical `OpenMAAgentConnector` from the pinned `@openma/common` revision into the Effect-native `AgentDriver`; it does not reimplement Claude's managed SaaS runtime.
 - `@openmatter/integration-slack` is the first real Work Integration, including signed HTTP ingress, messages, reactions, slash commands, and forms.
 - `@openmatter/orchestration` includes the Claude Tag-style Scope/WorkThread/Session preset.
 - `@openmatter/host-cloudflare` and `@openmatter/host-local` bind the same application to Worker Queues or Slack Socket Mode.
@@ -161,6 +162,8 @@ OpenMatter does not implement another agent brain. `AgentDriver` maps OpenMatter
 - custom agents.
 
 The agent owns reasoning, planning, transcript, and private tool state. OpenMatter owns work-side context, authority, continuity, reactions, and effect receipts.
+
+ACP and Claude Managed wire events are normalized by `@openma/common` into one deeply immutable `OpenMAEvent` contract. OpenMatter persists and streams that contract directly—there is no UI-specific or camelCase duplicate event model.
 
 ## Deploy Slack without changing orchestration
 

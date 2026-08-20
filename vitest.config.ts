@@ -22,6 +22,9 @@ export default defineConfig({
         "./packages/integration-slack/src/index.ts",
       ),
       "@openmatter/agent": fromRoot("./packages/agent/src/index.ts"),
+      "@openmatter/agent-claude": fromRoot(
+        "./packages/agent-claude/src/index.ts",
+      ),
       "@openmatter/agent-mock": fromRoot("./packages/agent-mock/src/index.ts"),
       "@openmatter/runtime": fromRoot("./packages/runtime/src/index.ts"),
       "@openmatter/host-cloudflare": fromRoot(

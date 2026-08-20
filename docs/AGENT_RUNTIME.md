@@ -31,7 +31,7 @@ interface AgentDriver {
 }
 ```
 
-This is the Effect-native internal contract. Promise facades may exist at application and transport boundaries; they are not a second Agent Driver model. The first planned open binding targets Agent Client Protocol. Separate drivers may target Claude managed runtimes, in-process agent SDKs, subprocesses, or private runtimes.
+This is the Effect-native internal contract. Promise facades may exist at application and transport boundaries; they are not a second Agent Driver model. `@openmatter/agent-claude` adapts the shared Promise/AsyncIterable `OpenMAAgentConnector` from `@openma/common` into this Effect port. Concrete connectors may target Claude Managed Agents, ACP, an in-process SDK, a subprocess, or a private runtime.
 
 ## OpenMAEvent
 
@@ -39,14 +39,19 @@ This is the Effect-native internal contract. Promise facades may exist at applic
 
 ```ts
 interface OpenMAEvent {
-  schemaVersion: string;
-  id: string;
-  sessionId: string;
-  turnId: string;
-  sequence: number;
+  schema_version: "oma.event.v1";
+  event_id: string;
   type: string;
-  timestamp: string;
-  payload: unknown;
+  session_id: string;
+  turn_id?: string;
+  seq?: number;
+  source: {
+    kind: "harness" | "openma" | "user" | "system";
+    harness?: string;
+    adapter?: string;
+  };
+  occurred_at: string;
+  data: unknown;
   raw?: unknown;
 }
 ```
@@ -63,9 +68,11 @@ Typical event classes include:
 - turn completion, failure, cancellation, or interruption;
 - provider-native extensions.
 
-ACP events and managed-runtime events map into OpenMAEvent. UI code consumes OpenMAEvent rather than maintaining separate ACP and managed event models.
+The canonical type, constructors, immutable-JSON guard, lifecycle helpers, ACP mapper, and Managed mapper live in `@openma/common/agent-contract`. OpenMatter imports that contract directly; it does not translate it into a second camelCase event vocabulary. ACP and managed-runtime events both map into this one OpenMAEvent, and UI code consumes the same facts.
 
-The mapping should remain lossless through `raw` and provider extension fields.
+The shared envelope permits Session-level facts without a Turn sequence. An `AgentDriver.turn()` stream is the stricter subset: every event must carry the active `turn_id` and a contiguous non-negative `seq`.
+
+The mapping should remain lossless through `raw` and provider extension fields. The Runtime validates and deep-snapshots every fact before its first asynchronous Store boundary, including custom Drivers that do not use the common constructors.
 
 ## Session lifecycle
 
@@ -189,9 +196,9 @@ The binding must expose unsupported behavior through capabilities rather than si
 
 ## Managed-runtime binding
 
-A managed runtime may already provide hosted session storage, reconnectable streams, confirmation flows, execution isolation, and usage policy.
+A managed runtime may already provide hosted session storage, reconnectable streams, confirmation flows, execution isolation, and usage policy. That hosted control plane remains the provider's SaaS; neither `@openma/common` nor `@openmatter/agent-claude` pretends to reimplement it.
 
-The OpenMatter driver maps those native features into AgentSession, Turn, and OpenMAEvent without duplicating the hosted control plane.
+The concrete `OpenMAAgentConnector` consumes the provider API and emits canonical facts. `@openmatter/agent-claude` then maps those handles and events into AgentSession, Turn, and the Effect stream without duplicating the hosted control plane.
 
 OpenMatter still owns the work-side trigger, scope, Matter, WorkThread, context projection, effective work operations, and final Reaction.
 

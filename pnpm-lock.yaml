@@ -91,6 +91,21 @@ importers:
 
   packages/agent:
     dependencies:
+      "@openma/common":
+        specifier: github:openma-ai/openma-common#5957920a85077104a2b56e60f8fdfb7e90d51905
+        version: https://codeload.github.com/openma-ai/openma-common/tar.gz/5957920a85077104a2b56e60f8fdfb7e90d51905
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+
+  packages/agent-claude:
+    dependencies:
+      "@openma/common":
+        specifier: github:openma-ai/openma-common#5957920a85077104a2b56e60f8fdfb7e90d51905
+        version: https://codeload.github.com/openma-ai/openma-common/tar.gz/5957920a85077104a2b56e60f8fdfb7e90d51905
+      "@openmatter/agent":
+        specifier: workspace:*
+        version: link:../agent
       "@openmatter/core":
         specifier: workspace:*
         version: link:../core
@@ -219,6 +234,14 @@ importers:
         version: link:../store
 
 packages:
+  "@agentclientprotocol/sdk@1.3.0":
+    resolution:
+      {
+        integrity: sha512-i3h/efaeuMUFAO1HSfo97QZQnnvMd7wWBYtBsdL6UMZg3a78sk3Ffya5Xu7C7tYsXomXoDXJBAzQF2PcFKAhIQ==,
+      }
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
   "@fastify/ajv-compiler@4.0.6":
     resolution:
       {
@@ -260,6 +283,24 @@ packages:
       {
         integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==,
       }
+
+  "@openma/common@https://codeload.github.com/openma-ai/openma-common/tar.gz/5957920a85077104a2b56e60f8fdfb7e90d51905":
+    resolution:
+      {
+        gitHosted: true,
+        integrity: sha512-v8B03Hz679Zvu7huWBlhPXMFmTzr92vDb5n9Umh06frzcR4k2Ye88swypNYPI5nqvj3XWIvS10jwIDFZEeuPZA==,
+        tarball: https://codeload.github.com/openma-ai/openma-common/tar.gz/5957920a85077104a2b56e60f8fdfb7e90d51905,
+      }
+    version: 0.4.0
+    engines: { node: ">=20" }
+    peerDependencies:
+      react: ">=18"
+      react-dom: ">=18"
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   "@oxc-project/types@0.146.0":
     resolution:
@@ -1672,7 +1713,17 @@ packages:
         integrity: sha512-vRD9nwt4L3aYpxNqeSC4WqLv58xrXef0Ong1Mc45CTXTIpvLafx7JO05sczmQZwdLEZvywrLOGdNC5+Rp5N1BQ==,
       }
 
+  zod@4.4.3:
+    resolution:
+      {
+        integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==,
+      }
+
 snapshots:
+  "@agentclientprotocol/sdk@1.3.0(zod@4.4.3)":
+    dependencies:
+      zod: 4.4.3
+
   "@fastify/ajv-compiler@4.0.6":
     dependencies:
       ajv: 8.20.0
@@ -1697,6 +1748,11 @@ snapshots:
       ipaddr.js: 2.5.0
 
   "@jridgewell/sourcemap-codec@1.5.5": {}
+
+  "@openma/common@https://codeload.github.com/openma-ai/openma-common/tar.gz/5957920a85077104a2b56e60f8fdfb7e90d51905":
+    dependencies:
+      "@agentclientprotocol/sdk": 1.3.0(zod@4.4.3)
+      zod: 4.4.3
 
   "@oxc-project/types@0.146.0": {}
 
@@ -2398,3 +2454,5 @@ snapshots:
       "@yuku-parser/binding-linux-x64-musl": 0.8.7
       "@yuku-parser/binding-win32-arm64": 0.8.7
       "@yuku-parser/binding-win32-x64": 0.8.7
+
+  zod@4.4.3: {}

@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/agent",
+  "name": "@openmatter/agent-claude",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@openma/common": "github:openma-ai/openma-common#5957920a85077104a2b56e60f8fdfb7e90d51905",
+    "@openmatter/agent": "workspace:*",
     "@openmatter/core": "workspace:*"
   },
   "peerDependencies": {

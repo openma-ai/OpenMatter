@@ -3,7 +3,19 @@ import {
   type ContextProjection,
   type JsonValue,
 } from "@openmatter/core";
+import type { OpenMAEvent as CanonicalOpenMAEvent } from "@openma/common/agent-contract";
 import { Context, Data, Layer, Schema, type Effect, type Stream } from "effect";
+
+export {
+  createOpenMAEvent,
+  immutableJson,
+  isCallbackRequestEvent,
+  isElicitationRequestEvent,
+  isPermissionRequestEvent,
+  isTurnTerminalEvent,
+  turnTerminalStatus,
+} from "@openma/common/agent-contract";
+export type { OpenMAEventSource } from "@openma/common/agent-contract";
 
 export const AgentSessionHandleSchema = Schema.Struct({
   id: Schema.String,
@@ -21,18 +33,29 @@ export interface AgentSessionCreateInput {
 }
 
 export const OpenMAEventSchema = Schema.Struct({
-  schemaVersion: Schema.String,
-  id: Schema.String,
-  sessionId: Schema.String,
-  turnId: Schema.String,
-  sequence: Schema.Number,
+  schema_version: Schema.Literal("oma.event.v1"),
+  event_id: Schema.String,
   type: Schema.String,
-  timestamp: Schema.String,
-  payload: JsonValueSchema,
+  session_id: Schema.String,
+  session_thread_id: Schema.optional(Schema.String),
+  turn_id: Schema.optional(Schema.String),
+  work_item_id: Schema.optional(Schema.String),
+  parent_event_id: Schema.optional(Schema.String),
+  parent_id: Schema.optional(Schema.String),
+  source: Schema.Struct({
+    kind: Schema.Literal("harness", "openma", "user", "system"),
+    harness: Schema.optional(Schema.String),
+    adapter: Schema.optional(Schema.String),
+  }),
+  occurred_at: Schema.String,
+  ingested_at: Schema.optional(Schema.String),
+  seq: Schema.optional(Schema.Number),
+  data: JsonValueSchema,
   raw: Schema.optional(JsonValueSchema),
 }).annotations({ identifier: "OpenMAEvent" });
 
-export type OpenMAEvent = typeof OpenMAEventSchema.Type;
+/** The single canonical Agent event vocabulary lives in openma-common. */
+export type OpenMAEvent = CanonicalOpenMAEvent;
 
 export interface AgentTurnInput {
   readonly session: AgentSessionHandle;

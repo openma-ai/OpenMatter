@@ -14,7 +14,7 @@ export const errorMessage = (error: unknown): string => {
 };
 
 export const isJsonObject = (
-  value: JsonValue,
+  value: unknown,
 ): value is { readonly [key: string]: JsonValue } =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -28,18 +28,66 @@ export const sessionHandleFrom = (
 export const outputFrom = (
   events: readonly OpenMAEvent[],
 ): JsonValue | undefined => {
-  const output = [...events]
-    .reverse()
-    .find((event) =>
-      ["assistant.output", "assistant.message", "turn.result"].includes(
-        event.type,
-      ),
-    );
-  if (output === undefined) return undefined;
-  if (isJsonObject(output.payload) && output.payload.text !== undefined) {
-    return output.payload.text;
+  const messages = events.filter((event) => event.type === "agent.message");
+  const complete =
+    [...messages]
+      .reverse()
+      .find(
+        (event) =>
+          isJsonObject(event.data) && event.data.phase === "final_answer",
+      ) ??
+    [...messages]
+      .reverse()
+      .find(
+        (event) =>
+          !isJsonObject(event.data) || event.data.phase !== "commentary",
+      ) ??
+    messages.at(-1);
+  if (complete !== undefined) {
+    if (isJsonObject(complete.data) && complete.data.text !== undefined) {
+      return complete.data.text;
+    }
+    return complete.data as JsonValue;
   }
-  return output.payload;
+
+  const chunks = events.filter(
+    (event) =>
+      event.type === "agent.message_chunk" &&
+      isJsonObject(event.data) &&
+      typeof event.data.text === "string",
+  );
+  if (chunks.length === 0) return undefined;
+  const finalChunks = chunks.filter(
+    (event) => isJsonObject(event.data) && event.data.phase === "final_answer",
+  );
+  const nonCommentaryChunks = chunks.filter(
+    (event) => isJsonObject(event.data) && event.data.phase !== "commentary",
+  );
+  let selected =
+    finalChunks.length > 0
+      ? finalChunks
+      : nonCommentaryChunks.length > 0
+        ? nonCommentaryChunks
+        : chunks;
+  const messageIds = selected.map((event) =>
+    isJsonObject(event.data) && typeof event.data.message_id === "string"
+      ? event.data.message_id
+      : undefined,
+  );
+  if (messageIds.every((id) => id !== undefined)) {
+    const latestMessageId = messageIds.at(-1)!;
+    selected = selected.filter(
+      (event) =>
+        isJsonObject(event.data) && event.data.message_id === latestMessageId,
+    );
+  }
+  return selected
+    .map((event) =>
+      isJsonObject(event.data) && typeof event.data.text === "string"
+        ? event.data.text
+        : "",
+    )
+    .join("");
 };
 
 const canonicalize = (

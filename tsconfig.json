@@ -23,6 +23,7 @@
         "./packages/integration-slack/src/index.ts"
       ],
       "@openmatter/agent": ["./packages/agent/src/index.ts"],
+      "@openmatter/agent-claude": ["./packages/agent-claude/src/index.ts"],
       "@openmatter/agent-mock": ["./packages/agent-mock/src/index.ts"],
       "@openmatter/runtime": ["./packages/runtime/src/index.ts"],
       "@openmatter/host-cloudflare": [
