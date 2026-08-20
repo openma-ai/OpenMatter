@@ -5,6 +5,7 @@ import {
 } from "@openmatter/core";
 import type { WorkIntegration } from "@openmatter/integration";
 import { IntegrationError } from "@openmatter/integration";
+import type { HttpEndpoint } from "@openmatter/http";
 import { Data, Effect, Schema } from "effect";
 
 export class SlackRequestVerificationError extends Data.TaggedError(
@@ -19,6 +20,14 @@ export class SlackHttpIngressError extends Data.TaggedError(
 )<{
   readonly message: string;
   readonly status: 400 | 401;
+  readonly cause?: unknown;
+}> {}
+
+export class SlackHttpSubmissionError extends Data.TaggedError(
+  "SlackHttpSubmissionError",
+)<{
+  readonly message: string;
+  readonly status: 503;
   readonly cause?: unknown;
 }> {}
 
@@ -87,6 +96,11 @@ export interface SlackHttpRequestOptions {
 export type SlackHttpRequestResult =
   | { readonly kind: "challenge"; readonly challenge: string }
   | { readonly kind: "input"; readonly input: JsonValue };
+
+export interface SlackHttpEndpointOptions extends SlackHttpRequestOptions {
+  readonly path?: string;
+  readonly submit: (input: JsonValue) => Promise<unknown>;
+}
 
 const parseSlackHttpBody = (rawBody: string, contentType: string): unknown => {
   if (contentType.includes("application/x-www-form-urlencoded")) {
@@ -183,6 +197,50 @@ export const decodeSlackHttpRequest = (
     }
     return { kind: "input", input: withoutSlackCredentials(parsed) };
   });
+
+const slackJsonResponse = (body: unknown, status: number): Response =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
+
+/** Provider-owned endpoint that can be mounted by any OpenMatter HTTP
+ * framework component. Signature verification stays beside Slack decoding. */
+export const makeSlackHttpEndpoint = (
+  options: SlackHttpEndpointOptions,
+): HttpEndpoint => ({
+  method: "POST",
+  path: options.path ?? "/slack/events",
+  handle: (request) =>
+    Effect.runPromise(
+      decodeSlackHttpRequest(request, options).pipe(
+        Effect.flatMap((decoded) => {
+          if (decoded.kind === "challenge") {
+            return Effect.succeed(
+              slackJsonResponse({ challenge: decoded.challenge }, 200),
+            );
+          }
+          return Effect.tryPromise({
+            try: () => options.submit(decoded.input),
+            catch: (cause) =>
+              new SlackHttpSubmissionError({
+                message: "Unable to submit Slack work",
+                status: 503,
+                cause,
+              }),
+          }).pipe(Effect.as(slackJsonResponse({ ok: true }, 200)));
+        }),
+        Effect.catchAll((error) =>
+          Effect.succeed(
+            slackJsonResponse(
+              { ok: false, error: error.message },
+              error.status,
+            ),
+          ),
+        ),
+      ),
+    ),
+});
 
 export interface SlackIntegrationOptions {
   readonly botToken: string;

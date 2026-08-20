@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/integration-slack",
+  "name": "@openmatter/hono",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,11 +16,12 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/integration": "workspace:*",
     "@openmatter/http": "workspace:*"
   },
   "peerDependencies": {
-    "effect": "^3.22.1"
+    "hono": "^4.13.3"
+  },
+  "devDependencies": {
+    "hono": "4.13.3"
   }
 }

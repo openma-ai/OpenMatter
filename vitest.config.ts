@@ -31,6 +31,9 @@ export default defineConfig({
       "@openmatter/orchestration": fromRoot(
         "./packages/orchestration/src/index.ts",
       ),
+      "@openmatter/http": fromRoot("./packages/http/src/index.ts"),
+      "@openmatter/fastify": fromRoot("./packages/fastify/src/index.ts"),
+      "@openmatter/hono": fromRoot("./packages/hono/src/index.ts"),
     },
   },
   test: {

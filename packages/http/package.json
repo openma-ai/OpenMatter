@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/integration-slack",
+  "name": "@openmatter/http",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -14,13 +14,5 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
-  },
-  "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/integration": "workspace:*",
-    "@openmatter/http": "workspace:*"
-  },
-  "peerDependencies": {
-    "effect": "^3.22.1"
   }
 }

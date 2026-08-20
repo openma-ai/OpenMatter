@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   decodeSlackHttpRequest,
   makeSlackIntegration,
+  makeSlackHttpEndpoint,
   verifySlackRequest,
 } from "../packages/integration-slack/src/index.js";
 
@@ -490,6 +491,60 @@ describe("Slack WorkIntegration", () => {
       kind: "challenge",
       challenge: "challenge-token",
     });
+  });
+
+  it("publishes Slack URL verification as a portable HTTP endpoint", async () => {
+    const endpoint = makeSlackHttpEndpoint({
+      signingSecret: "signing-secret",
+      now: () => 1787210400,
+      submit: async () => {
+        throw new Error("URL verification must not submit work");
+      },
+    });
+    const body = JSON.stringify({
+      type: "url_verification",
+      challenge: "endpoint-challenge",
+    });
+
+    const response = await endpoint.handle(
+      signedSlackRequest(body, "application/json"),
+    );
+
+    expect(endpoint).toMatchObject({ method: "POST", path: "/slack/events" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ challenge: "endpoint-challenge" });
+  });
+
+  it("submits a verified Slack payload through the portable HTTP endpoint", async () => {
+    let submitted: unknown;
+    const endpoint = makeSlackHttpEndpoint({
+      signingSecret: "signing-secret",
+      now: () => 1787210400,
+      submit: async (input) => {
+        submitted = input;
+      },
+    });
+    const envelope = {
+      type: "event_callback",
+      team_id: "TWORK",
+      event_id: "EvEndpoint",
+      event: {
+        type: "app_mention",
+        user: "U01",
+        text: "<@BCLAUDE> inspect",
+        ts: "1787210400.000001",
+        channel: "C01",
+      },
+    };
+    const body = JSON.stringify(envelope);
+
+    const response = await endpoint.handle(
+      signedSlackRequest(body, "application/json"),
+    );
+
+    expect(submitted).toEqual(envelope);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
   });
 
   it("decodes a signed URL-encoded slash command into adapter input", async () => {

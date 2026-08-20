@@ -47,6 +47,7 @@ Directional Work Profiles may later describe operations, events, Resource identi
 - `@openmatter/integration-slack` is the first real Work Integration, including signed HTTP ingress, messages, reactions, slash commands, and forms.
 - `@openmatter/orchestration` includes the Claude Tag-style Scope/WorkThread/Session preset.
 - `@openmatter/host-cloudflare` and `@openmatter/host-local` bind the same application to Worker Queues or Slack Socket Mode.
+- `@openmatter/fastify` and `@openmatter/hono` mount provider-neutral `@openmatter/http` endpoints without owning application policy or server lifecycle.
 - `examples/basic`, `examples/slack-cloudflare`, and `examples/slack-local` show the three executable composition shapes.
 
 See [Project structure](docs/PROJECT_STRUCTURE.md) for dependency direction and
@@ -211,6 +212,7 @@ All durable fields use one portable `JsonValue` contract. Integration-native pay
 - [Standards and platform references](docs/REFERENCES.md)
 - [Package structure](docs/PROJECT_STRUCTURE.md)
 - [Slack, Claude Tag preset, and deployment hosts](docs/SLACK_CLAUDE_TAG.md)
+- [Fastify and Hono framework components](docs/HTTP_COMPONENTS.md)
 - Directional Work Profile layer: [architecture](docs/ARCHITECTURE.md) and [draft specification](docs/SDK_SPEC.md)
 
 > [!IMPORTANT]

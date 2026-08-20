@@ -29,7 +29,10 @@
         "./packages/host-cloudflare/src/index.ts"
       ],
       "@openmatter/host-local": ["./packages/host-local/src/index.ts"],
-      "@openmatter/orchestration": ["./packages/orchestration/src/index.ts"]
+      "@openmatter/orchestration": ["./packages/orchestration/src/index.ts"],
+      "@openmatter/http": ["./packages/http/src/index.ts"],
+      "@openmatter/fastify": ["./packages/fastify/src/index.ts"],
+      "@openmatter/hono": ["./packages/hono/src/index.ts"]
     },
     "types": ["node", "vitest/globals"]
   },

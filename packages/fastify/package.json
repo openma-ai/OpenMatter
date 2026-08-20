@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/integration-slack",
+  "name": "@openmatter/fastify",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,11 +16,12 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/integration": "workspace:*",
     "@openmatter/http": "workspace:*"
   },
   "peerDependencies": {
-    "effect": "^3.22.1"
+    "fastify": "^5.12.1"
+  },
+  "devDependencies": {
+    "fastify": "5.12.1"
   }
 }
