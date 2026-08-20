@@ -16,7 +16,7 @@
     }
   },
   "dependencies": {
-    "@openma/common": "github:openma-ai/openma-common#5957920a85077104a2b56e60f8fdfb7e90d51905",
+    "@openma/common": "github:openma-ai/openma-common#9cebdb1bfc4630c5f6e2fc8f9b8f96599314c3f1",
     "@openmatter/agent": "workspace:*",
     "@openmatter/core": "workspace:*"
   },

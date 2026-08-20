@@ -44,11 +44,32 @@ in-process SDK. The host does not choose Scope or permissions.
 | `message.react`      | [`reactions.add`](https://docs.slack.dev/reference/methods/reactions.add/)                        |
 | `view.open`          | [`views.open`](https://docs.slack.dev/reference/methods/views.open/)                              |
 
+### v0 support boundary
+
+This is the complete Slack surface required by the current Claude Tag vertical
+slice, not a claim to cover every Slack API. The Agent is not automatically
+given a workspace's history or a bot token. It receives the normalized trigger
+plus application-selected Context items, and it may execute only the operations
+present in that Turn's grants.
+
+| Available end to end                                                        | Deliberately not yet supplied by this adapter                                      |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| signed HTTP ingress, URL verification, and local Socket Mode                | OAuth installation, token rotation, and multi-workspace credential storage         |
+| app mentions, direct messages, explicitly re-mentioned thread messages      | history/search loaders, user/channel lookup, files, canvases, lists, and workflows |
+| slash commands and modal `view_submission` with structured state            | shortcuts, `block_actions`, Home tabs, modal update/push, and validation responses |
+| thread/channel/ephemeral messages, reaction add, and portable modal opening | message edit/delete/schedule, reaction removal, file upload, and Block Kit DSL     |
+
+Those missing reads should enter later as explicit Context/resource loaders;
+missing writes should enter as separately named operations and grants. A user
+can therefore add Slack capabilities without changing Scope, Session, Turn, or
+Reaction semantics—and without silently increasing an Agent's authority.
+
 HTTP ingress reads the raw body once and implements Slack's
 [`v0` signing-secret verification](https://docs.slack.dev/authentication/verifying-requests-from-slack/),
 including timestamp tolerance. URL verification, JSON Events API envelopes,
 URL-encoded slash commands, and interactive `payload` forms are decoded before
-they enter `WorkIntegration.ingest`. Slash-command `response_url`, modal
+they enter `WorkIntegration.ingest`; v0 normalizes `view_submission` and safely
+ignores unsupported interactive types. Slash-command `response_url`, modal
 `response_urls`, and legacy verification `token` fields are stripped before
 Queue, WorkEvent, Context, or Agent boundaries; the preset replies through the
 bot-authenticated Web API.

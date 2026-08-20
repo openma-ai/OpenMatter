@@ -374,6 +374,73 @@ describe("makeClaudeAgentDriver", () => {
     });
   });
 
+  it("rejects event types outside the shared OpenMA vocabulary", async () => {
+    const connector: OpenMAAgentConnector = {
+      id: "claude-managed",
+      async capabilities() {
+        return {
+          sessionPersistence: "persistent",
+          streaming: true,
+          cancellation: true,
+          permissions: false,
+          elicitation: false,
+        };
+      },
+      async open() {
+        return createAgentSessionHandle({
+          connectorId: "claude-managed",
+          externalSessionId: "external-1",
+          placement: "managed",
+        });
+      },
+      async *execute(inputSession, input) {
+        yield {
+          schema_version: "oma.event.v1",
+          event_id: "future-event-1",
+          type: "future.unknown",
+          session_id: input.sessionId,
+          turn_id: input.turnId,
+          source: {
+            kind: "harness",
+            harness: inputSession.connectorId,
+          },
+          occurred_at: "2026-08-20T10:00:00.000Z",
+          seq: 1,
+          data: {},
+        } as never;
+      },
+      async send() {},
+      async close() {},
+    };
+    const driver = makeClaudeAgentDriver({ connector, agentId: "claude" });
+    const session = await Effect.runPromise(
+      driver.createSession({
+        sessionId: "session-1",
+        bindingKey: "binding-1",
+        generation: 1,
+        idempotencyKey: "session-1",
+      }),
+    );
+
+    const result = await Effect.runPromise(
+      driver
+        .turn({
+          session,
+          sessionId: "session-1",
+          turnId: "turn-1",
+          afterSequence: 0,
+          context,
+          allow: [],
+        })
+        .pipe(Stream.runCollect, Effect.either),
+    );
+
+    expect(result).toMatchObject({
+      _tag: "Left",
+      left: { _tag: "AgentDriverError" },
+    });
+  });
+
   it("contains malformed connector capabilities in the Effect error channel", async () => {
     const connector = {
       id: "claude-managed",

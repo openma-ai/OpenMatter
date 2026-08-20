@@ -68,7 +68,7 @@ Typical event classes include:
 - turn completion, failure, cancellation, or interruption;
 - provider-native extensions.
 
-The canonical type, constructors, immutable-JSON guard, lifecycle helpers, ACP mapper, and Managed mapper live in `@openma/common/agent-contract`. OpenMatter imports that contract directly; it does not translate it into a second camelCase event vocabulary. ACP and managed-runtime events both map into this one OpenMAEvent, and UI code consumes the same facts.
+The canonical type, event-type registry, runtime validator, constructors, immutable-JSON guard, lifecycle helpers, ACP mapper, and Managed mapper live in `@openma/common/agent-contract`. OpenMatter imports that contract directly; its Effect `OpenMAEventSchema` delegates to the common validator instead of mirroring the envelope or translating it into a second camelCase event vocabulary. ACP and managed-runtime events both map into this one OpenMAEvent, and UI code consumes the same facts.
 
 The shared envelope permits Session-level facts without a Turn sequence. An `AgentDriver.turn()` stream is the stricter subset: every event must carry the active `turn_id` and a contiguous non-negative `seq`.
 

@@ -3,7 +3,10 @@ import {
   type ContextProjection,
   type JsonValue,
 } from "@openmatter/core";
-import type { OpenMAEvent as CanonicalOpenMAEvent } from "@openma/common/agent-contract";
+import {
+  isOpenMAEvent as isCanonicalOpenMAEvent,
+  type OpenMAEvent as CanonicalOpenMAEvent,
+} from "@openma/common/agent-contract";
 import { Context, Data, Layer, Schema, type Effect, type Stream } from "effect";
 
 export {
@@ -11,8 +14,12 @@ export {
   immutableJson,
   isCallbackRequestEvent,
   isElicitationRequestEvent,
+  isOpenMAEvent,
   isPermissionRequestEvent,
   isTurnTerminalEvent,
+  OPENMA_CANONICAL_EVENT_TYPES,
+  OPENMA_EVENT_SCHEMA_VERSION,
+  OPENMA_EVENT_TYPES,
   turnTerminalStatus,
 } from "@openma/common/agent-contract";
 export type { OpenMAEventSource } from "@openma/common/agent-contract";
@@ -32,27 +39,14 @@ export interface AgentSessionCreateInput {
   readonly idempotencyKey: string;
 }
 
-export const OpenMAEventSchema = Schema.Struct({
-  schema_version: Schema.Literal("oma.event.v1"),
-  event_id: Schema.String,
-  type: Schema.String,
-  session_id: Schema.String,
-  session_thread_id: Schema.optional(Schema.String),
-  turn_id: Schema.optional(Schema.String),
-  work_item_id: Schema.optional(Schema.String),
-  parent_event_id: Schema.optional(Schema.String),
-  parent_id: Schema.optional(Schema.String),
-  source: Schema.Struct({
-    kind: Schema.Literal("harness", "openma", "user", "system"),
-    harness: Schema.optional(Schema.String),
-    adapter: Schema.optional(Schema.String),
-  }),
-  occurred_at: Schema.String,
-  ingested_at: Schema.optional(Schema.String),
-  seq: Schema.optional(Schema.Number),
-  data: JsonValueSchema,
-  raw: Schema.optional(JsonValueSchema),
-}).annotations({ identifier: "OpenMAEvent" });
+/** Effect-facing view of the validator owned by openma-common. */
+export const OpenMAEventSchema = Schema.declare<CanonicalOpenMAEvent>(
+  isCanonicalOpenMAEvent,
+  {
+    identifier: "OpenMAEvent",
+    description: "Immutable OpenMA Agent event validated by openma-common",
+  },
+);
 
 /** The single canonical Agent event vocabulary lives in openma-common. */
 export type OpenMAEvent = CanonicalOpenMAEvent;
