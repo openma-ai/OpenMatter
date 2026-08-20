@@ -4,24 +4,110 @@
 
 ## Goal
 
-OpenMatter is a programmable framework. Users write ordinary TypeScript rather than describing all behavior in a closed JSON language.
+OpenMatter combines a portable work-surface description with programmable orchestration.
 
-The SDK should be:
+- Work Profiles are declarative and JSON-serializable.
+- Application policy is ordinary TypeScript.
+- Runtime records and traces are serializable.
+- Internal Effect machinery is not required knowledge for users.
 
-- code-first;
-- convention-assisted;
-- extensible at every lifecycle stage;
-- observable through typed boundaries;
-- serializable at the state and trace layers;
-- usable in embedded, server, worker, and serverless deployments.
+The examples below are directional v0 API design, not a compatibility promise.
 
-## Application construction
+## Compile from OpenAPI
+
+```ts
+import { compileWorkProfile, openapi, overlay } from "@openmatter/compiler";
+
+const result = await compileWorkProfile({
+  sources: [openapi("./work-api.yaml")],
+  overlays: [overlay("./work-semantics.yaml")],
+});
+
+if (result.diagnostics.some((item) => item.severity === "error")) {
+  throw new Error(formatDiagnostics(result.diagnostics));
+}
+
+await result.write("./dist/work-profile.json");
+```
+
+Compilation may also happen in memory during development:
+
+```ts
+const { profile } = await compileWorkProfile({
+  sources: [openapi(new URL("https://example.com/openapi.json"))],
+  referencePolicy: "same-origin",
+});
+```
+
+Production builds should use pinned source bytes and digests rather than fetching a mutable remote description on startup.
+
+## Define semantic enrichment
+
+```ts
+import {
+  defineWorkProfile,
+  openapi,
+  operation,
+  resource,
+  select,
+} from "@openmatter/profile";
+
+export default defineWorkProfile({
+  source: openapi("./work-api.yaml"),
+
+  resources: {
+    issue: resource({
+      identity: select("output", "$.id"),
+      aliases: [select("output", "$.identifier")],
+      uri: select("output", "$.url"),
+    }),
+  },
+
+  operations: {
+    createIssueComment: operation({
+      id: "issue.comment.create",
+      target: "issue",
+      class: "write",
+      confirmation: "policy",
+      idempotency: "key",
+      resultResources: ["comment"],
+    }),
+  },
+});
+```
+
+The function returns an authoring object that the Compiler converts into equivalent Profile JSON. It does not become a runtime plugin.
+
+## Bind a Profile to an authority
+
+```ts
+const surface = createWorkSurface({
+  profile,
+  authority: {
+    profile: profile.id,
+    id: "workspace-1",
+  },
+
+  operations: openApiOperations({
+    fetch,
+    servers: ["https://api.example.com"],
+    credentials: environmentCredentials({
+      WORK_API_TOKEN: "oauth2",
+    }),
+  }),
+
+  events: [projectWebhooks],
+});
+```
+
+Credentials and trusted servers are authority configuration, never Work Profile values or agent inputs.
+
+## Construct the application
 
 ```ts
 const app = createOpenMatter({
-  integrations: {
-    slack: slackIntegration({ token: process.env.SLACK_TOKEN }),
-    linear: linearIntegration({ apiKey: process.env.LINEAR_API_KEY }),
+  work: {
+    project: surface,
   },
 
   agents: {
@@ -29,19 +115,17 @@ const app = createOpenMatter({
   },
 
   store: postgresStore(db),
-  scheduler: durableScheduler(queue),
-  secrets: environmentSecrets(),
+  tracing: openTelemetry(),
 });
 ```
 
-These are live objects. OpenMatter does not require the application object graph to be JSON-serializable.
+These are live objects. The application object graph is not required to be JSON-serializable.
 
 ## Event handlers
 
 ```ts
-app.on("slack.message.mentioned", async (work) => {
-  // ordinary asynchronous application code
-  return work.react.none();
+app.on("issue.updated", async (work) => {
+  return work.react.none("Observed, no action required");
 });
 ```
 
@@ -52,7 +136,7 @@ interface WorkContext {
   event: WorkEvent;
   state: DurableState;
 
-  integration(id: string): WorkIntegrationClient;
+  surface(id: string): WorkSurfaceClient;
   agent(id: string): AgentHandle;
 
   scopes: ScopeAPI;
@@ -63,20 +147,20 @@ interface WorkContext {
 }
 ```
 
-Calls through this context emit typed trace records. Arbitrary user code between those calls remains opaque and unrestricted.
+Calls through this context emit typed traces. Arbitrary user code between calls remains unrestricted.
 
-## Typical reactive handler
+## Typical handler
 
 ```ts
-app.on("slack.message.mentioned", async (work) => {
+app.on("message.mentioned", async (work) => {
   const scope = await work.scopes.resolve("project", async () => {
-    return findProjectByChannel(work.event.source.conversationId);
+    return findProjectByConversation(work.event.data.anchor?.conversation);
   });
 
   const matters = await work.matters.resolve({
     event: work.event,
     resolvers: [
-      work.matters.providerReferences(),
+      work.matters.profileResources(),
       work.matters.urls(),
       teamLanguageResolver,
     ],
@@ -86,21 +170,17 @@ app.on("slack.message.mentioned", async (work) => {
     scope,
     key:
       matters.primary?.id ??
-      work.event.source.threadId ??
-      work.event.source.conversationId,
+      work.event.data.anchor?.thread?.id ??
+      work.event.data.anchor?.conversation?.id,
     matters,
   });
 
-  const context = await work.context.build(async (context) => {
-    context.add(work.event);
-    context.add(await work.integration("slack").readThread());
+  const context = await work.context.build(async (projection) => {
+    projection.add(work.event);
+    projection.add(await work.threads.history(thread));
 
     for (const matter of matters.resolved) {
-      context.add(await work.matters.materialize(matter));
-    }
-
-    if (await isProductionIncident(work.event)) {
-      context.add(await loadProductionMetrics());
+      projection.add(await work.matters.materialize(matter));
     }
   });
 
@@ -118,13 +198,12 @@ app.on("slack.message.mentioned", async (work) => {
 
 ## Cross-platform work by Matter
 
-Different provider events can continue the same WorkThread when they resolve to the same Matter.
+Different Profile events can continue the same WorkThread when they resolve to the same Matter.
 
 ```ts
 const handleIssueWork: WorkHandler = async (work) => {
   const scope = await work.scopes.resolve("project");
   const matters = await work.matters.resolve(work.event);
-
   const thread = await work.threads.continue({
     scope,
     key: matters.requirePrimary().id,
@@ -147,19 +226,24 @@ const handleIssueWork: WorkHandler = async (work) => {
   return work.react(result);
 };
 
-app.on("slack.message.mentioned", handleIssueWork);
-app.on("linear.issue.updated", handleIssueWork);
-app.on("github.issue_comment.created", handleIssueWork);
+app.on("message.mentioned", handleIssueWork);
+app.on("issue.updated", handleIssueWork);
+app.on("code.comment.created", handleIssueWork);
 ```
+
+The event names are Profile definitions, not a closed global enum.
 
 ## Commands and forms
 
-Slash commands, forms, and action callbacks are ordinary WorkEvents with structured interaction data.
+Commands and forms are structured interactions that produce WorkEvents.
 
 ```ts
-app.on(["slack.command.invoked", "slack.form.submitted"], async (work) => {
+app.on(["command.invoked", "form.submitted"], async (work) => {
   const scope = await work.scopes.resolve("project");
-  const thread = await work.threads.invocation({ scope, event: work.event });
+  const thread = await work.threads.invocation({
+    scope,
+    event: work.event,
+  });
 
   const result = await work
     .agent("worker")
@@ -182,7 +266,42 @@ app.on(["slack.command.invoked", "slack.form.submitted"], async (work) => {
 });
 ```
 
-Form definitions may be materializable references. Form submissions and callback tokens remain interaction data with provider-specific expiry and authorization rules.
+Interaction tokens remain ephemeral secure data and are not promoted into Matter identities.
+
+## Accept externally hosted ingress
+
+An application can own its HTTP framework and call the Runtime directly:
+
+```ts
+router.post("/hooks/project", async (request) => {
+  const events = await projectWebhook.decode(request);
+  for (const event of events) {
+    const receipt = await app.ingest(event);
+    await queue.send({ kind: "event.process", event: receipt.event });
+  }
+  return new Response(null, { status: 202 });
+});
+```
+
+This is the primary serverless shape. The queue consumer calls `app.process`
+with the exact event reference, then enqueues each exact operation `callId` for
+`app.deliver`. OpenMatter does not require its own HTTP server, queue, or worker.
+
+## Custom event binding
+
+```ts
+const projectEvents = customEvents({
+  id: "project-events",
+
+  async start(emit, signal) {
+    for await (const nativeEvent of provider.events({ signal })) {
+      await emit(profile.events.map("issue.updated", nativeEvent));
+    }
+  },
+});
+```
+
+The binding only handles provider delivery. Scope, context, sessions, and reactions remain Runtime responsibilities.
 
 ## Scheduled work (target convenience API)
 
@@ -230,22 +349,19 @@ app.schedule(
 
     return work.react(result);
   },
-
-  {
-    overlap: "skip",
-    timeout: "10m",
-    retry: 3,
-  },
-);
+};
 ```
 
-Staged state changes commit with the terminal reaction so failed work does not silently advance its cursor.
+The deployment host registers the cron and calls `decode` for each occurrence.
+Node `setInterval`, Cloudflare Cron, EventBridge, and another scheduler therefore
+share no fake common scheduling API. Their decoded events share the normal
+OpenMatter lifecycle.
 
 The timer itself remains a source adapter. A future `app.schedule` helper may register the handler and encode ticks as WorkEvents, but it must not make the core Runtime own cron, queues, or deployment locks.
 
 ## Extension interfaces
 
-Applications may replace or extend every important stage:
+Applications may replace policy stages without changing the Profile format:
 
 ```ts
 interface ScopeResolver {
@@ -273,13 +389,17 @@ interface ReactionCompiler {
 }
 ```
 
-Manifests describe inputs, outputs, capabilities, and configuration for documentation and visualization. They do not contain executable logic.
+Manifests describe boundaries for documentation and visualization. They do not contain executable logic.
 
 ## Serialization and visualization
 
-OpenMatter serializes three observable layers.
+OpenMatter serializes four observable layers.
 
-### Component manifests
+### Work Profile
+
+What operations, events, Resources, interactions, capabilities, and bindings exist.
+
+### Component manifest
 
 ```json
 {
@@ -301,7 +421,7 @@ OpenMatter serializes three observable layers.
 }
 ```
 
-### Execution traces
+### Execution trace
 
 ```json
 {
@@ -316,9 +436,7 @@ OpenMatter serializes three observable layers.
 }
 ```
 
-A visualizer can render registered components, runtime topology, and actual event traces. User functions appear as opaque custom-code nodes unless they provide richer manifests.
-
-## Suggested initial packages
+## Initial packages
 
 ```text
 @openmatter/core              domain records and JSON schemas
@@ -334,4 +452,6 @@ A visualizer can render registered components, runtime topology, and actual even
 @openmatter/visualizer        manifests, topology, and trace visualization
 ```
 
-Provider integrations remain independently installable packages.
+These are the physical v0 packages. A public `@openmatter/sdk` façade and
+independently versioned compiler, storage, or provider packages are added only
+after their entry points need independent release cycles.

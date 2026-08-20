@@ -1,199 +1,256 @@
-# Work Integrations and Matter References
+# Work Profiles, Bindings, and Matter References
 
 ## Purpose
 
-A WorkIntegration maps one work system into OpenMatter without forcing that system to imitate another provider.
+OpenMatter does not require one hand-written integration object per SaaS. It composes:
+
+- a portable `WorkProfile` describing the surface;
+- capability-specific runtime bindings;
+- optional application resolvers and policy.
+
+```text
+machine description → Work Profile
+                           +
+authority configuration → Work Surface
+                           +
+small executable bindings → events / operations / resources
+```
+
+## Three levels of integration
+
+### Generic
+
+Compile OpenAPI into typed operations and execute them with the generic HTTP binding.
+
+```ts
+const profile = await compileWorkProfile({
+  sources: [openapi("./api.yaml")],
+});
+
+const surface = createWorkSurface({
+  profile,
+  authority,
+  operations: openApiOperations({ fetch, credentials }),
+});
+```
+
+No provider-specific client is required. Unknown work semantics remain unknown.
+
+### Enriched
+
+Add a portable semantic overlay:
+
+- stable Resource identity and aliases;
+- parent and subject relationships;
+- event anchors and correlation keys;
+- operation safety and idempotency;
+- forms, commands, and approvals;
+- capabilities and provider-scope hints.
+
+The overlay still contains no executable code or credentials.
+
+### Custom
+
+Register a named binding or resolver when the provider requires behavior that machine descriptions cannot express:
+
+- webhook signature verification;
+- OAuth installation callbacks;
+- provider SDK event streams;
+- dynamic resource expansion;
+- non-HTTP operations;
+- natural-language or application-specific reference resolution.
+
+Custom code is explicit and independently packageable. It does not turn the Profile into a hidden provider runtime.
+
+## Runtime binding surfaces
 
 ```ts
 interface WorkIntegration {
-  manifest: IntegrationManifest;
-  events: EventSource;
-  references: ReferenceResolver;
-  context: ContextProvider;
-  effects: EffectSink;
-  auth: AuthProvider;
+  manifest: {
+    id: string;
+    displayName: string;
+    events: readonly string[];
+    operations: readonly string[];
+  };
+  ingest(input: unknown): Effect<readonly WorkEvent[], IntegrationError>;
+  deliver(effect: WorkEffect): Effect<ProviderDeliveryResult, IntegrationError>;
+}
+
+interface ResourceMaterializer {
+  materialize(
+    address: ResourceAddress,
+    options?: MaterializeOptions,
+  ): Promise<MaterializedResource>;
 }
 ```
 
-The semantic interface may be implemented in process or behind HTTP, WebSocket, webhook, polling, queue, or RPC bindings.
+A Work Integration owns provider normalization and effect delivery. Host event
+sources remain ordinary application code and feed the same integration:
 
-## Integration surfaces
+```text
+Webhook callback     app.acceptFrom("slack", requestBody)
+WebSocket / poller   source → integration.ingest → app.consume
+Host timer           app.acceptFrom("schedule", nativeOccurrence)
+OpenAPI operation    WorkIntegration.deliver generated from a Profile binding
+Custom platform      custom WorkIntegration
+```
 
-### Events
+## Events
 
-Normalize provider observations into immutable WorkEvents while preserving the native payload.
+Events normalize provider observations into CloudEvents-compatible `WorkEvent` records while retaining provider data under provenance and redaction policy.
 
-Common categories include:
+Common event classes include:
 
-- message created, updated, deleted, or mentioned;
-- thread or reply activity;
-- slash command invocation;
-- form submission and action callback;
+- message, mention, reply, reaction, or deletion;
+- slash command, form submission, or action callback;
 - issue, task, card, comment, pull request, or document change;
-- approval and permission response;
+- approval or permission response;
 - schedule or polling result;
-- custom provider-native events.
+- custom application event.
 
 The core does not require a globally closed event enum.
 
-### References
+OpenAPI webhooks and callbacks or AsyncAPI messages can generate EventDefinitions. They do not automatically solve subscription registration or provider signature verification; those are binding concerns.
 
-Extract structured provider references, parse links and scoped aliases, and validate address candidates.
+Every successfully normalized event enters `app.accept` through `acceptFrom` or
+`consume`. Application filtering returns an explicit reaction with no effects
+instead of silently dropping the event.
 
-Reference recognition does not imply authorization, materialization, or WorkThread linkage. These are separate decisions.
+## Operations
 
-### Context
+Operations are typed agent-visible capabilities. The generic OpenAPI binding constructs HTTP requests from the compiled binding and validates inputs and outputs.
 
-Materialize authorized content lazily:
+Operation semantics include:
 
-- conversations, messages, and threads;
-- issues, tasks, cards, comments, and boards;
-- documents, pages, blocks, files, and forms;
-- repositories, commits, pull requests, and build results;
-- custom application records.
+- `read`, `write`, or `destructive` classification;
+- confirmation floor;
+- idempotency and retry rules;
+- required capabilities and provider scopes;
+- target and result Resource extraction;
+- provider binding identity.
 
-A URI does not grant read access.
+An operation definition is not permission. Effective grants are computed per Turn.
 
-### Effects
+## Resources and Matter
 
-Compile typed WorkEffects into provider-native operations:
-
-- reply, react, edit, delete, or post;
-- open or update a form;
-- request or record approval;
-- create or mutate a work item;
-- attach an artifact;
-- execute a custom provider operation;
-- deliberately perform no external action.
-
-Effect delivery is idempotent and returns a receipt.
-
-### Capabilities and auth
-
-The manifest declares supported events, resources, operations, interactive surfaces, authentication modes, permission scopes, rate limits, and delivery constraints.
-
-Provider-native extensions are allowed. Unsupported features are explicit rather than approximated silently.
-
-## Matter reference model
-
-Platform resources, URLs, aliases, and natural-language phrases are representations of a possible Matter.
+A Profile `ResourceAddress` identifies a provider representation:
 
 ```ts
-type MatterReference =
-  | {
-      type: "platform";
-      provider: string;
-      authority: string;
-      resourceType: string;
-      id: string;
-      path?: Record<string, string>;
-      aliases?: string[];
-      uri?: string;
-    }
-  | { type: "url"; url: string }
-  | { type: "alias"; namespace: string; value: string }
-  | { type: "text"; value: string }
-  | { type: "conversation"; anchor: SourceAnchor }
-  | { type: string; value: unknown };
+interface ResourceAddress {
+  profile: string;
+  authority: string;
+  type: string;
+  id: string;
+  containers?: Record<string, string>;
+  aliases?: string[];
+  uri?: string;
+}
 ```
 
-Provider IDs are authority-scoped and often compound. Human identifiers should usually be aliases rather than canonical IDs.
+An OpenMatter `Matter` identifies the durable thing being worked on:
 
-## Resolution pipeline
+```text
+Matter
+├── Linear issue ResourceAddress
+├── GitHub pull request ResourceAddress
+├── Slack thread ResourceAddress
+├── URL
+├── team-local alias
+└── unresolved natural-language evidence
+```
 
-The recommended default is deterministic and scope-aware:
+Resource recognition, Matter resolution, WorkThread linking, context materialization, and mutation authority are separate decisions.
+
+## Recognition pipeline
+
+The default pipeline is deterministic and scope-aware:
 
 ```text
 provider structured fields
   → entity mentions and reply relationships
+  → Profile Resource selectors
   → URLs and deep links
   → scope-local syntax and aliases
   → application resolvers
   → optional agent proposal
 ```
 
-Each observed mention produces one of:
+Each observed reference produces one of:
 
 ```text
 resolved | ambiguous | unresolved | denied
 ```
 
-The original text or structured evidence, resolver identity, candidates, confidence, and provenance remain available.
+The original evidence, resolver identity, candidates, confidence, and provenance remain available.
 
-Normal provider reference recognition should not require an LLM. An agent may propose a link for natural language or ambiguous cases, subject to application policy.
+Normal provider reference recognition should not require an LLM. An agent may propose a link for ambiguous natural language, but application policy decides whether to accept it.
 
 ## Provider identity examples
 
-| Provider | Stable address shape | Common human reference | Important rule |
-| --- | --- | --- | --- |
-| Slack | team + channel + message timestamp | message link | `thread_ts` identifies the root thread message. |
-| Microsoft Teams | tenant/team/channel/message or chat/message | message link | `replyToId` connects replies to a root. |
-| Discord | guild/channel/message | message link or mention | A thread is a child channel with a parent channel. |
-| Telegram | chat + message | reply or link | Topics add `message_thread_id`. |
-| Lark/Feishu | tenant/chat/message or document token | link or mention | Chat, message, document, and interactive callback IDs have different lifecycles. |
-| GitHub | owner/repository/type/number or stable API ID | `#123` or URL | A number requires repository scope. |
-| GitLab | project + IID or global ID | `!123` or full project reference | IID is project-scoped. |
-| Jira | site + issue ID | `WEB-42` or URL | The readable issue key is an alias and may change. |
-| Linear | workspace + UUID | `BLA-123` or URL | Human identifier is an alias for a stable entity ID. |
-| Asana | GID | URL or task name | Membership in projects and sections is separate from identity. |
-| Trello | card ID or short link | URL or board-local number | `idShort` is board-scoped and may change when moved. |
-| Notion | workspace + page/block UUID | page link or mention | Database rows are pages and content is composed of blocks. |
-| monday.com | account + board/item IDs | item URL or name | Board, group, item, subitem, and column are distinct resource kinds. |
+| Provider        | Stable address shape                        | Common human reference   | Important rule                                                        |
+| --------------- | ------------------------------------------- | ------------------------ | --------------------------------------------------------------------- |
+| Slack           | team + channel + message timestamp          | message link             | `thread_ts` identifies the root message.                              |
+| Microsoft Teams | tenant/team/channel/message or chat/message | message link             | `replyToId` connects replies to a root.                               |
+| Discord         | guild/channel/message                       | link or mention          | A thread is a child channel with a parent channel.                    |
+| Telegram        | chat + message                              | reply or link            | Topics add `message_thread_id`.                                       |
+| Lark / Feishu   | tenant/chat/message or document token       | link or mention          | Message, document, and callback identifiers have distinct lifecycles. |
+| GitHub          | owner/repository/type/number or API ID      | `#123` or URL            | A number requires repository scope.                                   |
+| GitLab          | project + IID or global ID                  | `!123` or full reference | IID is project-scoped.                                                |
+| Jira            | site + issue ID                             | `WEB-42` or URL          | The readable key is an alias and may change.                          |
+| Linear          | workspace + UUID                            | `BLA-123` or URL         | Human identifier is an alias for a stable entity ID.                  |
+| Asana           | GID                                         | URL or task name         | Project and section membership are relationships.                     |
+| Trello          | card ID or short link                       | URL or board number      | `idShort` is board-scoped and may change when moved.                  |
+| Notion          | workspace + page/block UUID                 | link or mention          | Database rows are pages and content is composed of blocks.            |
+| monday.com      | account + board/item IDs                    | item URL or name         | Board, group, item, subitem, and column are distinct Resources.       |
 
-## Explicit bindings
+Human keys should be aliases when a stable provider ID exists. A raw field named `id` is not enough evidence for the Compiler to assert identity.
 
-Application code should prefer explicit provider-to-scope bindings over guesses.
+## Explicit Scope bindings
+
+Provider authority and conversation coordinates are evidence for Scope resolution, not the Scope itself.
 
 ```ts
 app.scopes.define("project", {
   async resolve(event) {
     return projectBindings.find({
-      provider: event.source.provider,
-      authority: event.source.authority,
-      conversationId: event.source.conversationId,
+      profile: event.openmatterprofile,
+      authority: event.openmatterauthority,
+      conversation: event.data.anchor?.conversation,
     });
   },
 });
 ```
 
-A binding may associate multiple Slack channels, a Linear project, a GitHub repository, and a Notion workspace with one AgentScope.
-
-Short aliases such as `#123` or `WEB-42` are resolved only after the applicable scope and namespace are known.
-
-## Matter linking
-
-Resolution and linking are separate:
-
-- native provider relationships may link automatically;
-- deterministic application rules may link automatically;
-- user actions may explicitly link or unlink;
-- agent suggestions should normally be recorded as proposals;
-- uncertain references may remain unresolved without blocking the event.
-
-One WorkThread may link many Matters. One Matter may appear in many WorkThreads with different roles.
+One Scope may bind multiple chat channels, an issue project, a repository, and a document workspace. Short aliases such as `#123` or `WEB-42` are resolved only after the applicable Scope and namespace are known.
 
 ## Commands, forms, and callbacks
 
-Slash commands, form submissions, and interactive callbacks are normalized WorkEvents.
+Commands and forms are `InteractionDefinition`s and produce ordinary WorkEvents.
 
-Integrations preserve:
+Profiles preserve:
 
-- command name and arguments;
-- form schema or definition reference;
-- structured submitted values;
-- trigger, callback, and expiry tokens;
-- source and response anchors;
-- actor and authorization context.
+- command name and argument schema;
+- form input/output schema;
+- action and approval semantics;
+- event or operation invoked;
+- provider response anchors;
+- callback expiry requirements.
 
-Interactive tokens are ephemeral credentials, not durable Matter identities. Form definitions and submitted artifacts may be represented as Matters when the application needs durable continuity.
+Interactive tokens are ephemeral credentials. They are never durable Matter identities and are redacted by default.
 
-## OpenTag lessons
+An operation's JSON Schema may be rendered as a form without a separate interaction. A separate definition is needed when slash-command dispatch, provider callbacks, modal lifecycle, approval, or expiry semantics matter.
 
-OpenMatter adopts several useful distinctions from OpenTag:
+## Packaging strategy
 
-- conversation anchors are different from work-item references;
-- context pointers retain visibility and provenance;
-- explicit channel-to-project binding is safer than guessing;
-- context assembly benefits from observable stages and hooks.
+Independent packages may provide any of:
 
-OpenMatter generalizes beyond OpenTag by allowing multiple Matters per WorkThread, arbitrary work systems rather than repository-centered targets, and application-owned semantics rather than core command-intent classification.
+```text
+Profile only                    portable semantics
+Profile + operation binding    custom execution protocol
+Profile + event binding        webhook/stream subscription
+Full work-surface package      composed convenience export
+```
+
+This lets SaaS vendors, users, and the community publish reusable support without requiring OpenMatter core to become a connector marketplace.
+
+A complete workflow platform may also sit behind a remote binding. In that case OpenMatter treats it as an external system and does not emulate half of its runtime in-process.

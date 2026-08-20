@@ -2,11 +2,11 @@
 
 ## Design rules
 
-1. The Work domain is the core. Integration, Matter, and Agent Runtime are replaceable boundaries around it.
+1. The Work domain is the core. Work Profiles and Bindings, Matter, and Agent Runtime are replaceable boundaries around it.
 2. A channel is not necessarily a scope, a work thread, or an agent session.
 3. Scope owns shared authority and candidate context. WorkThread owns the continuity of one ongoing piece of work.
 4. AgentSession represents runtime continuity. It is not the durable source of business truth.
-5. Every accepted WorkEvent produces one terminal Reaction, including an explicit null reaction.
+5. Every valid received WorkEvent produces one terminal Reaction, including an explicit null reaction.
 6. Platform-native payloads and agent-native event details remain available through lossless extension fields.
 
 ## Core relationship
@@ -26,47 +26,66 @@ AgentScope
 
 ## WorkEvent
 
-A normalized immutable observation from a provider, an internal source, or a schedule.
+A normalized immutable observation from a provider, an internal source, or a schedule. WorkEvent uses a CloudEvents 1.0 compatible envelope.
 
 ```ts
 interface WorkEvent {
-  schemaVersion: string;
+  specversion: "1.0";
   id: string;
+  source: string;
   type: string;
-  occurredAt: string;
-  receivedAt: string;
-  idempotencyKey: string;
-
-  actor?: ActorRef;
-  source: SourceAnchor;
-  mentions?: MatterMention[];
-
-  raw?: unknown;
-  extensions?: Record<string, unknown>;
+  time?: string;
+  subject?: string;
+  datacontenttype: "application/json";
+  dataschema?: string;
+  openmatterversion: "0.1";
+  openmatterprofile: string;
+  openmatterauthority: string;
+  data: {
+    payload: unknown;
+    actor?: ResourceAddress;
+    anchor?: WorkAnchor;
+    references?: MatterMention[];
+    native?: unknown;
+  };
 }
 ```
 
 Common event classes include messages, mentions, commands, form submissions, action callbacks, comments, work-item changes, schedules, and custom application events.
 
-The framework accepts provider-specific event types. A global closed event enum is not required.
+The framework accepts Profile-specific event types. A global closed event enum is not required. The pair `(source, id)` is the logical deduplication key.
 
-## SourceAnchor
+## ResourceAddress and WorkAnchor
 
-Identifies where an observation happened and where a reaction may be directed.
+A ResourceAddress identifies one object inside one configured provider authority.
 
 ```ts
-interface SourceAnchor {
-  provider: string;
+interface ResourceAddress {
+  profile: string;
   authority: string;
-  conversationId?: string;
-  threadId?: string;
-  messageId?: string;
-  resource?: MatterReference;
+  type: string;
+  id: string;
+  containers?: Record<string, string>;
+  aliases?: string[];
   uri?: string;
 }
 ```
 
 Provider IDs are commonly compound. For example, a Slack message is addressed by team, channel, and timestamp; a GitHub issue number requires repository context.
+
+A WorkAnchor identifies where an observation happened and where a response may be directed.
+
+```ts
+interface WorkAnchor {
+  conversation?: ResourceAddress;
+  thread?: ResourceAddress;
+  message?: ResourceAddress;
+  interaction?: ResourceAddress;
+  uri?: string;
+}
+```
+
+An Anchor is not automatically an AgentScope, Matter, WorkThread, or AgentSession.
 
 ## AgentScope
 
@@ -117,7 +136,7 @@ A Matter can have multiple simultaneous representations:
 
 ```ts
 type MatterReference =
-  | PlatformReference
+  | ResourceAddress
   | UrlReference
   | AliasReference
   | TextReference
@@ -157,7 +176,7 @@ interface WorkThread {
   id: string;
   scopeId: string;
   state: "open" | "closed";
-  anchors: SourceAnchor[];
+  anchors: WorkAnchor[];
   matters: MatterLink[];
   revision: number;
 }
@@ -239,7 +258,7 @@ interface ContextProjection {
   id: string;
   scopeId: string;
   workThreadId: string;
-  triggerEventId: string;
+  triggerEvent: WorkEventRef;
   items: ContextItem[];
   exclusions: ContextExclusion[];
   grants: CapabilityGrant[];
@@ -247,42 +266,51 @@ interface ContextProjection {
 }
 ```
 
+```ts
+interface WorkEventRef {
+  source: string;
+  id: string;
+}
+```
+
 The projection may include trigger data, recent conversation, Matter materializations, shared scope facts, thread decisions, forms, files, metrics, and arbitrary application data.
 
 Each item records origin, authorization decision, revision, and derivation.
 
-## Reaction and WorkEffect
+## Reaction and Operation effects
 
-A Reaction is the terminal framework outcome for one accepted WorkEvent.
+A Reaction is the terminal framework outcome for one valid received WorkEvent.
 
 ```ts
 interface Reaction {
+  schemaVersion: string;
+  id: string;
   eventId: string;
   status: "completed" | "failed" | "cancelled";
   effects: WorkEffect[];
   reason?: string;
+  createdAt: string;
 }
 ```
 
 `effects: []` is an explicit null reaction.
 
-Effects may include replies, reactions, message updates, forms, approvals, artifacts, work-item mutations, custom operations, and application callbacks.
+Effects are calls to granted Work Profile operations. They may include replies, reactions, message updates, forms, approvals, artifacts, work-item mutations, and application callbacks.
 
-Each WorkEffect is authorized, idempotent, and produces a delivery receipt.
+Each effect is authorized independently and produces an `OperationResult` and provider receipt. A binding may return an `unknown` outcome when it cannot determine whether a write occurred; such a write is not blindly retried.
 
 ## Scheduled tasks
 
 Scheduled work is a source of WorkEvents, not a separate domain model.
 
 ```ts
-app.schedule("project-patrol", cron("*/15 * * * *"), handler, {
-  overlap: "skip",
-  timeout: "10m",
-  retry: 3,
-});
+await app.acceptFrom("schedule", nativeOccurrence);
 ```
 
-Schedules may reuse a fixed WorkThread and AgentSession or create new sessions on each tick. Cursor and checkpoint data use ordinary durable application state.
+The host owns schedule registration, wake-up, overlap, timeout, and retry.
+Schedules may reuse a fixed WorkThread and AgentSession or create new sessions
+on each tick. Cursor and checkpoint data belong in the replaceable Store or the
+host scheduler.
 
 ## Serialization boundary
 

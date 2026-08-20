@@ -1,43 +1,55 @@
 # OpenMatter
 
-**The integration and context framework for work agents.**
+**The SDK that turns work APIs into interfaces agents can work with.**
 
-> Put agents into real work without putting their minds inside another framework.
+> Compile APIs and events. Keep context and policy in your application. Leave the mind to the agent.
 
-OpenMatter is an open, embeddable TypeScript framework for connecting agents to chat, issue trackers, code hosts, kanban systems, forms, and scheduled work.
+OpenMatter is an open, embeddable TypeScript SDK for putting external agents into chat, issue trackers, code hosts, kanban systems, forms, documents, and scheduled work.
 
-It is code-first. Applications write ordinary code to decide:
+The executable foundation composes two replaceable boundaries: `WorkIntegration` normalizes work-platform events and effects; `AgentDriver` maps durable Sessions and Turns to ACP, managed runtimes, or custom agent SDKs. Application code owns context construction, policy, and orchestration.
 
-- which events activate an agent;
-- which scope, matter, and work thread an event belongs to;
-- what context the agent receives;
-- whether an agent session is created or resumed;
-- which operations the agent may perform;
-- which reaction, including an explicit null reaction, completes the event.
-
-OpenMatter supplies the integrations, lifecycle, persistence ports, observability, and runtime mechanics around that code. It does not replace the agent's reasoning or tool loop.
+Work Profiles and OpenAPI compilation remain a directional integration layer; no compiler package is claimed as executable yet. Arbitrary SaaS semantics cannot be inferred from OpenAPI alone.
 
 **Immutable facts, explicit transitions.** Events, ContextProjection inputs, Turn inputs, permission decisions, Reactions, and effect intents are durable values rather than live mutable objects. Session, lease, and delivery state may change only through named, fenced state transitions. The runtime takes deep snapshots at asynchronous and durable boundaries; TypeScript `readonly` alone is not treated as immutability.
 
 ## Core flow
 
 ```text
-Work platform or schedule
-          ↓
-      WorkEvent
-          ↓
- AgentScope → Matter → WorkThread
-          ↓
- AgentSession → Turn → OpenMAEvent stream
-          ↓
-       Reaction
-          ↓
-       WorkEffect
+native event                              agent runtime
+    │                                          ▲
+    ▼                                          │
+WorkIntegration.ingest                  AgentDriver Stream
+    │                                          │
+    ▼                                          │
+WorkEvent → ContextProjection → Session → Turn │
+    │                                          │
+    └──────── application handler ─────────────┘
+                         │
+                         ▼
+                      Reaction
+                         │
+                         ▼
+                    WorkEffect intents
+                         │
+                         ▼
+               WorkIntegration.deliver
 ```
 
 Every domain-complete accepted `WorkEvent` reaches one terminal `Reaction`. A reaction may contain replies, reactions, forms, approvals, work-item mutations, or no effects at all. Infrastructure failures leave recoverable claims instead of manufacturing false domain outcomes.
 
-## Framework shape
+Directional Work Profiles may later describe operations, events, Resource identities, authority, risk, and provider bindings as portable JSON. Those artifacts complement the code-first runtime; they do not replace its authorization or context decisions.
+
+## Current packages
+
+- `@openmatter/core`, `@openmatter/store`, `@openmatter/integration`, and `@openmatter/agent` define the immutable records and three Effect-native ports.
+- `@openmatter/runtime` provides the Event → Context → Session → Reaction → Effect lifecycle.
+- `@openmatter/store-memory`, `@openmatter/integration-mock`, and `@openmatter/agent-mock` are executable test/reference adapters.
+- `examples/basic` is the canonical executable composition; `examples/deployment-shapes.ts` shows host-owned request/serverless and long-lived source composition.
+
+See [Project structure](docs/PROJECT_STRUCTURE.md) for dependency direction and
+package ownership.
+
+## Build an HTTP operation
 
 ```ts
 import { Effect } from "effect";
@@ -116,30 +128,58 @@ app.on("schedule.issue-patrol.tick", (work) => {
 await app.accept(scheduleAdapter.tick("issue-patrol", scheduledAt));
 ```
 
-Each schedule tick becomes a `WorkEvent` and follows the same scope, context, session, turn, and reaction lifecycle as provider events.
+Every domain-complete `WorkEvent` reaches one immutable terminal `Reaction`.
+Operation delivery has its own durable receipts; a reaction with no effects is
+still explicit and observable. Infrastructure failures keep recoverable claims
+instead of manufacturing a false domain result.
 
-## Serializable where it matters
+## Work context
 
-OpenMatter does not try to serialize application code. It emits versioned JSON records for:
+OpenMatter keeps distinct concepts distinct:
 
-- component manifests;
-- provider capabilities;
-- normalized events and references;
-- scopes, matters, work threads, sessions, turns, and reactions;
-- context provenance and authorization decisions;
-- execution traces and effect receipts.
+- `ResourceAddress` identifies a provider resource.
+- `Matter` identifies the durable thing being worked on and may link several provider resources.
+- `AgentScope` owns shared authority, policy, bindings, and candidate context.
+- `WorkThread` owns the structured continuity of one piece of work across events and providers.
+- `ContextProjection` is the authorized snapshot delivered to one Turn.
+- `AgentSession` is an external runtime continuity handle, not the only durable source of truth.
 
-These records support visualization, auditing, replay, conformance testing, and storage neutrality while leaving the application fully programmable.
+A Channel is not automatically a Scope, WorkThread, or Agent Session. Multiple channels can share a Scope; one Matter can connect a message thread, issue, pull request, and document.
+
+## Agent boundary
+
+OpenMatter does not implement another agent brain. `AgentDriver` maps OpenMatter sessions, turns, operation grants, event streams, permissions, and cancellation to:
+
+- Agent Client Protocol;
+- managed-agent runtimes;
+- in-process SDKs;
+- MCP-backed tools;
+- custom agents.
+
+The agent owns reasoning, planning, transcript, and private tool state. OpenMatter owns work-side context, authority, continuity, reactions, and effect receipts.
+
+## Deployment neutrality
+
+The SDK owns no server, scheduler, queue, or process loop. A host constructs the
+same application from its Store, Work Integration, and Agent Driver ports, then
+calls `accept`, `acceptFrom`, or `consume`. See
+[`examples/deployment-shapes.ts`](examples/deployment-shapes.ts).
+
+Cloudflare Cron, EventBridge, Kubernetes CronJob, and Node timers keep their own
+registration, overlap, retry, and wake-up semantics. OpenMatter does not embed a
+scheduler. Each decoded tick follows the same Scope, Matter, WorkThread,
+Session, Turn, and Reaction lifecycle.
 
 All durable fields use one portable `JsonValue` contract. Integration-native payloads, Agent handles, and provider receipts remain available, but adapters must encode them as JSON instead of leaking live SDK objects into storage.
 
 ## What OpenMatter is not
 
-- Not another prompt-chain, graph, planner, or agent-brain framework.
-- Not a replacement for ACP, model SDKs, or agent-internal tools.
-- Not a mandatory Hub, SaaS control plane, database, queue, or cloud.
-- Not a closed JSON DSL that limits application behavior.
-- Not tied to one IM, kanban product, runtime, transport, or deployment shape.
+- Not a connector catalog that must hand-code every SaaS.
+- Not a partial wrapper around Activepieces, Zapier, or another workflow runtime.
+- Not another prompt graph, planner, or model SDK.
+- Not a replacement for ACP, OpenAPI, AsyncAPI, GraphQL, or MCP.
+- Not a mandatory Hub, SaaS control plane, credential service, database, queue, or cloud.
+- Not a closed JSON workflow DSL.
 
 ## Documentation
 
@@ -147,10 +187,13 @@ All durable fields use one portable `JsonValue` contract. Integration-native pay
 - [Executable Effect runtime architecture](docs/RUNTIME_ARCHITECTURE.md)
 - [Current design decisions](docs/DECISIONS.md)
 - [Domain model](docs/DOMAIN_MODEL.md)
-- [Code-first SDK shape](docs/SDK_SHAPE.md)
-- [Work integrations and Matter references](docs/INTEGRATIONS.md)
+- [SDK shape](docs/SDK_SHAPE.md)
+- [Work Profiles, bindings, and Matter references](docs/INTEGRATIONS.md)
 - [Agent runtime and session lifecycle](docs/AGENT_RUNTIME.md)
-- [Design references and platform APIs](docs/REFERENCES.md)
+- [Executable technical design](docs/TECHNICAL_DESIGN.md)
+- [Standards and platform references](docs/REFERENCES.md)
+- [Package structure](docs/PROJECT_STRUCTURE.md)
+- Directional Work Profile layer: [architecture](docs/ARCHITECTURE.md) and [draft specification](docs/SDK_SPEC.md)
 
 > [!IMPORTANT]
 > OpenMatter has an executable v0 vertical slice. Its contracts remain pre-stable until they are exercised by real integrations, Agent Drivers, durable stores, and a conformance harness.

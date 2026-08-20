@@ -158,7 +158,16 @@ const result = await session.turn({
 });
 ```
 
-An agent may request an operation or permission through its native protocol. The AgentDriver maps that request into OpenMAEvent, and OpenMatter applies application policy, actor authority, scope policy, and provider constraints before responding.
+The allowed names refer to operations from loaded Work Profiles. An agent may request an operation or permission through its native runtime mechanism. The AgentDriver maps that request into OpenMAEvent, and OpenMatter applies application policy, actor authority, scope policy, and provider constraints before responding.
+
+Drivers deliver granted operations through the closest supported mechanism:
+
+- managed-runtime or in-process SDK tool callbacks;
+- MCP tools hosted by OpenMatter;
+- a negotiated ACP extension when supported;
+- a custom runtime callback.
+
+A driver must report when its runtime cannot receive external operations. It cannot silently pretend that Work Profile operations were exposed.
 
 ## ACP binding
 
@@ -210,7 +219,7 @@ Scope / Matter / WorkThread decisions
 Context projection and grants
 AgentSession and Turn state
 OpenMAEvent stream
-Reaction and WorkEffect receipts
+Reaction and OperationResult receipts
 ```
 
 This gives the UI one normalized surface while preserving access to raw provider events for specialized rendering.

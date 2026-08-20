@@ -1,6 +1,6 @@
 {
   "name": "openmatter",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.5",
@@ -10,9 +10,10 @@
   "scripts": {
     "build": "tsdown -W",
     "check": "pnpm format:check && pnpm test && pnpm typecheck && pnpm build",
-    "format": "prettier --write packages tests examples *.json *.ts *.yaml README.md docs/{AGENT_RUNTIME,BRIEF,DECISIONS,DOMAIN_MODEL,REFERENCES,RUNTIME_ARCHITECTURE,SDK_SHAPE}.md",
-    "format:check": "prettier --check packages tests examples *.json *.ts *.yaml README.md docs/{AGENT_RUNTIME,BRIEF,DECISIONS,DOMAIN_MODEL,REFERENCES,RUNTIME_ARCHITECTURE,SDK_SHAPE}.md",
+    "format": "prettier --write packages tests examples *.json *.ts *.yaml README.md docs/*.md",
+    "format:check": "prettier --check packages tests examples *.json *.ts *.yaml README.md docs/*.md",
     "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
