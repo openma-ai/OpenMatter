@@ -3,7 +3,7 @@ import type { OpenMatterApplication } from "@openmatter/runtime";
 import { Cause, Data, Effect, Fiber } from "effect";
 
 export class LocalRuntimeError extends Data.TaggedError("LocalRuntimeError")<{
-  readonly phase: "start" | "ingest" | "stop";
+  readonly phase: "start" | "ingest" | "recovery" | "stop";
   readonly message: string;
   readonly cause?: unknown;
 }> {}
@@ -32,6 +32,9 @@ export interface LocalSlackRuntimeOptions {
   readonly clock?: () => number;
   readonly retryDelayMs?: number;
   readonly maxAttempts?: number;
+  /** Host-owned durable outbox recovery cadence. Set false to use an external
+   * scheduler instead. */
+  readonly recoveryIntervalMs?: number | false;
   readonly onError?: (error: LocalRuntimeError) => void;
 }
 
@@ -39,8 +42,10 @@ export interface LocalSlackRuntime {
   readonly startEffect: Effect.Effect<void, LocalRuntimeError>;
   readonly stopEffect: Effect.Effect<void, LocalRuntimeError>;
   readonly runEffect: Effect.Effect<never, LocalRuntimeError>;
+  readonly recoverEffect: Effect.Effect<void, LocalRuntimeError>;
   readonly start: () => Promise<void>;
   readonly stop: () => Promise<void>;
+  readonly recover: () => Promise<void>;
 }
 
 const socketInput = (eventType: string, body: unknown): unknown =>
@@ -90,6 +95,15 @@ export const makeLocalSlackRuntime = (
   const clock = options.clock ?? Date.now;
   const retryDelayMs = options.retryDelayMs ?? 1_000;
   const maxAttempts = options.maxAttempts ?? 8;
+  const recoveryIntervalMs =
+    options.recoveryIntervalMs === false
+      ? false
+      : typeof options.recoveryIntervalMs === "number" &&
+          Number.isFinite(options.recoveryIntervalMs) &&
+          options.recoveryIntervalMs > 0
+        ? Math.floor(options.recoveryIntervalMs)
+        : 30_000;
+  let recoveryFiber: Fiber.RuntimeFiber<never, never> | undefined;
   let started = false;
   let starting: Promise<void> | undefined;
   let stopping: Promise<void> | undefined;
@@ -109,6 +123,36 @@ export const makeLocalSlackRuntime = (
         // Observability hooks must never change envelope lifecycle semantics.
       }
     });
+
+  const recoverEffect = Effect.suspend(() =>
+    options.application.recoverEffectsEffect(),
+  ).pipe(
+    Effect.asVoid,
+    Effect.mapError(
+      (cause) =>
+        new LocalRuntimeError({
+          phase: "recovery",
+          message: "Unable to recover pending OpenMatter effects",
+          cause,
+        }),
+    ),
+  );
+
+  const startRecovery = () => {
+    if (recoveryIntervalMs === false || recoveryFiber !== undefined) return;
+    const fiber = Effect.runFork(
+      Effect.forever(
+        Effect.sleep(recoveryIntervalMs).pipe(
+          Effect.zipRight(recoverEffect),
+          Effect.catchAll(report),
+        ),
+      ),
+    );
+    recoveryFiber = fiber;
+    fiber.addObserver(() => {
+      if (recoveryFiber === fiber) recoveryFiber = undefined;
+    });
+  };
 
   const acceptWithRetry = (
     input: unknown,
@@ -189,6 +233,7 @@ export const makeLocalSlackRuntime = (
     if (stopping !== undefined) return stopping.then(startOnce);
     if (started) {
       if (listeners.size === 0) attachListener();
+      startRecovery();
       return Promise.resolve();
     }
     if (starting !== undefined) return starting;
@@ -197,6 +242,7 @@ export const makeLocalSlackRuntime = (
       .then(() => client.start())
       .then(() => {
         started = true;
+        startRecovery();
       })
       .catch((cause) => {
         detachListeners();
@@ -221,6 +267,11 @@ export const makeLocalSlackRuntime = (
           }
         }
         detachListeners();
+        if (recoveryFiber !== undefined) {
+          const fiber = recoveryFiber;
+          recoveryFiber = undefined;
+          await Effect.runPromise(Fiber.interrupt(fiber));
+        }
         await Effect.runPromise(Fiber.interruptAll([...inFlight]));
         if (started) {
           await client.disconnect();
@@ -264,7 +315,9 @@ export const makeLocalSlackRuntime = (
     startEffect,
     stopEffect,
     runEffect,
+    recoverEffect,
     start: () => Effect.runPromise(startEffect),
     stop: () => Effect.runPromise(stopEffect),
+    recover: () => Effect.runPromise(recoverEffect),
   };
 };

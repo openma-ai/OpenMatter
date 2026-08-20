@@ -11,6 +11,7 @@ export interface LocalSlackOptions {
   readonly botUserId: string;
   readonly store: OpenMatterStore;
   readonly claude: AgentDriver;
+  readonly recoveryIntervalMs?: number | false;
   readonly onError?: (error: unknown) => void;
 }
 
@@ -29,6 +30,9 @@ export const makeLocalSlackService = (options: LocalSlackOptions) => {
   return makeLocalSlackRuntime({
     appToken: options.appToken,
     application: app,
+    ...(options.recoveryIntervalMs === undefined
+      ? {}
+      : { recoveryIntervalMs: options.recoveryIntervalMs }),
     ...(options.onError === undefined ? {} : { onError: options.onError }),
   });
 };

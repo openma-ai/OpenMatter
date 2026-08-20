@@ -9,6 +9,8 @@ import { Context, Data, Layer, Schema, type Effect } from "effect";
 export class IntegrationError extends Data.TaggedError("IntegrationError")<{
   readonly message: string;
   readonly retryable: boolean;
+  /** Provider-authoritative retry time when a rate limit supplies one. */
+  readonly retryAt?: string;
   readonly cause?: unknown;
 }> {}
 

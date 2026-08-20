@@ -45,7 +45,7 @@ Directional Work Profiles may later describe operations, events, Resource identi
 - `@openmatter/runtime` provides the Event → Context → Session → Reaction → Effect lifecycle.
 - `@openmatter/store-memory`, `@openmatter/integration-mock`, and `@openmatter/agent-mock` are executable test/reference adapters.
 - `@openmatter/agent-claude` bridges the canonical `OpenMAAgentConnector` from the pinned `@openma/common` revision into the Effect-native `AgentDriver`; it does not reimplement Claude's managed SaaS runtime.
-- `@openmatter/integration-slack` is the first real Work Integration, including signed HTTP ingress, messages, reactions, slash commands, and forms.
+- `@openmatter/integration-slack` is the first full Work Integration: signed HTTP/Socket ingress, semantic events plus passthrough, explicit Context readers, authority-scoped credentials, and separately granted Slack effects.
 - `@openmatter/orchestration` includes the Claude Tag-style Scope/WorkThread/Session preset.
 - `@openmatter/host-cloudflare` and `@openmatter/host-local` bind the same application to Worker Queues or Slack Socket Mode.
 - `@openmatter/fastify` and `@openmatter/hono` mount provider-neutral `@openmatter/http` endpoints without owning application policy or server lifecycle.

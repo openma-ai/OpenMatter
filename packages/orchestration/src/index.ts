@@ -107,6 +107,7 @@ export const installClaudeTag = (
         integrationId,
         operation: "message.reply",
         input: {
+          teamId: work.event.source.authority,
           channelId,
           threadTs,
           text: outputText(turn.output),
@@ -147,6 +148,7 @@ export const installClaudeTag = (
         integrationId,
         operation: commandOperation,
         input: {
+          teamId: work.event.source.authority,
           channelId,
           ...(commandOperation === "message.ephemeral" ? { userId } : {}),
           text: outputText(turn.output),

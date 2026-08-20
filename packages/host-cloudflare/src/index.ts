@@ -59,6 +59,10 @@ export interface CloudflareRuntime<Environment> {
     batch: CloudflareQueueBatch,
     environment: Environment,
   ) => Promise<void>;
+  readonly scheduledEffect: (
+    environment: Environment,
+  ) => Effect.Effect<void, unknown>;
+  readonly scheduled: (environment: Environment) => Promise<void>;
 }
 
 const jsonResponse = (body: unknown, status: number): Response =>
@@ -154,7 +158,7 @@ export const makeCloudflareRuntime = <Environment>(
           Effect.match({
             onFailure: () =>
               jsonResponse({ ok: false, error: "queue unavailable" }, 503),
-            onSuccess: () => jsonResponse({ ok: true }, 200),
+            onSuccess: () => new Response(null, { status: 200 }),
           }),
         );
       }),
@@ -203,6 +207,18 @@ export const makeCloudflareRuntime = <Environment>(
       );
     });
 
+  const scheduledEffect = (environment: Environment) =>
+    Effect.try({
+      try: () => options.application(environment),
+      catch: (cause) => cause,
+    }).pipe(
+      Effect.flatMap((application) => application.recoverEffectsEffect()),
+      Effect.asVoid,
+      Effect.tapError((cause) =>
+        Effect.sync(() => report(options.onError, cause, undefined)),
+      ),
+    );
+
   return {
     fetchEffect,
     fetch: (request, environment) =>
@@ -210,5 +226,7 @@ export const makeCloudflareRuntime = <Environment>(
     queueEffect,
     queue: (batch, environment) =>
       Effect.runPromise(queueEffect(batch, environment)),
+    scheduledEffect,
+    scheduled: (environment) => Effect.runPromise(scheduledEffect(environment)),
   };
 };

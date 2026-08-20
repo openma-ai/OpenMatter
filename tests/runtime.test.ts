@@ -8,6 +8,10 @@ import {
   type OpenMAEvent,
 } from "@openmatter/agent";
 import { makeMockIntegration } from "@openmatter/integration-mock";
+import {
+  IntegrationError,
+  type WorkIntegration,
+} from "@openmatter/integration";
 import { createOpenMatter } from "@openmatter/runtime";
 import { makeMemoryStore } from "@openmatter/store-memory";
 import { StoreError } from "@openmatter/store";
@@ -188,6 +192,28 @@ describe("OpenMatter runtime", () => {
     );
     expect(receipt.deliveries).toEqual([]);
     expect(chat.delivered()).toEqual([]);
+  });
+
+  it("records a null reaction when no handler subscribes to an event", async () => {
+    const store = makeMemoryStore();
+    const chat = makeMockIntegration({ id: "chat" });
+    const app = createOpenMatter({
+      store,
+      integrations: { chat: chat.integration },
+      agents: {},
+    });
+
+    const receipt = await app.accept(messageEvent("message-unhandled"));
+
+    expect(receipt.reaction).toEqual(
+      expect.objectContaining({
+        eventId: "message-unhandled",
+        status: "completed",
+        effects: [],
+        reason: "No handler registered for chat.message.received",
+      }),
+    );
+    expect(receipt.deliveries).toEqual([]);
   });
 
   it("returns the stored terminal receipt without delivering effects twice", async () => {
@@ -433,6 +459,59 @@ describe("OpenMatter runtime", () => {
     ]);
     expect((await Effect.runPromise(store.inspect)).deliveries).toEqual([
       expect.objectContaining({ status: "delivered", attempt: 2 }),
+    ]);
+  });
+
+  it("honors a provider's absolute retry time for outbox delivery", async () => {
+    const store = makeMemoryStore();
+    const chat: WorkIntegration = {
+      manifest: {
+        id: "chat",
+        displayName: "Chat",
+        events: [],
+        operations: ["message.reply"],
+      },
+      ingest: () => Effect.succeed([]),
+      deliver: () =>
+        Effect.fail(
+          new IntegrationError({
+            message: "provider rate limit",
+            retryable: true,
+            retryAt: "2026-08-20T08:01:00.000Z",
+          }),
+        ),
+    };
+    const app = createOpenMatter({
+      store,
+      integrations: { chat },
+      agents: {},
+      clock: () => "2026-08-20T08:00:00.000Z",
+      effectRetryDelayMs: 1_000,
+    });
+    app.on("chat.message.received", (work) =>
+      Effect.gen(function* () {
+        const context = yield* work.context.project({
+          scopeId: "scope-1",
+          workThreadId: "thread-1",
+          items: [work.context.event()],
+          grants: ["chat.message.reply"],
+        });
+        const effect = yield* work.effect(context, {
+          integrationId: "chat",
+          operation: "message.reply",
+          input: { text: "retry later" },
+        });
+        return work.react.effects([effect]);
+      }),
+    );
+
+    const receipt = await app.accept(messageEvent("provider-retry-at"));
+
+    expect(receipt.deliveries).toEqual([
+      expect.objectContaining({
+        status: "retryable-failed",
+        nextRetryAt: "2026-08-20T08:01:00.000Z",
+      }),
     ]);
   });
 

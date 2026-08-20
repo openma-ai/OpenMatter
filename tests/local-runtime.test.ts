@@ -50,6 +50,36 @@ class TestSocketModeClient {
 }
 
 describe("local Slack Socket Mode runtime", () => {
+  it("runs durable effect recovery on a host-owned interval", async () => {
+    const client = new TestSocketModeClient();
+    let markRecovered: (() => void) | undefined;
+    const recovered = new Promise<void>((resolve) => {
+      markRecovered = resolve;
+    });
+    let recoveries = 0;
+    const application = {
+      acceptFromEffect: () => Effect.succeed([]),
+      recoverEffectsEffect: () =>
+        Effect.sync(() => {
+          recoveries += 1;
+          markRecovered?.();
+          return [];
+        }),
+    } as unknown as OpenMatterApplication;
+    const runtime = makeLocalSlackRuntime({
+      appToken: "xapp-test",
+      application,
+      client,
+      recoveryIntervalMs: 1,
+    });
+
+    await runtime.start();
+    await recovered;
+    await runtime.stop();
+
+    expect(recoveries).toBeGreaterThanOrEqual(1);
+  });
+
   it("acknowledges a pre-authenticated envelope before passing it through the Slack adapter", async () => {
     const order: string[] = [];
     const client = new TestSocketModeClient();

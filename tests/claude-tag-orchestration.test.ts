@@ -70,6 +70,44 @@ describe("built-in Claude Tag orchestration", () => {
     ]);
   });
 
+  it("carries the Slack authority into built-in Effects for dynamic credentials", async () => {
+    const authorizations: Array<string | null> = [];
+    const slack = makeSlackIntegration({
+      credentials: async (teamId) => ({
+        botToken: `token-${teamId}`,
+        botUserId: `BOT-${teamId}`,
+      }),
+      fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        authorizations.push(new Headers(init?.headers).get("authorization"));
+        return new Response(JSON.stringify({ ok: true }));
+      }) as typeof fetch,
+    });
+    const store = makeMemoryStore();
+    const claude = makeMockAgentDriver({ id: "claude", output: "done" });
+    const app = createOpenMatter({
+      store,
+      integrations: { slack: slack.integration },
+      agents: { claude: claude.driver },
+    });
+    installClaudeTag(app, { agentId: "claude" });
+
+    await app.acceptFrom("slack", {
+      type: "event_callback",
+      team_id: "TWORK",
+      event_id: "EvDynamicAuthority",
+      event: {
+        type: "app_mention",
+        user: "U01",
+        text: "<@BOT-TWORK> investigate",
+        ts: "1724140800.123456",
+        channel: "C01",
+        event_ts: "1724140800.123456",
+      },
+    });
+
+    expect(authorizations).toEqual(["Bearer token-TWORK"]);
+  });
+
   it("lets application code add authorized channel context without replacing the preset", async () => {
     const slack = makeSlackIntegration({
       botToken: "xoxb-test",

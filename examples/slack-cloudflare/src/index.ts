@@ -63,5 +63,7 @@ export const makeWorker = (ports: CloudflarePorts) => {
       runtime.fetch(request, environment),
     queue: (batch: CloudflareQueueBatch, environment: Environment) =>
       runtime.queue(batch, environment),
+    scheduled: (_controller: unknown, environment: Environment) =>
+      runtime.scheduled(environment),
   };
 };

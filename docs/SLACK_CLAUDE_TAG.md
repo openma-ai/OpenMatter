@@ -29,50 +29,100 @@ in-process SDK. The host does not choose Scope or permissions.
 
 ## Slack semantic surface
 
-| Slack input                                                                      | OpenMatter event          | Important normalized semantics                                  |
-| -------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------- |
-| [`app_mention`](https://docs.slack.dev/reference/events/app_mention/)            | `slack.message.mentioned` | channel activation, root/thread timestamp, author, clean prompt |
-| direct or threaded [`message`](https://docs.slack.dev/reference/events/message/) | `slack.message.received`  | `direct` or `thread` activation; bot/self messages are ignored  |
-| slash command                                                                    | `slack.command.invoked`   | command, prompt, trigger ID; credential fields are removed      |
-| `view_submission`                                                                | `slack.form.submitted`    | callback ID and unflattened structured form state               |
+| Slack input                                                                                     | OpenMatter event                                  | Important normalized semantics                                  |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------- |
+| [`app_mention`](https://docs.slack.dev/reference/events/app_mention/)                           | `slack.message.mentioned`                         | channel activation, root/thread timestamp, author, clean prompt |
+| any human [`message`](https://docs.slack.dev/reference/events/message/)                         | `slack.message.received`                          | `direct`, `thread`, or non-activating `observation`             |
+| `message_changed` / `message_deleted`                                                           | `slack.message.updated` / `slack.message.deleted` | durable message/thread address and prior content                |
+| `reaction_added` / `reaction_removed`                                                           | `slack.reaction.added` / `slack.reaction.removed` | actor, emoji, and addressed message                             |
+| slash command                                                                                   | `slack.command.invoked`                           | command, prompt, trigger ID; credential fields are removed      |
+| [`block_actions`](https://docs.slack.dev/reference/interaction-payloads/block_actions-payload/) | `slack.action.invoked`                            | structured actions, container address, user, and trigger        |
+| global or message shortcut                                                                      | `slack.shortcut.invoked`                          | callback, trigger, and optional message provenance              |
+| `view_submission` / `view_closed`                                                               | `slack.form.submitted` / `slack.form.closed`      | callback ID, lifecycle, and unflattened structured state        |
+| any other subscribed Events API event                                                           | `slack.event.received`                            | lossless portable provider event with `eventType`               |
 
-| OpenMatter operation | Slack API                                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------------------- |
-| `message.reply`      | [`chat.postMessage`](https://docs.slack.dev/reference/methods/chat.postmessage/) with `thread_ts` |
-| `message.post`       | [`chat.postMessage`](https://docs.slack.dev/reference/methods/chat.postmessage/)                  |
-| `message.ephemeral`  | [`chat.postEphemeral`](https://docs.slack.dev/reference/methods/chat.postephemeral/)              |
-| `message.react`      | [`reactions.add`](https://docs.slack.dev/reference/methods/reactions.add/)                        |
-| `view.open`          | [`views.open`](https://docs.slack.dev/reference/methods/views.open/)                              |
+The generic event is a passthrough fallback, not an automatic Agent activation.
+Bot and self-authored messages also use this non-activating observation path, so
+they remain auditable and can receive a terminal no-effect Reaction without
+creating a reply loop. Applications still choose which event types to handle.
 
-### v0 support boundary
+| OpenMatter operation      | Slack API                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `message.reply`           | [`chat.postMessage`](https://docs.slack.dev/reference/methods/chat.postmessage/) with `thread_ts`                                           |
+| `message.post`            | [`chat.postMessage`](https://docs.slack.dev/reference/methods/chat.postmessage/)                                                            |
+| `message.ephemeral`       | [`chat.postEphemeral`](https://docs.slack.dev/reference/methods/chat.postephemeral/)                                                        |
+| `message.update`          | [`chat.update`](https://docs.slack.dev/reference/methods/chat.update/)                                                                      |
+| `message.delete`          | [`chat.delete`](https://docs.slack.dev/reference/methods/chat.delete/)                                                                      |
+| `message.schedule`        | [`chat.scheduleMessage`](https://docs.slack.dev/reference/methods/chat.scheduleMessage/)                                                    |
+| `message.schedule.cancel` | [`chat.deleteScheduledMessage`](https://docs.slack.dev/reference/methods/chat.deleteScheduledMessage/)                                      |
+| `message.react`           | [`reactions.add`](https://docs.slack.dev/reference/methods/reactions.add/)                                                                  |
+| `message.unreact`         | [`reactions.remove`](https://docs.slack.dev/reference/methods/reactions.remove/)                                                            |
+| `view.open` / `view.push` | [`views.open`](https://docs.slack.dev/reference/methods/views.open/) / [`views.push`](https://docs.slack.dev/reference/methods/views.push/) |
+| `view.update`             | [`views.update`](https://docs.slack.dev/reference/methods/views.update/)                                                                    |
+| `home.publish`            | [`views.publish`](https://docs.slack.dev/reference/methods/views.publish/)                                                                  |
+| `file.upload`             | `files.getUploadURLExternal` → upload bytes → `files.completeUploadExternal`                                                                |
 
-This is the complete Slack surface required by the current Claude Tag vertical
-slice, not a claim to cover every Slack API. The Agent is not automatically
-given a workspace's history or a bot token. It receives the normalized trigger
-plus application-selected Context items, and it may execute only the operations
-present in that Turn's grants.
+Message operations accept portable Block Kit `blocks` while remaining semantic
+operations with separate grants. There is deliberately no catch-all
+`slack.api.call` capability.
 
-| Available end to end                                                        | Deliberately not yet supplied by this adapter                                      |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| signed HTTP ingress, URL verification, and local Socket Mode                | OAuth installation, token rotation, and multi-workspace credential storage         |
-| app mentions, direct messages, explicitly re-mentioned thread messages      | history/search loaders, user/channel lookup, files, canvases, lists, and workflows |
-| slash commands and modal `view_submission` with structured state            | shortcuts, `block_actions`, Home tabs, modal update/push, and validation responses |
-| thread/channel/ephemeral messages, reaction add, and portable modal opening | message edit/delete/schedule, reaction removal, file upload, and Block Kit DSL     |
+### Explicit Context reads
 
-Those missing reads should enter later as explicit Context/resource loaders;
-missing writes should enter as separately named operations and grants. A user
-can therefore add Slack capabilities without changing Scope, Session, Turn, or
-Reaction semantics—and without silently increasing an Agent's authority.
+`makeSlackIntegration()` also returns `slack.context`. These methods materialize
+bounded, portable `ContextItem` values only when application code asks for
+them:
+
+| Context method      | Slack API               | Result kind             |
+| ------------------- | ----------------------- | ----------------------- |
+| `thread(...)`       | `conversations.replies` | `slack.thread`          |
+| `history(...)`      | `conversations.history` | `slack.channel-history` |
+| `conversation(...)` | `conversations.info`    | `slack.conversation`    |
+| `user(...)`         | `users.info`            | `slack.user`            |
+| `file(...)`         | `files.info`            | `slack.file`            |
+
+Pagination is explicit: a read returns one bounded page plus `hasMore` and
+`nextCursor`. The adapter never silently crawls a workspace.
+
+### SDK boundary
+
+This package maps Slack into the SDK's Event, Context, Effect, authority, and
+host shapes. It does not reproduce Slack's product SDK. OAuth UI, installation
+storage, token rotation scheduling, Block Kit builders, app configuration,
+admin/SCIM APIs, and arbitrary Web API calls stay in application or deployment
+code. A credential store plugs in through the authority resolver:
+
+```ts
+const slack = makeSlackIntegration({
+  credentials: (teamId) => credentialStore.slack(teamId),
+});
+```
+
+The same resolver is used for ingress bot identity, Context reads, and Effect
+delivery. Tokens are never placed in WorkEvents, Context, Agent input, or
+provider receipts. For Slack Connect, authority is the app installation in
+`authorizations[0].team_id`, not necessarily the workspace that originated the
+message. Org-wide interactions fall back to the installed team recorded by the
+view or user. With static single-workspace credentials, `botToken` and
+`botUserId` remain supported directly. Effects using a resolver carry the
+non-secret authority `teamId` in their input; the built-in Claude Tag preset
+adds it automatically.
+
+Slack surfaces that require a synchronous, payload-bearing acknowledgement are
+not disguised as durable Agent work. This v0 does not expose external-select
+suggestions, modal field-error `response_action`, or other three-second
+request/response callbacks. Those belong in an immediate HTTP/Socket handler;
+their resulting durable work can still be submitted to OpenMatter afterward.
 
 HTTP ingress reads the raw body once and implements Slack's
 [`v0` signing-secret verification](https://docs.slack.dev/authentication/verifying-requests-from-slack/),
 including timestamp tolerance. URL verification, JSON Events API envelopes,
 URL-encoded slash commands, and interactive `payload` forms are decoded before
-they enter `WorkIntegration.ingest`; v0 normalizes `view_submission` and safely
-ignores unsupported interactive types. Slash-command `response_url`, modal
-`response_urls`, and legacy verification `token` fields are stripped before
+they enter `WorkIntegration.ingest`. Slash-command `response_url`, interaction
+`response_url`, modal `response_urls`, function `bot_access_token`, function
+interactor secrets, and legacy verification `token` fields are stripped before
 Queue, WorkEvent, Context, or Agent boundaries; the preset replies through the
-bot-authenticated Web API.
+bot-authenticated Web API. Successfully accepted ordinary inputs receive an
+empty HTTP 200; only URL verification returns a JSON challenge.
 
 ## Claude Tag-style preset
 
@@ -98,15 +148,20 @@ installClaudeTag(app, {
   agentId: "claude",
   // Use "channel" only when command output may be public.
   commandVisibility: "ephemeral",
-  context: (work) => [
-    work.context.value({
-      kind: "channel-memory",
-      value: { repository: "openma-ai/OpenMatter" },
-      provenance: [
-        { sourceType: "application-config", sourceId: "workspace-policy" },
-      ],
-    }),
-  ],
+  context: (work) => {
+    const payload = work.event.payload as {
+      channelId: string;
+      threadTs: string;
+    };
+    return slack.context
+      .thread({
+        teamId: work.event.source.authority,
+        channelId: payload.channelId,
+        threadTs: payload.threadTs,
+        limit: 50,
+      })
+      .pipe(Effect.map((item) => [item]));
+  },
 });
 ```
 
@@ -147,14 +202,28 @@ Application construction and the durable Store are injected from the Worker
 environment. See the
 [Cloudflare example](../examples/slack-cloudflare/src/index.ts).
 
+Provider delivery failures live in the durable outbox after the ingress Queue
+message has been acknowledged. Mount the component's `scheduled` method on a
+Cloudflare Cron Trigger so those receipts are retried independently of new
+Slack traffic:
+
+```ts
+export default {
+  fetch: worker.fetch,
+  queue: worker.queue,
+  scheduled: worker.scheduled,
+};
+```
+
 The Cloudflare host deliberately does not require Durable Objects. A Store
 adapter may use D1, Postgres, Redis, or another service as long as it implements
 the Store's authoritative-clock, claim, fencing, snapshot, and outbox contract.
 
 The durable outbox gives at-least-once provider delivery, not provider-level
-exactly-once. Slack posting and modal methods do not accept OpenMatter's
-idempotency key, so a provider success followed by a receipt-write crash may
-repeat a post. `reactions.add` treats Slack's `already_reacted` response as an
+exactly-once. Slack posting, scheduling, modal, and external file-upload methods
+do not accept OpenMatter's idempotency key, so a provider success followed by a
+receipt-write crash may repeat a post or leave an uncompleted upload ticket.
+`reactions.add` and `reactions.remove` treat already-applied terminal states as
 idempotent success.
 
 Slack `trigger_id` values are short-lived and single-use. Applications that
@@ -171,7 +240,9 @@ WebSocket, so per-request signature verification is neither required nor
 performed. The host acknowledges each envelope before passing an immutable
 snapshot of its native body through the same Slack integration. It retries
 typed busy and infrastructure failures in-process, owns every processing Fiber,
-and interrupts and waits for them during shutdown.
+and interrupts and waits for them during shutdown. It also owns a 30-second
+durable-effect recovery interval by default; pass `recoveryIntervalMs: false`
+only when an external scheduler calls `service.recover()` instead.
 
 ```ts
 const service = makeLocalSlackService({
