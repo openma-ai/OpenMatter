@@ -47,6 +47,48 @@ importers:
         specifier: 3.22.1
         version: 3.22.1
 
+  examples/slack-cloudflare:
+    dependencies:
+      "@openmatter/agent":
+        specifier: workspace:*
+        version: link:../../packages/agent
+      "@openmatter/host-cloudflare":
+        specifier: workspace:*
+        version: link:../../packages/host-cloudflare
+      "@openmatter/integration-slack":
+        specifier: workspace:*
+        version: link:../../packages/integration-slack
+      "@openmatter/orchestration":
+        specifier: workspace:*
+        version: link:../../packages/orchestration
+      "@openmatter/runtime":
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      "@openmatter/store":
+        specifier: workspace:*
+        version: link:../../packages/store
+
+  examples/slack-local:
+    dependencies:
+      "@openmatter/agent":
+        specifier: workspace:*
+        version: link:../../packages/agent
+      "@openmatter/host-local":
+        specifier: workspace:*
+        version: link:../../packages/host-local
+      "@openmatter/integration-slack":
+        specifier: workspace:*
+        version: link:../../packages/integration-slack
+      "@openmatter/orchestration":
+        specifier: workspace:*
+        version: link:../../packages/orchestration
+      "@openmatter/runtime":
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      "@openmatter/store":
+        specifier: workspace:*
+        version: link:../../packages/store
+
   packages/agent:
     dependencies:
       "@openmatter/core":
@@ -60,6 +102,30 @@ importers:
         version: link:../agent
 
   packages/core: {}
+
+  packages/host-cloudflare:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/integration-slack":
+        specifier: workspace:*
+        version: link:../integration-slack
+      "@openmatter/runtime":
+        specifier: workspace:*
+        version: link:../runtime
+
+  packages/host-local:
+    dependencies:
+      "@openmatter/runtime":
+        specifier: workspace:*
+        version: link:../runtime
+      "@slack/socket-mode":
+        specifier: 3.0.0
+        version: 3.0.0(undici@7.29.0)
+      undici:
+        specifier: 7.29.0
+        version: 7.29.0
 
   packages/integration:
     dependencies:
@@ -75,6 +141,24 @@ importers:
       "@openmatter/integration":
         specifier: workspace:*
         version: link:../integration
+
+  packages/integration-slack:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/integration":
+        specifier: workspace:*
+        version: link:../integration
+
+  packages/orchestration:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/runtime":
+        specifier: workspace:*
+        version: link:../runtime
 
   packages/runtime:
     dependencies:
@@ -275,6 +359,36 @@ packages:
         integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==,
       }
 
+  "@slack/logger@5.0.0":
+    resolution:
+      {
+        integrity: sha512-VGXhmmgsAo9shdQYh4tFDndd+7nsgp0Y5h0UPDaUp8K359pBasI6YdkMqFW3mCOxLQkq09qj7o7cq6f3DuXcJQ==,
+      }
+    engines: { node: ">= 20", npm: ">=9.6.4" }
+
+  "@slack/socket-mode@3.0.0":
+    resolution:
+      {
+        integrity: sha512-QShO60SB0E+HH+TbcKj3CBEQbodToRyiXnxuSB4t1kvUlqEmuGA1nOOjrRDkDJbOECAZ13PLe4ek9SrntpfoYg==,
+      }
+    engines: { node: ">=20", npm: ">=9.6.4" }
+    peerDependencies:
+      undici: ^7.0.0
+
+  "@slack/types@3.0.0":
+    resolution:
+      {
+        integrity: sha512-KNOqpnNAlsFt5Jk9XBclslQ0lobRIg/0tnhpmvZJAglHJx9E8oceN8hC3gaBzkR6UzQ9Wzq4rLsJ98wUcxWPfw==,
+      }
+    engines: { node: ">= 20", npm: ">=9.6.4" }
+
+  "@slack/web-api@8.0.0":
+    resolution:
+      {
+        integrity: sha512-ORx3XQryQPq2Jnxv5giSKXVoQRUeylrrymIR2S9fPzLjPcCts8RayMeBSZMcpfpAqp6fnBRuPW2UB6dUPUTEZA==,
+      }
+    engines: { node: ">= 20", npm: ">=9.6.4" }
+
   "@standard-schema/spec@1.1.0":
     resolution:
       {
@@ -303,6 +417,12 @@ packages:
     resolution:
       {
         integrity: sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg==,
+      }
+
+  "@types/retry@0.12.0":
+    resolution:
+      {
+        integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==,
       }
 
   "@vitest/expect@4.1.11":
@@ -649,6 +769,18 @@ packages:
         integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==,
       }
 
+  eventemitter3@4.0.7:
+    resolution:
+      {
+        integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==,
+      }
+
+  eventemitter3@5.0.4:
+    resolution:
+      {
+        integrity: sha512-mlsTRyGaPBjPedk6Bvw+aqbsXDtoAyAzm5MO7JgU+yVRyMQ5O8bD4Kcci7BS85f93veegeCPkL8R4GLClnjLFw==,
+      }
+
   expect-type@1.4.0:
     resolution:
       {
@@ -834,6 +966,34 @@ packages:
       }
     engines: { node: ">=12.20.0" }
 
+  p-finally@1.0.0:
+    resolution:
+      {
+        integrity: sha512-LICb2p9CB7FS+0eR1oqWnHhp0FljGLZCWBE9aix0Uye9W8LTQPwMTYVGWQWIw9RdQiDg4+epXQODwIYJtSJaow==,
+      }
+    engines: { node: ">=4" }
+
+  p-queue@6.6.2:
+    resolution:
+      {
+        integrity: sha512-RwFpb72c/BhQLEXIZ5K2e+AhgNVmIejGlTgiB9MzZ0e93GRvqZ7uSi0dvRF7/XIXDeNkra2fNHBxTyPDGySpjQ==,
+      }
+    engines: { node: ">=8" }
+
+  p-retry@4.6.2:
+    resolution:
+      {
+        integrity: sha512-312Id396EbJdvRONlngUx0NydfrIQ5lsYu0znKVUzVvArzEIt08V1qhtyESbGVd1FGX7UKtiFp5uwKZdM8wIuQ==,
+      }
+    engines: { node: ">=8" }
+
+  p-timeout@3.2.0:
+    resolution:
+      {
+        integrity: sha512-rhIwUycgwwKcP9yTOOFK/AKsAopjjCakVqLHePO3CC6Mir1Z99xT+R63jZxAT5lFZLa2inS5h+ZS2GvR99/FBg==,
+      }
+    engines: { node: ">=8" }
+
   pathe@2.0.3:
     resolution:
       {
@@ -885,6 +1045,13 @@ packages:
       {
         integrity: sha512-seS2Tj26TBVOC2NIc2rOe2y2ZO7efxITtLZcGSOnHHNOQ7CkiUBfw0Iw2ck6xkIhPwLhKNLS8BO+hEpngQlqzw==,
       }
+
+  retry@0.13.1:
+    resolution:
+      {
+        integrity: sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==,
+      }
+    engines: { node: ">= 4" }
 
   rolldown-plugin-dts@0.27.14:
     resolution:
@@ -1031,6 +1198,13 @@ packages:
       {
         integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==,
       }
+
+  undici@7.29.0:
+    resolution:
+      {
+        integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==,
+      }
+    engines: { node: ">=20.18.1" }
 
   verkit@0.3.2:
     resolution:
@@ -1210,6 +1384,31 @@ snapshots:
 
   "@rolldown/pluginutils@1.0.1": {}
 
+  "@slack/logger@5.0.0":
+    dependencies:
+      "@types/node": 26.2.0
+
+  "@slack/socket-mode@3.0.0(undici@7.29.0)":
+    dependencies:
+      "@slack/logger": 5.0.0
+      "@slack/web-api": 8.0.0
+      "@types/node": 26.2.0
+      eventemitter3: 5.0.4
+      undici: 7.29.0
+
+  "@slack/types@3.0.0": {}
+
+  "@slack/web-api@8.0.0":
+    dependencies:
+      "@slack/logger": 5.0.0
+      "@slack/types": 3.0.0
+      "@types/node": 26.2.0
+      "@types/retry": 0.12.0
+      eventemitter3: 5.0.4
+      p-queue: 6.6.2
+      p-retry: 4.6.2
+      retry: 0.13.1
+
   "@standard-schema/spec@1.1.0": {}
 
   "@types/chai@5.2.3":
@@ -1224,6 +1423,8 @@ snapshots:
   "@types/node@26.2.0":
     dependencies:
       undici-types: 8.3.0
+
+  "@types/retry@0.12.0": {}
 
   "@vitest/expect@4.1.11":
     dependencies:
@@ -1369,6 +1570,10 @@ snapshots:
     dependencies:
       "@types/estree": 1.0.9
 
+  eventemitter3@4.0.7: {}
+
+  eventemitter3@5.0.4: {}
+
   expect-type@1.4.0: {}
 
   fast-check@3.23.2:
@@ -1447,6 +1652,22 @@ snapshots:
 
   obug@2.1.4: {}
 
+  p-finally@1.0.0: {}
+
+  p-queue@6.6.2:
+    dependencies:
+      eventemitter3: 4.0.7
+      p-timeout: 3.2.0
+
+  p-retry@4.6.2:
+    dependencies:
+      "@types/retry": 0.12.0
+      retry: 0.13.1
+
+  p-timeout@3.2.0:
+    dependencies:
+      p-finally: 1.0.0
+
   pathe@2.0.3: {}
 
   picocolors@1.1.1: {}
@@ -1466,6 +1687,8 @@ snapshots:
   quansync@1.0.0: {}
 
   resolve-pkg-maps@1.0.0: {}
+
+  retry@0.13.1: {}
 
   rolldown-plugin-dts@0.27.14(rolldown@1.2.5)(typescript@6.0.3):
     dependencies:
@@ -1556,6 +1779,8 @@ snapshots:
       quansync: 1.0.0
 
   undici-types@8.3.0: {}
+
+  undici@7.29.0: {}
 
   verkit@0.3.2: {}
 

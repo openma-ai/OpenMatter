@@ -14,9 +14,13 @@ packages/
 ├── store-memory         process-local Store reference adapter
 ├── integration          work-platform ingress/egress port
 ├── integration-mock     executable work-platform reference adapter
+├── integration-slack    Slack events, operations and signed HTTP decoder
 ├── agent                AgentDriver and OpenMAEvent stream port
 ├── agent-mock           executable Agent Driver reference adapter
-└── runtime              Effect orchestration and Promise facades
+├── runtime              Effect orchestration and Promise facades
+├── orchestration        built-in application-level orchestration presets
+├── host-cloudflare      Worker HTTP ingress and Queue consumer binding
+└── host-local           Node Slack Socket Mode lifecycle binding
 ```
 
 `@openmatter/runtime` exposes one application model: `createOpenMatter()`. The repository is still pre-v1, so competing prototypes are removed instead of preserved as public compatibility debt.
@@ -28,6 +32,10 @@ store-memory ──→ store ──┐
 integration-mock → integration ─┼─→ core
 agent-mock ─────→ agent ────────┤
 runtime ────────→ store + integration + agent + core
+integration-slack → integration + core
+orchestration ───→ runtime + core
+host-cloudflare ─→ runtime + integration-slack + core
+host-local ──────→ runtime + Slack Socket Mode SDK
 ```
 
 All canonical packages share Effect as a peer dependency so Context tags, Fibers, Streams, and error channels come from the application's one Effect runtime. Provider SDKs, ACP clients, databases, queues, and cloud runtimes remain adapter dependencies.

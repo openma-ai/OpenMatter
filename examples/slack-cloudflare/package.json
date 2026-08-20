@@ -1,0 +1,14 @@
+{
+  "name": "@openmatter/example-slack-cloudflare",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@openmatter/agent": "workspace:*",
+    "@openmatter/host-cloudflare": "workspace:*",
+    "@openmatter/integration-slack": "workspace:*",
+    "@openmatter/orchestration": "workspace:*",
+    "@openmatter/runtime": "workspace:*",
+    "@openmatter/store": "workspace:*"
+  }
+}

@@ -18,9 +18,19 @@ export default defineConfig({
       "@openmatter/integration-mock": fromRoot(
         "./packages/integration-mock/src/index.ts",
       ),
+      "@openmatter/integration-slack": fromRoot(
+        "./packages/integration-slack/src/index.ts",
+      ),
       "@openmatter/agent": fromRoot("./packages/agent/src/index.ts"),
       "@openmatter/agent-mock": fromRoot("./packages/agent-mock/src/index.ts"),
       "@openmatter/runtime": fromRoot("./packages/runtime/src/index.ts"),
+      "@openmatter/host-cloudflare": fromRoot(
+        "./packages/host-cloudflare/src/index.ts",
+      ),
+      "@openmatter/host-local": fromRoot("./packages/host-local/src/index.ts"),
+      "@openmatter/orchestration": fromRoot(
+        "./packages/orchestration/src/index.ts",
+      ),
     },
   },
   test: {

@@ -67,11 +67,22 @@ claim token, or fencing token.
 @openmatter/agent             AgentDriver and OpenMAEvent port
 @openmatter/agent-mock        reference agent adapter
 @openmatter/runtime           lifecycle orchestration
+@openmatter/integration-slack signed Slack ingress and semantic operations
+@openmatter/orchestration     built-in code-first orchestration presets
+@openmatter/host-cloudflare   Worker HTTP/Queue host binding
+@openmatter/host-local        Node Socket Mode host binding
 ```
 
 Dependency direction is inward toward `core`. Concrete provider SDKs,
 databases, ACP clients, cloud runtimes, and HTTP frameworks belong in adapters,
 not in core or runtime.
+
+Host packages are thin lifecycle bindings, not alternate runtimes. They do not
+own context, policy, Session semantics, or persistence. The Cloudflare binding
+ACKs signed HTTP ingress by enqueueing a portable input and invokes the same
+application from its Queue consumer. The local binding uses Slack's official
+Socket Mode client and passes pre-authenticated envelopes to the same Slack
+integration.
 
 ## 4. Work Integration
 

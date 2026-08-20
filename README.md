@@ -44,7 +44,10 @@ Directional Work Profiles may later describe operations, events, Resource identi
 - `@openmatter/core`, `@openmatter/store`, `@openmatter/integration`, and `@openmatter/agent` define the immutable records and three Effect-native ports.
 - `@openmatter/runtime` provides the Event → Context → Session → Reaction → Effect lifecycle.
 - `@openmatter/store-memory`, `@openmatter/integration-mock`, and `@openmatter/agent-mock` are executable test/reference adapters.
-- `examples/basic` is the canonical executable composition; `examples/deployment-shapes.ts` shows host-owned request/serverless and long-lived source composition.
+- `@openmatter/integration-slack` is the first real Work Integration, including signed HTTP ingress, messages, reactions, slash commands, and forms.
+- `@openmatter/orchestration` includes the Claude Tag-style Scope/WorkThread/Session preset.
+- `@openmatter/host-cloudflare` and `@openmatter/host-local` bind the same application to Worker Queues or Slack Socket Mode.
+- `examples/basic`, `examples/slack-cloudflare`, and `examples/slack-local` show the three executable composition shapes.
 
 See [Project structure](docs/PROJECT_STRUCTURE.md) for dependency direction and
 package ownership.
@@ -158,12 +161,26 @@ OpenMatter does not implement another agent brain. `AgentDriver` maps OpenMatter
 
 The agent owns reasoning, planning, transcript, and private tool state. OpenMatter owns work-side context, authority, continuity, reactions, and effect receipts.
 
-## Deployment neutrality
+## Deploy Slack without changing orchestration
 
-The SDK owns no server, scheduler, queue, or process loop. A host constructs the
-same application from its Store, Work Integration, and Agent Driver ports, then
-calls `accept`, `acceptFrom`, or `consume`. See
-[`examples/deployment-shapes.ts`](examples/deployment-shapes.ts).
+The core Runtime owns no server, scheduler, queue, or process loop. Optional host
+adapters translate platform lifecycle into the same application boundary:
+
+- Cloudflare receives signed Slack HTTP requests, returns URL-verification
+  challenges, and enqueues verified native inputs before running the Agent in a
+  Queue consumer. See
+  [`examples/slack-cloudflare`](examples/slack-cloudflare/src/index.ts).
+- A local Node process uses Slack's official Socket Mode SDK, so it needs no
+  public webhook URL. See
+  [`examples/slack-local`](examples/slack-local/src/index.ts).
+
+Both modes share `makeSlackIntegration()` and `installClaudeTag()`. Switching
+transport does not change Scope, ContextProjection, Session, Reaction, or
+effect semantics. A Cloudflare deployment must inject a durable
+`OpenMatterStore`; `store-memory` is intentionally not a production database.
+The Queue host provides durable ingress retries; the local Socket Mode host
+acknowledges before durable acceptance and is intentionally best-effort unless
+the application adds its own durable queue.
 
 Cloudflare Cron, EventBridge, Kubernetes CronJob, and Node timers keep their own
 registration, overlap, retry, and wake-up semantics. OpenMatter does not embed a
@@ -193,6 +210,7 @@ All durable fields use one portable `JsonValue` contract. Integration-native pay
 - [Executable technical design](docs/TECHNICAL_DESIGN.md)
 - [Standards and platform references](docs/REFERENCES.md)
 - [Package structure](docs/PROJECT_STRUCTURE.md)
+- [Slack, Claude Tag preset, and deployment hosts](docs/SLACK_CLAUDE_TAG.md)
 - Directional Work Profile layer: [architecture](docs/ARCHITECTURE.md) and [draft specification](docs/SDK_SPEC.md)
 
 > [!IMPORTANT]
