@@ -1,12 +1,14 @@
 # OpenMatter: Product and Architecture Brief
 
-| Field | Value |
-| --- | --- |
-| Status | v0 design brief |
-| Category | Integration and context framework for work agents |
-| Primary API | Code-first TypeScript SDK |
-| Work boundary | `WorkIntegration` |
+| Field          | Value                                                |
+| -------------- | ---------------------------------------------------- |
+| Status         | Directional product and architecture brief           |
+| Category       | Integration and context framework for work agents    |
+| Primary API    | Code-first TypeScript SDK                            |
+| Work boundary  | `WorkIntegration`                                    |
 | Agent boundary | `AgentDriver`, with ACP and managed-runtime bindings |
+
+The exact executable v0 contracts are maintained in [Runtime Architecture](./RUNTIME_ARCHITECTURE.md) and [Agent Runtime and Session Lifecycle](./AGENT_RUNTIME.md). Interfaces in this brief are transport-neutral design shapes, not a second runtime API.
 
 ## Product statement
 

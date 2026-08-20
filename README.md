@@ -17,6 +17,8 @@ It is code-first. Applications write ordinary code to decide:
 
 OpenMatter supplies the integrations, lifecycle, persistence ports, observability, and runtime mechanics around that code. It does not replace the agent's reasoning or tool loop.
 
+**Immutable facts, explicit transitions.** Events, ContextProjection inputs, Turn inputs, permission decisions, Reactions, and effect intents are durable values rather than live mutable objects. Session, lease, and delivery state may change only through named, fenced state transitions. The runtime takes deep snapshots at asynchronous and durable boundaries; TypeScript `readonly` alone is not treated as immutability.
+
 ## Core flow
 
 ```text
@@ -33,56 +35,57 @@ Work platform or schedule
        WorkEffect
 ```
 
-Every accepted `WorkEvent` reaches one terminal `Reaction`. A reaction may contain replies, reactions, forms, approvals, work-item mutations, or no effects at all.
+Every domain-complete accepted `WorkEvent` reaches one terminal `Reaction`. A reaction may contain replies, reactions, forms, approvals, work-item mutations, or no effects at all. Infrastructure failures leave recoverable claims instead of manufacturing false domain outcomes.
 
 ## Framework shape
 
 ```ts
+import { Effect } from "effect";
+import { makeMockAgentDriver } from "@openmatter/agent-mock";
+import { makeMockIntegration } from "@openmatter/integration-mock";
+import { createOpenMatter } from "@openmatter/runtime";
+import { makeMemoryStore } from "@openmatter/store-memory";
+
+const chat = makeMockIntegration({ id: "chat" });
+const worker = makeMockAgentDriver({ id: "worker", output: "Hello" });
 const app = createOpenMatter({
-  integrations: {
-    slack: slackIntegration({ token: process.env.SLACK_TOKEN }),
-    linear: linearIntegration({ apiKey: process.env.LINEAR_API_KEY }),
-  },
-
-  agents: {
-    worker: acpAgent({ endpoint: process.env.ACP_ENDPOINT }),
-  },
-
-  store: postgresStore(db),
+  store: makeMemoryStore(),
+  integrations: { chat: chat.integration },
+  agents: { worker: worker.driver },
 });
 
-app.on("slack.message.mentioned", async (work) => {
-  const scope = await work.scopes.resolve("project");
-  const matters = await work.matters.resolve(work.event);
-  const thread = await work.threads.continue({
-    scope,
-    key: matters.primary?.id ?? work.event.source.threadId,
-  });
-
-  const context = await work.context.build(async (context) => {
-    context.add(work.event);
-    context.add(await work.integration("slack").readThread());
-
-    for (const matter of matters.resolved) {
-      context.add(await work.matters.materialize(matter));
-    }
-  });
-
-  const result = await work
-    .agent("worker")
-    .session({ scope, thread })
-    .turn({
-      context,
-      allow: ["slack.reply", "slack.react", "linear.comment.create"],
+app.on("chat.message.received", (work) =>
+  Effect.gen(function* () {
+    const context = yield* work.context.project({
+      scopeId: "project:openmatter",
+      workThreadId: "discussion:runtime",
+      items: [work.context.event()],
+      grants: ["chat.message.reply"],
     });
 
-  return work.react(result);
-});
+    const result = yield* work
+      .agent("worker")
+      .session({
+        scopeId: context.scopeId,
+        workThreadId: context.workThreadId,
+        privacyPartition: "team",
+      })
+      .turn({ context, allow: context.grants });
 
-await app.run();
+    const reply = yield* work.effect(context, {
+      integrationId: "chat",
+      operation: "message.reply",
+      input: { text: result.output ?? null },
+    });
+
+    return work.react.effects([reply]);
+  }),
+);
+
+await app.acceptFrom("chat", nativeWebhookBody);
 ```
 
-The SDK provides conventions and typed boundaries, not a closed configuration language. Custom functions can participate at every stage.
+This is the executable v0 surface. Real platform, durable-store, and Agent Driver adapters replace the mocks without changing handler semantics. The SDK provides conventions and typed boundaries, not a closed configuration language.
 
 ## Two replaceable boundaries
 
@@ -101,23 +104,16 @@ OpenMatter does not require every mention to resolve. Unknown or ambiguous refer
 
 ## Scheduled work
 
-Proactive behavior is ordinary scheduled code:
+Proactive behavior enters through a scheduler/source adapter; it is not a special kind of agent or a timer hidden inside the Runtime:
 
 ```ts
-app.schedule("issue-patrol", cron("*/15 * * * *"), async (work) => {
-  const issues = await work.integration("linear").issues.list({ state: "open" });
-
-  if (issues.length === 0) {
-    return work.react.none("No open issues require attention");
-  }
-
-  const result = await work.agent("worker").session({
-    scope: await work.scopes.resolve("project"),
-    thread: await work.threads.continue("issue-patrol"),
-  }).turn({ context: issues });
-
-  return work.react(result);
+app.on("schedule.issue-patrol.tick", (work) => {
+  // Build context and optionally invoke an agent exactly as for a webhook event.
+  return work.react.none("Nothing requires attention");
 });
+
+// Cloud scheduler, queue consumer, cron process, or test adapter:
+await app.accept(scheduleAdapter.tick("issue-patrol", scheduledAt));
 ```
 
 Each schedule tick becomes a `WorkEvent` and follows the same scope, context, session, turn, and reaction lifecycle as provider events.
@@ -135,6 +131,8 @@ OpenMatter does not try to serialize application code. It emits versioned JSON r
 
 These records support visualization, auditing, replay, conformance testing, and storage neutrality while leaving the application fully programmable.
 
+All durable fields use one portable `JsonValue` contract. Integration-native payloads, Agent handles, and provider receipts remain available, but adapters must encode them as JSON instead of leaking live SDK objects into storage.
+
 ## What OpenMatter is not
 
 - Not another prompt-chain, graph, planner, or agent-brain framework.
@@ -146,6 +144,7 @@ These records support visualization, auditing, replay, conformance testing, and 
 ## Documentation
 
 - [Product and architecture brief](docs/BRIEF.md)
+- [Executable Effect runtime architecture](docs/RUNTIME_ARCHITECTURE.md)
 - [Current design decisions](docs/DECISIONS.md)
 - [Domain model](docs/DOMAIN_MODEL.md)
 - [Code-first SDK shape](docs/SDK_SHAPE.md)
@@ -154,4 +153,26 @@ These records support visualization, auditing, replay, conformance testing, and 
 - [Design references and platform APIs](docs/REFERENCES.md)
 
 > [!IMPORTANT]
-> OpenMatter is in its design and framework setup stage. The current interfaces are directional and will be validated through reference integrations, drivers, and a conformance harness before becoming a compatibility promise.
+> OpenMatter has an executable v0 vertical slice. Its contracts remain pre-stable until they are exercised by real integrations, Agent Drivers, durable stores, and a conformance harness.
+
+## Executable foundation
+
+The repository now contains the first runnable vertical slice:
+
+- Effect Schema domain contracts;
+- Effect Service/Layer ports for storage, work integrations, and agent drivers;
+- persisted context projections with provenance, grants, and digests;
+- authority/privacy-bound Agent Sessions and validated OpenMAEvent streams;
+- enforced grants for Agent turns and provider operations;
+- leased event/session/effect claims with full-lifecycle heartbeat renewal and stale-worker fencing;
+- insert-once terminal Reactions, immutable authorized Effect intents, retry receipts, and outbox recovery;
+- stable logical Turns, checkpointed Agent streams, durable permission decisions, and idempotent Session creation;
+- memory storage, mock work-platform, and mock agent adapters;
+- the same execution pipeline for request/serverless and long-lived sources.
+
+Run it with:
+
+```bash
+pnpm install
+pnpm check
+```

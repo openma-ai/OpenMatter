@@ -1,5 +1,7 @@
 # Code-First SDK Shape
 
+> Status: target product shape. The exact executable v0 API is documented in [Runtime Architecture](RUNTIME_ARCHITECTURE.md) and currently implements handlers, context projection, Agent turns, authorized effects, request/stream ingress, and outbox recovery. Scope/Matter resolvers, real adapters, and scheduler conveniences below remain directional.
+
 ## Goal
 
 OpenMatter is a programmable framework. Users write ordinary TypeScript rather than describing all behavior in a closed JSON language.
@@ -107,11 +109,7 @@ app.on("slack.message.mentioned", async (work) => {
     .session({ scope, thread, reuse: true })
     .turn({
       context,
-      allow: [
-        "slack.reply",
-        "slack.react",
-        "linear.comment.create",
-      ],
+      allow: ["slack.reply", "slack.react", "linear.comment.create"],
     });
 
   return work.react(result);
@@ -133,19 +131,18 @@ const handleIssueWork: WorkHandler = async (work) => {
     matters,
   });
 
-  const result = await work.agent("worker").session({ scope, thread }).turn({
-    context: await work.context.build(async (context) => {
-      context.add(work.event);
-      context.add(await work.threads.history(thread));
-      context.add(await work.matters.materializeAll(matters));
-    }),
+  const result = await work
+    .agent("worker")
+    .session({ scope, thread })
+    .turn({
+      context: await work.context.build(async (context) => {
+        context.add(work.event);
+        context.add(await work.threads.history(thread));
+        context.add(await work.matters.materializeAll(matters));
+      }),
 
-    allow: [
-      "slack.reply",
-      "linear.issue.update",
-      "github.comment.create",
-    ],
-  });
+      allow: ["slack.reply", "linear.issue.update", "github.comment.create"],
+    });
 
   return work.react(result);
 };
@@ -164,19 +161,22 @@ app.on(["slack.command.invoked", "slack.form.submitted"], async (work) => {
   const scope = await work.scopes.resolve("project");
   const thread = await work.threads.invocation({ scope, event: work.event });
 
-  const result = await work.agent("worker").session({
-    scope,
-    thread,
-    reuse: false,
-  }).turn({
-    context: [work.event],
-    allow: [
-      "slack.form.open",
-      "slack.form.update",
-      "linear.issue.create",
-      "slack.reply",
-    ],
-  });
+  const result = await work
+    .agent("worker")
+    .session({
+      scope,
+      thread,
+      reuse: false,
+    })
+    .turn({
+      context: [work.event],
+      allow: [
+        "slack.form.open",
+        "slack.form.update",
+        "linear.issue.create",
+        "slack.reply",
+      ],
+    });
 
   return work.react(result);
 });
@@ -184,7 +184,7 @@ app.on(["slack.command.invoked", "slack.form.submitted"], async (work) => {
 
 Form definitions may be materializable references. Form submissions and callback tokens remain interaction data with provider-specific expiry and authorization rules.
 
-## Scheduled work
+## Scheduled work (target convenience API)
 
 ```ts
 app.schedule(
@@ -212,14 +212,17 @@ app.schedule(
       matters,
     });
 
-    const result = await work.agent("worker").session({
-      scope,
-      thread,
-      reuse: true,
-    }).turn({
-      context: [issues, await work.threads.history(thread)],
-      allow: ["linear.comment.create", "slack.reply"],
-    });
+    const result = await work
+      .agent("worker")
+      .session({
+        scope,
+        thread,
+        reuse: true,
+      })
+      .turn({
+        context: [issues, await work.threads.history(thread)],
+        allow: ["linear.comment.create", "slack.reply"],
+      });
 
     await work.state.stage("linear-issue-cursor", {
       timestamp: work.event.occurredAt,
@@ -237,6 +240,8 @@ app.schedule(
 ```
 
 Staged state changes commit with the terminal reaction so failed work does not silently advance its cursor.
+
+The timer itself remains a source adapter. A future `app.schedule` helper may register the handler and encode ticks as WorkEvents, but it must not make the core Runtime own cron, queues, or deployment locks.
 
 ## Extension interfaces
 
@@ -318,8 +323,12 @@ A visualizer can render registered components, runtime topology, and actual even
 ```text
 @openmatter/core              domain records and JSON schemas
 @openmatter/runtime           handler, scheduling, and orchestration loop
-@openmatter/integration-sdk   WorkIntegration contracts and harness helpers
-@openmatter/agent-sdk         AgentDriver and OpenMAEvent contracts
+@openmatter/integration       WorkIntegration contracts and Layer
+@openmatter/integration-mock  bidirectional mock work platform
+@openmatter/agent             AgentDriver, OpenMAEvent, and Layer
+@openmatter/agent-mock        deterministic mock agent runtime
+@openmatter/store             durable storage contract and Layer
+@openmatter/store-memory      process-local reference adapter
 @openmatter/agent-acp         ACP binding
 @openmatter/harness           black-box conformance suites
 @openmatter/visualizer        manifests, topology, and trace visualization

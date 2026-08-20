@@ -1,24 +1,37 @@
 # Agent Runtime and Session Lifecycle
 
+| Field  | Value                                              |
+| ------ | -------------------------------------------------- |
+| Status | Executable v0 contract                             |
+| Source | `@openmatter/agent` and `@openmatter/runtime` APIs |
+
 ## Purpose
 
 OpenMatter connects work orchestration to replaceable agent runtimes through `AgentDriver`.
 
 ```ts
 interface AgentDriver {
-  manifest: AgentDriverManifest;
-  capabilities(): Promise<AgentCapabilities>;
-
-  createSession(input: CreateSessionInput): Promise<AgentSessionHandle>;
-  resumeSession(input: ResumeSessionInput): Promise<AgentSessionHandle>;
-  turn(input: AgentTurnInput): AsyncIterable<OpenMAEvent>;
-  respondToPermission(input: PermissionResponse): Promise<void>;
-  cancel(input: CancelTurnInput): Promise<void>;
-  closeSession(input: CloseSessionInput): Promise<void>;
+  readonly id: string;
+  capabilities(): Effect<AgentCapabilities, AgentDriverError>;
+  createSession(
+    input: AgentSessionCreateInput,
+  ): Effect<AgentSessionHandle, AgentDriverError>;
+  resumeSession(
+    handle: AgentSessionHandle,
+  ): Effect<
+    AgentSessionHandle,
+    AgentDriverError | AgentSessionUnavailableError
+  >;
+  turn(input: AgentTurnInput): Stream<OpenMAEvent, AgentDriverError>;
+  respondToPermission(
+    input: PermissionResponse,
+  ): Effect<void, AgentDriverError>;
+  cancel(input: CancelTurnInput): Effect<void, AgentDriverError>;
+  closeSession(handle: AgentSessionHandle): Effect<void, AgentDriverError>;
 }
 ```
 
-The first open binding targets Agent Client Protocol. Separate drivers may target Claude managed runtimes, in-process agent SDKs, subprocesses, or private runtimes.
+This is the Effect-native internal contract. Promise facades may exist at application and transport boundaries; they are not a second Agent Driver model. The first planned open binding targets Agent Client Protocol. Separate drivers may target Claude managed runtimes, in-process agent SDKs, subprocesses, or private runtimes.
 
 ## OpenMAEvent
 
@@ -70,15 +83,15 @@ agent + runtime authority + AgentScope + WorkThread + privacy partition
 
 The exact session key is application policy. Recommended defaults are:
 
-| Work shape | Session policy |
-| --- | --- |
-| Channel conversation | One session per conversation or native thread |
-| Channel with many native threads | One main channel session plus one session per thread when needed |
-| Cross-channel Matter | One session per WorkThread resolved from the Matter |
-| Work item | One session per issue, task, card, or record WorkThread |
-| Slash command or form | Fresh invocation session or child WorkThread session |
-| Scheduled patrol | Fixed patrol WorkThread with resumable or fresh sessions by application choice |
-| Direct message | Actor-isolated session unless explicitly shared |
+| Work shape                       | Session policy                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------ |
+| Channel conversation             | One session per conversation or native thread                                  |
+| Channel with many native threads | One main channel session plus one session per thread when needed               |
+| Cross-channel Matter             | One session per WorkThread resolved from the Matter                            |
+| Work item                        | One session per issue, task, card, or record WorkThread                        |
+| Slash command or form            | Fresh invocation session or child WorkThread session                           |
+| Scheduled patrol                 | Fixed patrol WorkThread with resumable or fresh sessions by application choice |
+| Direct message                   | Actor-isolated session unless explicitly shared                                |
 
 A channel may have multiple WorkThreads and Sessions. Multiple channels may contribute to one WorkThread and Session when policy and authority allow it.
 
@@ -103,23 +116,16 @@ The Turn receives:
 
 The driver emits ordered OpenMAEvents until a terminal event.
 
-## Retry
+## Crash resume and application retry
 
-Public v0 uses direct Turn retry rather than a separate Attempt domain.
+Executable v0 implements recovery of one stable logical Turn, not a public retry-policy or fork API. The Turn id is derived from Event idempotency, Session binding, and invocation position; its original ContextProjection and allow list are persisted as immutable input.
 
-```ts
-await work.agent("worker").session({ scope, thread }).turn({
-  context,
-  retry: {
-    max: 3,
-    backoff: "exponential",
-  },
-});
-```
+- A completed Turn replay returns the durable result without invoking the Agent again.
+- A running Turn may resume with `afterSequence` only in its original Session generation, using the original ContextProjection and allow list.
+- A persisted running Turn is considered in flight even if no Agent event was observed yet. If its original Session cannot resume, it terminates as `turn.interrupted`; the runtime does not risk redispatching it in a new generation.
+- Worker leases, reconnects, and transport attempts remain runtime records rather than public domain objects.
 
-A retry retains the same trigger and context digest. Execution IDs, leases, reconnect tokens, and transport retries remain observable runtime records without becoming top-level application concepts.
-
-Forking is intentionally deferred until a concrete cross-runtime semantic can be validated.
+A new application-requested retry or fork is a distinct future invocation with explicit policy. Its public semantics are intentionally deferred until they can be validated across runtimes.
 
 ## Durable and opaque state
 
@@ -130,14 +136,16 @@ OpenMatter persists:
 - session binding and external handle;
 - trigger and context snapshot digest;
 - effective capabilities;
-- ordered OpenMAEvents or retained projections;
-- permission decisions;
+- ordered OpenMAEvents or retained projections, with terminal events committed only after a clean stream end;
+- permission decisions bound to request-content fingerprints;
 - reaction and effect receipts;
 - cancellation and terminal state.
 
 Runtime transcript, scratchpads, caches, and internal tool state may remain private to the agent runtime.
 
 Facts required for cross-session continuity, retry, audit, or recovery belong in OpenMatter state or an explicitly referenced durable resource.
+
+Remote Session creation is planned durably before the side effect. `createSession` receives the local Session id/generation as a stable idempotency input. A typed remote-session-unavailable result may create a new generation for new work; transient resume failures do not. `createSession`, permission response, cancellation, and close operations must be idempotent by their stable Session/Turn/request identities; an adapter treats an already-applied remote operation as success.
 
 ## Permissions and tools
 
@@ -146,11 +154,7 @@ OpenMatter does not decide what the agent should think or which internal tool it
 ```ts
 const result = await session.turn({
   context,
-  allow: [
-    "slack.reply",
-    "linear.issue.update",
-    "github.comment.create",
-  ],
+  allow: ["slack.reply", "linear.issue.update", "github.comment.create"],
 });
 ```
 
@@ -160,15 +164,15 @@ An agent may request an operation or permission through its native protocol. The
 
 The ACP driver maps OpenMatter semantics to the closest supported ACP lifecycle:
 
-| OpenMatter | ACP responsibility |
-| --- | --- |
+| OpenMatter                             | ACP responsibility                             |
+| -------------------------------------- | ---------------------------------------------- |
 | Driver initialization and capabilities | ACP initialization and negotiated capabilities |
-| AgentSession create/resume | ACP session lifecycle |
-| Turn input | ACP prompt or session input |
-| OpenMAEvent updates | ACP session updates and content/tool events |
-| Permission request | ACP permission flow where supported |
-| Cancellation | ACP cancellation semantics |
-| Terminal Turn result | ACP completion or error |
+| AgentSession create/resume             | ACP session lifecycle                          |
+| Turn input                             | ACP prompt or session input                    |
+| OpenMAEvent updates                    | ACP session updates and content/tool events    |
+| Permission request                     | ACP permission flow where supported            |
+| Cancellation                           | ACP cancellation semantics                     |
+| Terminal Turn result                   | ACP completion or error                        |
 
 ACP remains the wire protocol. OpenMatter adds work-domain context, policy, persistence, and reaction orchestration around it.
 

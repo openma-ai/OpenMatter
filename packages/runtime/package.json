@@ -1,0 +1,27 @@
+{
+  "name": "@openmatter/runtime",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@openmatter/agent": "workspace:*",
+    "@openmatter/core": "workspace:*",
+    "@openmatter/integration": "workspace:*",
+    "@openmatter/store": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^3.22.1"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "useUnknownInCatchVariables": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@openmatter/core": ["./packages/core/src/index.ts"],
+      "@openmatter/store": ["./packages/store/src/index.ts"],
+      "@openmatter/store-memory": ["./packages/store-memory/src/index.ts"],
+      "@openmatter/integration": ["./packages/integration/src/index.ts"],
+      "@openmatter/integration-mock": [
+        "./packages/integration-mock/src/index.ts"
+      ],
+      "@openmatter/agent": ["./packages/agent/src/index.ts"],
+      "@openmatter/agent-mock": ["./packages/agent-mock/src/index.ts"],
+      "@openmatter/runtime": ["./packages/runtime/src/index.ts"]
+    },
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "packages/**/*.ts",
+    "tests/**/*.ts",
+    "examples/**/*.ts",
+    "vitest.config.ts",
+    "tsdown.config.ts"
+  ]
+}

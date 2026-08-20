@@ -208,7 +208,7 @@ agent + authority + scope + workThread
 
 Applications may choose fresh sessions per Turn or add actor, privacy partition, runtime profile, or time bucket to the key.
 
-Session-private state includes runtime transcript, pending permission requests, tool continuations, cancellation, and opaque provider state. Durable facts needed for retry, audit, or cross-session continuity belong in OpenMatter records or referenced durable resources.
+Session-private state includes runtime transcript, pending permission requests, tool continuations, cancellation, and driver-native state encoded as portable JSON. Durable facts needed for retry, audit, or cross-session continuity belong in OpenMatter records or referenced durable resources.
 
 ## Turn
 
@@ -219,14 +219,14 @@ interface Turn {
   id: string;
   sessionId: string;
   triggerEventId: string;
-  contextSnapshotId: string;
-  inputDigest: string;
-  retry: number;
+  contextProjectionId: string;
+  contextDigest: string;
+  allow: string[];
   state: "queued" | "running" | "completed" | "failed" | "cancelled";
 }
 ```
 
-A retry keeps the same logical Turn input and increments retry metadata. Worker leases and transport attempts are runtime implementation details rather than public domain concepts.
+Crash recovery keeps the same logical Turn id, persisted ContextProjection, and effective allow list. Worker leases and transport attempts are runtime implementation details rather than public domain concepts. Any persisted nonterminal Turn stays bound to its original Session generation, including before its first Agent event; if that generation cannot resume, the logical Turn terminates as interrupted instead of being redispatched or joining streams across Sessions.
 
 Fork semantics are intentionally deferred from v0.
 
@@ -286,6 +286,6 @@ Schedules may reuse a fixed WorkThread and AgentSession or create new sessions o
 
 ## Serialization boundary
 
-Domain state and traces are JSON-serializable. Application code is not.
+Domain state and traces use one strict portable JSON contract. Application code is not.
 
 Custom code participates through typed interfaces and optional manifests. A visualizer may show an opaque custom-code node with its declared inputs and outputs, while runtime traces record the actual values and decisions that crossed the boundary.
