@@ -1,0 +1,107 @@
+<svg width="1600" height="720" viewBox="0 0 1600 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description">
+  <title id="title">The OpenMatter Loop</title>
+  <desc id="description">A work platform event enters a replaceable integration, is composed by the OpenMatter Loop with context, continuity and policy, reaches a replaceable agent runtime, and commits one durable reaction and effect back to the work platform.</desc>
+
+  <rect x="1" y="1" width="1598" height="718" rx="15" fill="#FDFDFB" stroke="#E4E5E7" stroke-width="2"/>
+
+  <text x="64" y="70" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="18" font-weight="600" letter-spacing="2.4">THE OPENMATTER LOOP</text>
+  <text x="64" y="128" fill="#11110F" font-family="Source Serif 4, Georgia, serif" font-size="48" font-weight="600" letter-spacing="-1.2">One event. One durable outcome.</text>
+  <text x="64" y="166" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="21">OpenMatter composes the boundary. The agent keeps the mind.</text>
+
+  <!-- Work system -->
+  <rect x="64" y="230" width="222" height="250" rx="10" fill="#FFFFFF" stroke="#CECFD1" stroke-width="2"/>
+  <text x="88" y="270" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="20" font-weight="650">Work system</text>
+  <line x1="88" y1="289" x2="262" y2="289" stroke="#E4E5E7" stroke-width="2"/>
+
+  <circle cx="100" cy="328" r="7" fill="#1034A6"/>
+  <text x="120" y="335" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="18">Slack</text>
+  <circle cx="100" cy="372" r="7" fill="#1034A6" fill-opacity="0.72"/>
+  <text x="120" y="379" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="18">GitHub</text>
+  <circle cx="100" cy="416" r="7" fill="#1034A6" fill-opacity="0.48"/>
+  <text x="120" y="423" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="18">Linear</text>
+  <circle cx="100" cy="460" r="7" fill="#1034A6" fill-opacity="0.24"/>
+  <text x="120" y="467" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="18">Schedules</text>
+
+  <!-- Forward path -->
+  <path d="M286 330H340" stroke="#1034A6" stroke-width="3"/>
+  <path d="M332 321L342 330L332 339" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="304" y="311" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="14" font-weight="600">EVENT</text>
+  <path d="M340 430H286" stroke="#1034A6" stroke-width="3"/>
+  <path d="M296 422L286 430L296 438" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="294" y="414" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="12" font-weight="600">EFFECT</text>
+
+  <!-- Replaceable work boundary -->
+  <text x="350" y="220" fill="#7A7C80" font-family="Geist, Arial, sans-serif" font-size="14" font-weight="600" letter-spacing="1.4">REPLACEABLE</text>
+  <rect x="340" y="230" width="248" height="250" rx="10" fill="#F7F7F6" stroke="#91A6DE" stroke-width="2" stroke-dasharray="8 7"/>
+  <text x="366" y="281" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="23" font-weight="650">WorkIntegration</text>
+  <text x="366" y="316" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="17">verify · normalize</text>
+  <text x="366" y="345" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="17">read context</text>
+  <text x="366" y="374" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="17">deliver effects</text>
+  <rect x="366" y="414" width="188" height="38" rx="5" fill="#FFFFFF" stroke="#E4E5E7"/>
+  <text x="382" y="439" fill="#0A2475" font-family="JetBrains Mono, Menlo, monospace" font-size="14">CredentialResolver</text>
+
+  <path d="M588 330H642" stroke="#1034A6" stroke-width="3"/>
+  <path d="M634 321L644 330L634 339" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- The Loop -->
+  <rect x="642" y="206" width="356" height="298" rx="12" fill="#1034A6"/>
+  <text x="674" y="253" fill="#DDE4F8" font-family="Geist, Arial, sans-serif" font-size="15" font-weight="650" letter-spacing="1.8">COMPOSITION UNIT</text>
+  <text x="674" y="302" fill="#FFFFFF" font-family="Source Serif 4, Georgia, serif" font-size="43" font-weight="600">Loop</text>
+
+  <line x1="674" y1="328" x2="966" y2="328" stroke="#5876C6" stroke-width="2"/>
+  <text x="674" y="365" fill="#FFFFFF" font-family="Geist, Arial, sans-serif" font-size="19" font-weight="600">Context</text>
+  <text x="785" y="365" fill="#DDE4F8" font-family="Geist, Arial, sans-serif" font-size="17">authorized projection</text>
+  <text x="674" y="406" fill="#FFFFFF" font-family="Geist, Arial, sans-serif" font-size="19" font-weight="600">Continuity</text>
+  <text x="785" y="406" fill="#DDE4F8" font-family="Geist, Arial, sans-serif" font-size="17">scope · thread · session</text>
+  <text x="674" y="447" fill="#FFFFFF" font-family="Geist, Arial, sans-serif" font-size="19" font-weight="600">Policy</text>
+  <text x="785" y="447" fill="#DDE4F8" font-family="Geist, Arial, sans-serif" font-size="17">activation · grants · outcome</text>
+
+  <path d="M998 330H1052" stroke="#1034A6" stroke-width="3"/>
+  <path d="M1044 321L1054 330L1044 339" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1008" y="311" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="14" font-weight="600">TURN</text>
+
+  <!-- Replaceable agent boundary -->
+  <text x="1064" y="220" fill="#7A7C80" font-family="Geist, Arial, sans-serif" font-size="14" font-weight="600" letter-spacing="1.4">REPLACEABLE</text>
+  <rect x="1054" y="230" width="486" height="250" rx="10" fill="#F7F7F6" stroke="#91A6DE" stroke-width="2" stroke-dasharray="8 7"/>
+  <rect x="1080" y="260" width="186" height="88" rx="7" fill="#FFFFFF" stroke="#CECFD1" stroke-width="2"/>
+  <text x="1104" y="298" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="21" font-weight="650">AgentDriver</text>
+  <text x="1104" y="326" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="15">ACP · Claude · custom</text>
+
+  <path d="M1266 304H1320" stroke="#11110F" stroke-width="2"/>
+  <path d="M1312 296L1321 304L1312 312" stroke="#11110F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="1321" y="260" width="193" height="88" rx="7" fill="#FFFFFF" stroke="#CECFD1" stroke-width="2"/>
+  <text x="1345" y="298" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="21" font-weight="650">Agent runtime</text>
+  <text x="1345" y="326" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="15">reasoning · private tools</text>
+
+  <path d="M1418 348V406H1228" stroke="#11110F" stroke-width="2"/>
+  <path d="M1236 398L1227 406L1236 414" stroke="#11110F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="1080" y="382" width="147" height="70" rx="7" fill="#FFFFFF" stroke="#CECFD1" stroke-width="2"/>
+  <text x="1104" y="412" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="18" font-weight="650">OpenMAEvent</text>
+  <text x="1104" y="437" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="14">immutable stream</text>
+
+  <!-- Durable fact rail -->
+  <rect x="340" y="554" width="1200" height="102" rx="9" fill="#F7F7F6" stroke="#E4E5E7" stroke-width="2"/>
+  <text x="366" y="591" fill="#11110F" font-family="Geist, Arial, sans-serif" font-size="17" font-weight="650">DURABLE FACTS</text>
+  <text x="366" y="625" fill="#5D5F63" font-family="JetBrains Mono, Menlo, monospace" font-size="16">WorkEvent</text>
+  <text x="500" y="625" fill="#AAA093" font-family="Geist, Arial, sans-serif" font-size="18">→</text>
+  <text x="534" y="625" fill="#5D5F63" font-family="JetBrains Mono, Menlo, monospace" font-size="16">ContextProjection</text>
+  <text x="720" y="625" fill="#AAA093" font-family="Geist, Arial, sans-serif" font-size="18">→</text>
+  <text x="754" y="625" fill="#5D5F63" font-family="JetBrains Mono, Menlo, monospace" font-size="16">Session · Turn</text>
+  <text x="902" y="625" fill="#AAA093" font-family="Geist, Arial, sans-serif" font-size="18">→</text>
+  <text x="936" y="625" fill="#0A2475" font-family="JetBrains Mono, Menlo, monospace" font-size="16">Reaction</text>
+  <text x="1038" y="625" fill="#AAA093" font-family="Geist, Arial, sans-serif" font-size="18">→</text>
+  <text x="1072" y="625" fill="#0A2475" font-family="JetBrains Mono, Menlo, monospace" font-size="16">Effect · Receipt</text>
+  <text x="1260" y="625" fill="#5D5F63" font-family="Geist, Arial, sans-serif" font-size="15">Store is replaceable.</text>
+
+  <!-- Commit path -->
+  <path d="M820 504V554" stroke="#1034A6" stroke-width="3"/>
+  <path d="M812 544L820 554L828 544" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="842" y="538" fill="#0A2475" font-family="Geist, Arial, sans-serif" font-size="15" font-weight="650">COMMIT</text>
+
+  <!-- Terminal contract -->
+  <rect x="64" y="554" width="222" height="102" rx="9" fill="#F1F3FC" stroke="#BBC8EC" stroke-width="2"/>
+  <text x="88" y="591" fill="#0A2475" font-family="Geist, Arial, sans-serif" font-size="16" font-weight="650">TERMINAL CONTRACT</text>
+  <text x="88" y="625" fill="#11110F" font-family="Source Serif 4, Georgia, serif" font-size="22" font-weight="600">React—or explicitly</text>
+  <text x="88" y="649" fill="#11110F" font-family="Source Serif 4, Georgia, serif" font-size="22" font-weight="600">do nothing.</text>
+</svg>

@@ -30,27 +30,17 @@ the reasoning.
 > Compile APIs and events. Keep context and policy in your application. Leave
 > the mind to the agent.
 
-## The shape
+## The Loop
 
-```text
-work platform                                                work platform
-     │                                                            ▲
-     │ native event                                     approved effect
-     ▼                                                            │
-WorkIntegration ──▶ WorkEvent ──▶ Loop ──▶ ContextProjection     │
-                                      │                            │
-                                      ▼                            │
-                               Agent Session ──▶ Turn ──▶ Reaction
-                                      ▲                    │
-                                      │                    ▼
-                                  AgentDriver         durable outbox
-```
+[<img src="brand/assets/openmatter-loop.svg" alt="The OpenMatter Loop: a work event passes through a replaceable integration, the OpenMatter composition boundary, a replaceable agent runtime, and a durable reaction back to the work system." />](docs/ARCHITECTURE_SNAPSHOT.md)
 
 Every domain-complete accepted `WorkEvent` reaches one immutable terminal
 `Reaction`, including the explicit no-op case. Infrastructure failures remain
 recoverable instead of being misreported as domain outcomes.
 
-[![OpenMatter architecture snapshot](docs/assets/openmatter-architecture-snapshot.png)](docs/ARCHITECTURE_SNAPSHOT.md)
+The Loop owns activation, authorized context, continuity, grants, and the
+terminal contract. Integrations, agents, durable storage, hosts, and credential
+sources remain replaceable. [Explore the full architecture →](docs/ARCHITECTURE_SNAPSHOT.md)
 
 ## Why OpenMatter
 
