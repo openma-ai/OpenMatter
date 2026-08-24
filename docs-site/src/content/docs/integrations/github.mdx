@@ -1,0 +1,48 @@
+---
+title: GitHub
+description: Signed GitHub App events, installation-scoped Context, and finite repository Effects.
+---
+
+`@openmatter/integration-github` turns GitHub App deliveries into standard
+`WorkEvent` facts. It verifies the raw request body, uses
+`X-GitHub-Delivery` for idempotency, and uses `installation.id` as credential
+authority.
+
+```ts
+import { makeCredentialResolver } from "@openmatter/credentials";
+import {
+  makeGitHubHttpEndpoint,
+  makeGitHubIntegration,
+} from "@openmatter/integration-github";
+
+const github = makeGitHubIntegration({
+  credentials: makeCredentialResolver(({ authority }) =>
+    vault.githubInstallation(authority),
+  ),
+});
+
+const endpoint = makeGitHubHttpEndpoint({
+  webhookSecret: env.GITHUB_WEBHOOK_SECRET,
+  submit: (native) => app.acceptFrom("github", native),
+});
+```
+
+## Surface
+
+- Events: issues, issue comments, pull requests, review comments and reviews,
+  workflow runs, installation lifecycle, and a generic observation fallback.
+- Context: repository, issue, comments, pull request, files, reviews, and
+  workflow run. Lists are explicitly paged.
+- Effects: issue comments and updates, reactions, PR reviews and review
+  comments, merge, and workflow dispatch.
+
+There is no arbitrary REST Effect. The Loop must grant each exact operation;
+it also owns mention/label activation, self-event suppression, WorkThread
+association, Agent Session continuity, and Agent invocation.
+
+Provider writes are durable at-least-once. GitHub does not expose an
+idempotency key for every listed mutation, so a crash between provider success
+and receipt persistence can repeat a write such as comment creation.
+
+See the [GitHub webhook validation guide](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)
+and [installation authentication guide](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).

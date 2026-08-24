@@ -1,0 +1,102 @@
+---
+title: Quickstart
+description: Build the smallest complete OpenMatter work loop.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+OpenMatter is a TypeScript SDK, not a hosted runtime. Start with the in-memory Store and mock adapters, then replace infrastructure at the application boundary.
+
+<Steps>
+
+1. **Install the foundation**
+
+   ```sh
+   pnpm add effect @openmatter/runtime @openmatter/store-memory \
+     @openmatter/integration-mock @openmatter/agent-mock
+   ```
+
+2. **Create an application**
+
+   ```ts
+   import { makeMockAgentDriver } from "@openmatter/agent-mock";
+   import { makeMockIntegration } from "@openmatter/integration-mock";
+   import { createOpenMatter } from "@openmatter/runtime";
+   import { makeMemoryStore } from "@openmatter/store-memory";
+
+   const chat = makeMockIntegration({ id: "chat" });
+   const worker = makeMockAgentDriver({ id: "worker", output: "Hello" });
+
+   const app = createOpenMatter({
+     store: makeMemoryStore(),
+     integrations: { chat: chat.integration },
+     agents: { worker: worker.driver },
+   });
+   ```
+
+3. **Accept one work event**
+
+   ```ts
+   await app.acceptFrom("chat", nativeWebhookBody);
+   ```
+
+</Steps>
+
+<Aside type="note" title="Runtime baseline">
+  The executable foundation targets Node.js 22.5+, TypeScript 6, and Effect 3.
+  The Memory Store is for tests and examples—not production durability.
+</Aside>
+
+## Define the Loop
+
+A Loop packages the long-lived event behavior. Its handler explicitly constructs context, chooses session continuity, grants operations, and returns a terminal Reaction.
+
+```ts
+import { defineLoop } from "@openmatter/runtime";
+
+const chatLoop = defineLoop(
+  {
+    id: "chat-agent",
+    spec: {
+      sources: ["chat.message.received"],
+      session: "per-work-thread",
+    },
+  },
+  (loopApp) =>
+    loopApp.on("chat.message.received", (work) =>
+      Effect.gen(function* () {
+        const context = yield* work.context.project({
+          scopeId: "project:openmatter",
+          workThreadId: "discussion:runtime",
+          items: [work.context.event()],
+          grants: ["chat.message.reply"],
+        });
+
+        const result = yield* work
+          .agent("worker")
+          .session({
+            scopeId: context.scopeId,
+            workThreadId: context.workThreadId,
+            privacyPartition: "team",
+          })
+          .turn({ context, allow: context.grants });
+
+        const reply = yield* work.effect(context, {
+          integrationId: "chat",
+          operation: "message.reply",
+          input: { text: result.output ?? null },
+        });
+
+        return work.react.effects([reply]);
+      }),
+    ),
+);
+
+app.loop(chatLoop);
+```
+
+Every domain-complete accepted WorkEvent reaches one terminal Reaction. A valid outcome with no external work uses `react.none()`; infrastructure failures remain recoverable.
+
+## Prefer a built-in Loop?
+
+The definition above shows every decision explicitly. For the common Slack pattern—mentions, direct messages, slash commands, deterministic Scope and WorkThread bindings, and minimal reply grants—install the reusable [Claude Tag Loop](/doc/orchestration/claude-tag/).

@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@openmatter/core": "workspace:*",
+    "@openmatter/credentials": "workspace:*",
     "@openmatter/integration": "workspace:*",
     "@openmatter/http": "workspace:*"
   },

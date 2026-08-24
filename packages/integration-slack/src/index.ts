@@ -18,6 +18,7 @@ export type {
 
 export type {
   SlackCredentialResolver,
+  SlackCredentialSource,
   SlackCredentials,
   SlackContextReader,
   SlackHistoryContextInput,

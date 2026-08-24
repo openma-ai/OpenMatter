@@ -121,6 +121,8 @@ importers:
 
   packages/core: {}
 
+  packages/credentials: {}
+
   packages/fastify:
     dependencies:
       "@openmatter/http":
@@ -194,6 +196,36 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/integration-github:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/credentials":
+        specifier: workspace:*
+        version: link:../credentials
+      "@openmatter/http":
+        specifier: workspace:*
+        version: link:../http
+      "@openmatter/integration":
+        specifier: workspace:*
+        version: link:../integration
+
+  packages/integration-linear:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/credentials":
+        specifier: workspace:*
+        version: link:../credentials
+      "@openmatter/http":
+        specifier: workspace:*
+        version: link:../http
+      "@openmatter/integration":
+        specifier: workspace:*
+        version: link:../integration
+
   packages/integration-mock:
     dependencies:
       "@openmatter/core":
@@ -208,6 +240,9 @@ importers:
       "@openmatter/core":
         specifier: workspace:*
         version: link:../core
+      "@openmatter/credentials":
+        specifier: workspace:*
+        version: link:../credentials
       "@openmatter/http":
         specifier: workspace:*
         version: link:../http

@@ -1,0 +1,39 @@
+---
+title: Runtime lifecycle
+description: Every valid event terminates while infrastructure failure remains recoverable.
+---
+
+The Effect runtime coordinates claims, context, Agent sessions, permissions, reactions, and durable effect delivery.
+
+## Event loop
+
+```text
+claim event
+  → normalize and authorize ContextProjection
+  → claim session mailbox
+  → create or resume AgentSession generation
+  → run Turn and checkpoint OpenMAEvents
+  → authorize ReactionDraft
+  → commit one terminal Reaction
+  → deliver durable WorkEffects
+```
+
+## Reaction is the terminal fact
+
+A Reaction records completed, failed, or cancelled domain work. It may carry zero or more authorized WorkEffects. Infrastructure failure does not fabricate a failed Reaction; it leaves the event claim recoverable.
+
+## Durability and fencing
+
+- Store-authoritative clocks compute lease expiry.
+- Event, Session, Turn, and Effect writes require current fencing tokens.
+- Stable logical Turn identity prevents crash replay from invoking the Agent twice.
+- Context and grants are persisted snapshots and reused during recovery.
+- Permission decisions are durable and bound to request fingerprints.
+
+## Why Effect
+
+Effect provides typed failure channels, dependency Layers, Streams, interruption, scoped resource cleanup, and structured concurrency. Application handlers may still use the Promise facade; Effect is the internal execution model, not a required workflow DSL.
+
+## Proactive work
+
+Schedulers are source adapters. Cron, EventBridge, a Kubernetes CronJob, or a Node timer emits an ordinary WorkEvent, which follows the same Scope, Context, Session, Turn, and Reaction lifecycle.

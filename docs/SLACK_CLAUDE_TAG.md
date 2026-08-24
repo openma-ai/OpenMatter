@@ -1,12 +1,12 @@
-# Slack integration and Claude Tag-style orchestration
+# Slack integration and the Claude Tag Loop
 
-| Field                  | Value                           |
-| ---------------------- | ------------------------------- |
-| Status                 | Executable v0                   |
-| Work adapter           | `@openmatter/integration-slack` |
-| Built-in orchestration | `@openmatter/orchestration`     |
-| Cloud host             | `@openmatter/host-cloudflare`   |
-| Local host             | `@openmatter/host-local`        |
+| Field         | Value                           |
+| ------------- | ------------------------------- |
+| Status        | Executable v0                   |
+| Work adapter  | `@openmatter/integration-slack` |
+| Built-in Loop | `@openmatter/orchestration`     |
+| Cloud host    | `@openmatter/host-cloudflare`   |
+| Local host    | `@openmatter/host-local`        |
 
 This vertical slice intentionally separates four concerns:
 
@@ -17,13 +17,13 @@ Slack HTTP or Socket Mode
 @openmatter/integration-slack
           │ immutable WorkEvent
           ▼
-Claude Tag preset ── ContextProjection ── AgentDriver
+Claude Tag Loop ── ContextProjection ── AgentDriver
           │
           ▼
 Reaction → WorkEffect → Slack Web API
 ```
 
-The Slack adapter does not choose an Agent or build prompts. The preset does
+The Slack adapter does not choose an Agent or build prompts. The Loop does
 not know whether its AgentDriver talks ACP, a managed Claude runtime, or an
 in-process SDK. The host does not choose Scope or permissions.
 
@@ -89,11 +89,16 @@ This package maps Slack into the SDK's Event, Context, Effect, authority, and
 host shapes. It does not reproduce Slack's product SDK. OAuth UI, installation
 storage, token rotation scheduling, Block Kit builders, app configuration,
 admin/SCIM APIs, and arbitrary Web API calls stay in application or deployment
-code. A credential store plugs in through the authority resolver:
+code. A credential store plugs in through the provider-neutral authority
+resolver:
 
 ```ts
+import { makeCredentialResolver } from "@openmatter/credentials";
+
 const slack = makeSlackIntegration({
-  credentials: (authorityId) => credentialStore.slack(authorityId),
+  credentials: makeCredentialResolver(({ authority }) =>
+    credentialStore.slack(authority),
+  ),
 });
 ```
 
@@ -124,16 +129,17 @@ URL-encoded slash commands, and interactive `payload` forms are decoded before
 they enter `WorkIntegration.ingest`. Slash-command `response_url`, interaction
 `response_url`, modal `response_urls`, function `bot_access_token`, function
 interactor secrets, and legacy verification `token` fields are stripped before
-Queue, WorkEvent, Context, or Agent boundaries; the preset replies through the
+Queue, WorkEvent, Context, or Agent boundaries; the Loop replies through the
 bot-authenticated Web API. Successfully accepted ordinary inputs receive an
 empty HTTP 200; only URL verification returns a JSON challenge.
 
-## Claude Tag-style preset
+## Built-in Claude Tag Loop
 
-`installClaudeTag(app, options)` is application code packaged as a reusable
-preset. It is not a second runtime and it does not emulate Claude's mind.
+`claudeTag(options)` returns a reusable `Loop`. It is an application-level
+process definition, not a second runtime, and it does not emulate Claude's
+mind.
 
-The preset follows these defaults:
+The Loop follows these defaults:
 
 | Input           | AgentScope                   | WorkThread                  | Output                    |
 | --------------- | ---------------------------- | --------------------------- | ------------------------- |
@@ -151,37 +157,39 @@ containing the triggering event plus items returned by the application's
 granted.
 
 ```ts
-installClaudeTag(app, {
-  agentId: "claude",
-  // Use "channel" only when command output may be public.
-  commandVisibility: "ephemeral",
-  context: (work) => {
-    const payload = work.event.payload as {
-      channelId: string;
-      contextTeamId?: string;
-      threadTs: string;
-    };
-    return slack.context
-      .thread({
-        teamId: work.event.source.authority,
-        ...(payload.contextTeamId === undefined
-          ? {}
-          : { contextTeamId: payload.contextTeamId }),
-        channelId: payload.channelId,
-        threadTs: payload.threadTs,
-        limit: 50,
-      })
-      .pipe(Effect.map((item) => [item]));
-  },
-});
+app.loop(
+  claudeTag({
+    agentId: "claude",
+    // Use "channel" only when command output may be public.
+    commandVisibility: "ephemeral",
+    context: (work) => {
+      const payload = work.event.payload as {
+        channelId: string;
+        contextTeamId?: string;
+        threadTs: string;
+      };
+      return slack.context
+        .thread({
+          teamId: work.event.source.authority,
+          ...(payload.contextTeamId === undefined
+            ? {}
+            : { contextTeamId: payload.contextTeamId }),
+          channelId: payload.channelId,
+          threadTs: payload.threadTs,
+          limit: 50,
+        })
+        .pipe(Effect.map((item) => [item]));
+    },
+  }),
+);
 ```
 
-The preset is inspired by Anthropic's public description of
+The built-in Loop is inspired by Anthropic's public description of
 [`Claude Tag`](https://support.claude.com/en/articles/15594475-what-is-claude-tag):
 one shared channel presence, threaded collaboration, channel context, and
 replaceable work tools. OpenMatter does not claim API or implementation
 compatibility with Anthropic's hosted product. In v0, a channel thread activates
-the preset through an explicit mention; an ordinary channel thread message
+the Loop through an explicit mention; an ordinary channel thread message
 without a new explicit mention produces a no-effect Reaction rather than waking
 the Agent.
 

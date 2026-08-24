@@ -4,7 +4,7 @@ import { makeMemoryStore } from "@openmatter/store-memory";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { makeSlackIntegration } from "../packages/integration-slack/src/index.js";
-import { installClaudeTag } from "../packages/orchestration/src/index.js";
+import { claudeTag } from "../packages/orchestration/src/index.js";
 
 describe("built-in Claude Tag orchestration", () => {
   it("turns a channel mention into one thread-scoped agent turn and reply", async () => {
@@ -33,7 +33,7 @@ describe("built-in Claude Tag orchestration", () => {
       agents: { claude: claude.driver },
       clock: () => "2026-08-20T10:00:00.000Z",
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     const receipts = await app.acceptFrom("slack", {
       type: "event_callback",
@@ -89,7 +89,7 @@ describe("built-in Claude Tag orchestration", () => {
       integrations: { slack: slack.integration },
       agents: { claude: claude.driver },
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     await app.acceptFrom("slack", {
       type: "event_callback",
@@ -130,7 +130,7 @@ describe("built-in Claude Tag orchestration", () => {
         claude: makeMockAgentDriver({ id: "claude", output: "done" }).driver,
       },
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     await app.acceptFrom("slack", {
       type: "event_callback",
@@ -181,23 +181,25 @@ describe("built-in Claude Tag orchestration", () => {
       integrations: { slack: slack.integration },
       agents: { claude: claude.driver },
     });
-    installClaudeTag(app, {
-      agentId: "claude",
-      context: (work) =>
-        Effect.succeed([
-          work.context.value({
-            id: "channel-memory",
-            kind: "channel-memory",
-            value: { repository: "openma-ai/OpenMatter" },
-            provenance: [
-              {
-                sourceType: "application-config",
-                sourceId: "slack:TWORK:C01",
-              },
-            ],
-          }),
-        ]),
-    });
+    app.loop(
+      claudeTag({
+        agentId: "claude",
+        context: (work) =>
+          Effect.succeed([
+            work.context.value({
+              id: "channel-memory",
+              kind: "channel-memory",
+              value: { repository: "openma-ai/OpenMatter" },
+              provenance: [
+                {
+                  sourceType: "application-config",
+                  sourceId: "slack:TWORK:C01",
+                },
+              ],
+            }),
+          ]),
+      }),
+    );
 
     await app.acceptFrom("slack", {
       type: "event_callback",
@@ -253,7 +255,7 @@ describe("built-in Claude Tag orchestration", () => {
       integrations: { slack: slack.integration },
       agents: { claude: claude.driver },
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     await app.acceptFrom("slack", {
       type: "event_callback",
@@ -302,7 +304,7 @@ describe("built-in Claude Tag orchestration", () => {
       integrations: { slack: slack.integration },
       agents: { claude: claude.driver },
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     for (const [eventId, ts, text] of [
       ["EvDM1", "1724140801.000000", "first question"],
@@ -356,7 +358,7 @@ describe("built-in Claude Tag orchestration", () => {
         claude: makeMockAgentDriver({ id: "claude", output: "reply" }).driver,
       },
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     await app.acceptFrom("slack", {
       type: "event_callback",
@@ -409,7 +411,7 @@ describe("built-in Claude Tag orchestration", () => {
       integrations: { slack: slack.integration },
       agents: { claude: claude.driver },
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     await app.acceptFrom("slack", {
       type: "slash_command",

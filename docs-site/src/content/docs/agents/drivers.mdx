@@ -1,0 +1,35 @@
+---
+title: Agent drivers
+description: Keep the agent runtime replaceable without introducing a second event vocabulary.
+---
+
+Agent Drivers map sessions, turns, streams, permissions, cancellation, and results from a concrete runtime into OpenMatter.
+
+```ts
+interface AgentDriver {
+  id: string;
+  capabilities(): Effect<AgentCapabilities, AgentDriverError>;
+  createSession(input: AgentSessionCreateInput): Effect<AgentSessionHandle>;
+  resumeSession(handle: AgentSessionHandle): Effect<AgentSessionHandle>;
+  turn(input: AgentTurnInput): Stream<OpenMAEvent, AgentDriverError>;
+  respondToPermission(input: PermissionResponse): Effect<void>;
+  cancel(input: CancelInput): Effect<void>;
+  closeSession(handle: AgentSessionHandle): Effect<void>;
+}
+```
+
+## One canonical event stream
+
+ACP and Claude managed-runtime events are normalized by `@openma/common` into deeply immutable `OpenMAEvent` values. OpenMatter streams and persists that contract directly; UI components do not own a competing event model.
+
+## Session lifecycle
+
+- A stable local Session generation is persisted before remote creation.
+- `createSession` receives a stable idempotency key.
+- Only a typed unavailable remote Session creates a new generation.
+- Partial Turns never continue across an incompatible Session generation.
+- Cancel, permission response, and close operations must be idempotent.
+
+## Bindings
+
+`@openmatter/agent-claude` bridges the canonical `OpenMAAgentConnector` into the Effect-native AgentDriver. ACP, managed runtimes, in-process SDKs, and custom agents remain Driver implementations—not new core domains.

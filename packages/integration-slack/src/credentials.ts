@@ -1,3 +1,8 @@
+import {
+  CredentialError,
+  makeCredentialResolver,
+  type CredentialResolver,
+} from "@openmatter/credentials";
 import { IntegrationError } from "@openmatter/integration";
 import { Effect } from "effect";
 import { isRecord } from "./shared.js";
@@ -33,7 +38,9 @@ export const makeSlackCredentialsFor = (
     authorityId: string | undefined,
   ): Effect.Effect<SlackCredentials, IntegrationError> => {
     if (typeof options.credentials !== "function") {
-      return validateCredentials(options);
+      if (!("credentials" in options)) {
+        return validateCredentials(options);
+      }
     }
     if (authorityId === undefined) {
       return Effect.fail(
@@ -43,34 +50,42 @@ export const makeSlackCredentialsFor = (
         }),
       );
     }
-    return Effect.suspend(() => {
-      try {
-        const result = options.credentials(authorityId);
-        if (Effect.isEffect(result)) {
-          return result.pipe(Effect.flatMap(validateCredentials));
-        }
-        if (result instanceof Promise) {
-          return Effect.tryPromise({
-            try: () => result,
-            catch: (cause) =>
-              new IntegrationError({
-                message: `Unable to resolve Slack credentials for ${authorityId}`,
-                retryable: true,
-                cause,
-              }),
-          }).pipe(Effect.flatMap(validateCredentials));
-        }
-        return validateCredentials(result);
-      } catch (cause) {
-        return Effect.fail(
+    const configured = options.credentials;
+    const resolver: CredentialResolver<SlackCredentials> =
+      typeof configured === "function"
+        ? makeCredentialResolver(({ authority }) => configured(authority))
+        : configured;
+
+    if (
+      typeof resolver !== "object" ||
+      resolver === null ||
+      typeof resolver.resolve !== "function"
+    ) {
+      return Effect.fail(
+        new IntegrationError({
+          message: "Slack credential resolver is invalid",
+          retryable: false,
+        }),
+      );
+    }
+
+    return Effect.suspend(() =>
+      resolver.resolve({ integrationId: "slack", authority: authorityId }),
+    ).pipe(
+      Effect.mapError(
+        (cause) =>
           new IntegrationError({
-            message: `Unable to resolve Slack credentials for ${authorityId}`,
-            retryable: true,
+            message:
+              cause instanceof CredentialError
+                ? cause.message
+                : `Unable to resolve Slack credentials for ${authorityId}`,
+            retryable:
+              cause instanceof CredentialError ? cause.retryable : true,
             cause,
           }),
-        );
-      }
-    });
+      ),
+      Effect.flatMap(validateCredentials),
+    );
   };
 
   return credentialsFor;

@@ -42,6 +42,7 @@ import {
   SessionBusyError,
   WorkEventValidationError,
   type ConsumeSummary,
+  type Loop,
   type OpenMatterApplication,
   type OpenMatterOptions,
   type ReactionDraft,
@@ -637,6 +638,10 @@ export const createOpenMatter = (
     acceptFromProgram(integrationId, input).pipe(Effect.provide(services));
 
   const app: OpenMatterApplication = {
+    loop: (loop: Loop) => {
+      loop.install(app);
+      return app;
+    },
     on: (eventTypes, handler) => {
       const types = typeof eventTypes === "string" ? [eventTypes] : eventTypes;
       for (const type of types) handlers.set(type, handler);

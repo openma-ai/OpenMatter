@@ -10,6 +10,7 @@ The canonical package split follows runtime responsibility rather than provider 
 ```text
 packages/
 ├── core                 immutable portable domain Schemas
+├── credentials          authority-scoped live credential resolver port
 ├── store                durable claims, snapshots, outbox and fencing port
 ├── store-memory         process-local Store reference adapter
 ├── inbox                durable native-ingress claim and fencing port
@@ -17,11 +18,13 @@ packages/
 ├── integration          work-platform ingress/egress port
 ├── integration-mock     executable work-platform reference adapter
 ├── integration-slack    Slack events, operations and signed HTTP decoder
+├── integration-github   GitHub App events, Context, Effects and HTTP decoder
+├── integration-linear   Linear events, Context, Effects and HTTP decoder
 ├── agent                AgentDriver and OpenMAEvent stream port
 ├── agent-mock           executable Agent Driver reference adapter
 ├── agent-claude         OpenMA common connector → Effect AgentDriver bridge
 ├── runtime              Effect orchestration and Promise facades
-├── orchestration        built-in application-level orchestration presets
+├── orchestration        built-in application-level Loops
 ├── host-cloudflare      Worker HTTP ingress and Queue consumer binding
 ├── host-local           Node Slack Socket Mode lifecycle binding
 ├── http                 provider-neutral portable HTTP endpoint
@@ -40,7 +43,8 @@ integration-mock → integration ─┼─→ core
 agent-mock ─────→ agent ────────┤
 agent-claude ───→ agent + @openma/common
 runtime ────────→ store + integration + agent + core
-integration-slack → integration + core
+integration-slack / integration-github / integration-linear
+                  → integration + credentials + http + core
 orchestration ───→ runtime + core
 host-cloudflare ─→ runtime + integration-slack + core
 host-local ──────→ runtime + inbox + Slack Socket Mode SDK

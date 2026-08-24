@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
+import { makeCredentialResolver } from "../packages/credentials/src/index.js";
 import {
   decodeSlackHttpRequest,
   makeSlackIntegration,
@@ -237,6 +238,46 @@ describe("Slack WorkIntegration", () => {
         payload: expect.objectContaining({ activation: "observation" }),
       }),
     ]);
+  });
+
+  it("accepts a provider-neutral credential resolver", async () => {
+    const requests: Array<{
+      readonly integrationId: string;
+      readonly authority: string;
+    }> = [];
+    const slack = makeSlackIntegration({
+      credentials: makeCredentialResolver((request) => {
+        requests.push(request);
+        return Effect.succeed({
+          botToken: "token-from-resolver",
+          botUserId: "BOT-TWORK",
+        });
+      }),
+      fetch: async () => new Response(JSON.stringify({ ok: true })),
+    });
+
+    const events = await Effect.runPromise(
+      slack.integration.ingest({
+        type: "event_callback",
+        team_id: "TWORK",
+        event_id: "EvCredentialResolver",
+        event: {
+          type: "message",
+          channel_type: "im",
+          user: "BOT-TWORK",
+          text: "agent output",
+          ts: "1724140802.000000",
+          channel: "D01",
+          event_ts: "1724140802.000000",
+        },
+      }),
+    );
+
+    expect(requests).toEqual([{ integrationId: "slack", authority: "TWORK" }]);
+    expect(events[0]).toMatchObject({
+      type: "slack.event.received",
+      payload: { activation: "observation" },
+    });
   });
 
   it("uses the authorized installation as authority for Slack Connect events", async () => {

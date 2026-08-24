@@ -1,4 +1,5 @@
 import type { ContextItem } from "@openmatter/core";
+import type { CredentialResolver } from "@openmatter/credentials";
 import type { WorkIntegration } from "@openmatter/integration";
 import type { IntegrationError } from "@openmatter/integration";
 import type { Effect } from "effect";
@@ -13,18 +14,21 @@ export interface SlackCredentials {
   readonly botUserId: string;
 }
 
-export type SlackCredentialResolver = (
+export type SlackCredentialResolver = CredentialResolver<SlackCredentials>;
+
+/** Convenience source for applications that do not need the request object. */
+export type SlackCredentialSource = (
   authorityId: string,
 ) =>
   | SlackCredentials
-  | Promise<SlackCredentials>
+  | PromiseLike<SlackCredentials>
   | Effect.Effect<SlackCredentials, IntegrationError>;
 
 export type SlackIntegrationOptions = SlackIntegrationCommonOptions &
   (
     | (SlackCredentials & { readonly credentials?: never })
     | {
-        readonly credentials: SlackCredentialResolver;
+        readonly credentials: SlackCredentialResolver | SlackCredentialSource;
         readonly botToken?: never;
         readonly botUserId?: never;
       }

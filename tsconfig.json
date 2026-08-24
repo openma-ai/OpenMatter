@@ -13,6 +13,7 @@
     "skipLibCheck": true,
     "paths": {
       "@openmatter/core": ["./packages/core/src/index.ts"],
+      "@openmatter/credentials": ["./packages/credentials/src/index.ts"],
       "@openmatter/store": ["./packages/store/src/index.ts"],
       "@openmatter/store-memory": ["./packages/store-memory/src/index.ts"],
       "@openmatter/inbox": ["./packages/inbox/src/index.ts"],
@@ -23,6 +24,12 @@
       ],
       "@openmatter/integration-slack": [
         "./packages/integration-slack/src/index.ts"
+      ],
+      "@openmatter/integration-github": [
+        "./packages/integration-github/src/index.ts"
+      ],
+      "@openmatter/integration-linear": [
+        "./packages/integration-linear/src/index.ts"
       ],
       "@openmatter/agent": ["./packages/agent/src/index.ts"],
       "@openmatter/agent-claude": ["./packages/agent-claude/src/index.ts"],

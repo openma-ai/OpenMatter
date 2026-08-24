@@ -1,0 +1,133 @@
+---
+title: Claude Tag Loop
+description: Compose Slack, an Agent Driver, authorized context, durable continuity, and controlled effects with the built-in Loop.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+`claudeTag()` returns a built-in Loop. It connects the Slack Work Integration to any registered Agent Driver without becoming another runtime or hiding the work-domain decisions.
+
+```text
+Slack native input
+  → Slack WorkIntegration
+  → Claude Tag Loop
+      → deterministic Scope and WorkThread
+      → authorized ContextProjection
+      → durable Agent Session and Turn
+      → one permitted Slack WorkEffect
+  → terminal Reaction
+```
+
+## Complete application composition
+
+This is the smallest realistic composition. The Store, credential source, and Agent Driver remain injected ports.
+
+```ts title="application.ts"
+import type { AgentDriver } from "@openmatter/agent";
+import { makeCredentialResolver } from "@openmatter/credentials";
+import {
+  makeSlackIntegration,
+  type SlackCredentials,
+} from "@openmatter/integration-slack";
+import { claudeTag } from "@openmatter/orchestration";
+import { createOpenMatter } from "@openmatter/runtime";
+import type { OpenMatterStore } from "@openmatter/store";
+import { Effect } from "effect";
+
+interface ApplicationPorts {
+  store: OpenMatterStore;
+  claude: AgentDriver;
+  slackCredentials(authority: string): Promise<SlackCredentials>;
+}
+
+export const makeApplication = (ports: ApplicationPorts) => {
+  const slack = makeSlackIntegration({
+    credentials: makeCredentialResolver(({ authority }) =>
+      ports.slackCredentials(authority),
+    ),
+  });
+
+  const app = createOpenMatter({
+    store: ports.store,
+    integrations: { slack: slack.integration },
+    agents: { claude: ports.claude },
+  });
+
+  app.loop(
+    claudeTag({
+      agentId: "claude",
+      commandVisibility: "ephemeral",
+      context: (work) => {
+        const payload = work.event.payload as {
+          channelId: string;
+          contextTeamId?: string;
+          threadTs: string;
+        };
+
+        return slack.context
+          .thread({
+            teamId: work.event.source.authority,
+            ...(payload.contextTeamId === undefined
+              ? {}
+              : { contextTeamId: payload.contextTeamId }),
+            channelId: payload.channelId,
+            threadTs: payload.threadTs,
+            limit: 50,
+          })
+          .pipe(Effect.map((item) => [item]));
+      },
+    }),
+  );
+
+  return app;
+};
+```
+
+The `context` callback is optional. Without it, each Turn receives the triggering event. Here it explicitly adds one bounded page of Slack thread history; the adapter never crawls the workspace implicitly.
+
+## What the Loop decides
+
+| Activation      | AgentScope                      | WorkThread             | Granted output               |
+| --------------- | ------------------------------- | ---------------------- | ---------------------------- |
+| Channel mention | Slack authority + channel       | Slack root thread      | Reply in that thread         |
+| Direct message  | Slack authority + DM            | Shared DM conversation | Post in the DM               |
+| Threaded DM     | Slack authority + DM            | Explicit root thread   | Reply in that thread         |
+| Slash command   | Slack authority + channel or DM | Isolated invocation    | Ephemeral message by default |
+
+Later activations with the same deterministic Scope and WorkThread reuse the same durable Agent Session. Every activation still creates a fresh immutable ContextProjection and Turn. An ordinary channel message without a new mention completes with a no-effect Reaction instead of waking the Agent.
+
+<Aside type="caution" title="Slash commands are private by default">
+  Set `commandVisibility: "channel"` only when command output is safe to
+  publish. The default uses `message.ephemeral` and grants no public posting
+  capability.
+</Aside>
+
+## Choose a Host independently
+
+The application above is unchanged across deployment shapes.
+
+<Steps>
+
+1. **Local Node and Socket Mode**
+
+   ```ts
+   import { makeLocalSlackRuntime } from "@openmatter/host-local";
+
+   const service = makeLocalSlackRuntime({
+     appToken: process.env.SLACK_APP_TOKEN!,
+     application: makeApplication(ports),
+     inbox,
+   });
+
+   await service.start();
+   ```
+
+2. **Cloudflare HTTP and Queue**
+
+   Mount the same application through `makeCloudflareRuntime()`. Export its `fetch`, `queue`, and `scheduled` handlers so ingress, Agent work, and outbox recovery have independent lifecycle boundaries.
+
+</Steps>
+
+## Customize instead of forking the runtime
+
+The Loop is ordinary application code. Replace it with your own `defineLoop()` or low-level `app.on(...)` handlers when your product needs another activation policy, cross-platform Matter resolution, approval gates, different Scope mapping, or several Agents. WorkIntegration, AgentDriver, Store, Reaction, and Effect contracts remain the same.

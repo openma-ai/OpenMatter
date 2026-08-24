@@ -8,6 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@openmatter/core": fromRoot("./packages/core/src/index.ts"),
+      "@openmatter/credentials": fromRoot(
+        "./packages/credentials/src/index.ts",
+      ),
       "@openmatter/store": fromRoot("./packages/store/src/index.ts"),
       "@openmatter/store-memory": fromRoot(
         "./packages/store-memory/src/index.ts",
@@ -24,6 +27,12 @@ export default defineConfig({
       ),
       "@openmatter/integration-slack": fromRoot(
         "./packages/integration-slack/src/index.ts",
+      ),
+      "@openmatter/integration-github": fromRoot(
+        "./packages/integration-github/src/index.ts",
+      ),
+      "@openmatter/integration-linear": fromRoot(
+        "./packages/integration-linear/src/index.ts",
       ),
       "@openmatter/agent": fromRoot("./packages/agent/src/index.ts"),
       "@openmatter/agent-claude": fromRoot(

@@ -70,7 +70,7 @@ claim token, or fencing token.
 @openmatter/agent-mock        reference agent adapter
 @openmatter/runtime           lifecycle orchestration
 @openmatter/integration-slack signed Slack ingress and semantic operations
-@openmatter/orchestration     built-in code-first orchestration presets
+@openmatter/orchestration     built-in code-first Loops
 @openmatter/host-cloudflare   Worker HTTP/Queue host binding
 @openmatter/host-local        Node Socket Mode host binding
 ```

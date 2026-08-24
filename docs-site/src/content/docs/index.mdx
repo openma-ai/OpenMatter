@@ -1,0 +1,64 @@
+---
+title: OpenMatter — Durable agent loops for work systems
+description: A storage- and deployment-neutral TypeScript framework for persistent agent loops across work platforms.
+template: splash
+head:
+  - tag: title
+    content: OpenMatter — Durable agent loops for work systems
+hero:
+  tagline: Define persistent agent loops while keeping context, authority, continuity, and durable effects explicit.
+  actions:
+    - text: Quickstart
+      link: /doc/quickstart/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/openma-ai/OpenMatter
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+## What is OpenMatter?
+
+**OpenMatter** is the durable Agent Loop framework for work systems. A Loop is a built-in or user-defined process definition that repeatedly turns subscribed work events into terminal Reactions. OpenMatter constructs authorized context, binds work continuity to replaceable agent runtimes, and keeps every outcome explicit.
+
+It is a framework and SDK—not a hosted agent brain, mandatory hub, OAuth platform, or connector marketplace. Storage, deployment, credentials, schedulers, work platforms, and agent runtimes remain replaceable.
+
+## The two integration boundaries
+
+<CardGrid>
+  <Card title="Work Integrations" icon="puzzle">
+    Normalize native events, project explicit context, resolve authority-scoped
+    credentials, and deliver a finite set of granted operations.
+  </Card>
+  <Card title="Agent Drivers" icon="rocket">
+    Map sessions, turns, event streams, permissions, cancellation, and results
+    from ACP, Claude managed runtimes, or custom agents.
+  </Card>
+  <Card title="Loops" icon="approve-check">
+    Package subscriptions, Scope and WorkThread association, ContextProjection,
+    Agent continuity, grants, and Reactions as one reusable process definition.
+  </Card>
+</CardGrid>
+
+## Start here
+
+<LinkCard
+  title="Build the smallest complete Agent Loop"
+  href="/doc/quickstart/"
+  description="Accept one work event, project authorized context, run one agent turn, and commit one terminal reaction."
+/>
+
+<LinkCard
+  title="Understand Loops"
+  href="/doc/concepts/loops/"
+  description="Use built-in Loops or define your own without adding a workflow runtime."
+/>
+
+<LinkCard
+  title="Understand the architecture"
+  href="/doc/architecture/"
+  description="See the replaceable work, agent, store, and host boundaries."
+/>

@@ -1,0 +1,47 @@
+---
+title: Linear
+description: Signed Linear events, organization-scoped Context, and finite issue and project Effects.
+---
+
+`@openmatter/integration-linear` verifies Linear webhook signatures and
+freshness, uses `Linear-Delivery` for idempotency, and uses `organizationId` as
+credential authority.
+
+```ts
+import { makeCredentialResolver } from "@openmatter/credentials";
+import {
+  makeLinearHttpEndpoint,
+  makeLinearIntegration,
+} from "@openmatter/integration-linear";
+
+const linear = makeLinearIntegration({
+  credentials: makeCredentialResolver(({ authority }) =>
+    vault.linearInstallation(authority),
+  ),
+});
+
+const endpoint = makeLinearHttpEndpoint({
+  signingSecret: env.LINEAR_WEBHOOK_SECRET,
+  submit: (native) => app.acceptFrom("linear", native),
+});
+```
+
+## Surface
+
+- Events: issue, comment, project, document, Agent notification/session facts,
+  and a generic observation fallback.
+- Context: issue, cursor-paged comments, project, and document.
+- Effects: issue create/update, issue-comment create/update/delete, project
+  update, and document update.
+
+There is no arbitrary GraphQL Effect. Agent activation, per-issue continuity,
+proactive sweeps, MCP tools, and OAuth control-plane lifecycle remain explicit
+Loop or deployment composition.
+
+Provider writes are durable at-least-once. Linear does not expose a universal
+mutation idempotency key, so a crash between provider success and receipt
+persistence can repeat a write such as issue or comment creation.
+
+See Linear's official [webhook](https://linear.app/developers/webhooks),
+[GraphQL](https://linear.app/developers/graphql), and
+[OAuth](https://linear.app/developers/oauth-2-0-authentication) documentation.

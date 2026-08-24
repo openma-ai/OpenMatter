@@ -1,246 +1,292 @@
-# OpenMatter
+<p align="center">
+  <img src="brand/assets/openmatter-mark.svg" width="72" height="72" alt="OpenMatter mark" />
+</p>
 
-**The SDK that turns work APIs into interfaces agents can work with.**
+<h1 align="center">OpenMatter</h1>
 
-> Compile APIs and events. Keep context and policy in your application. Leave the mind to the agent.
+<p align="center">
+  <strong>Durable agent loops for work systems.</strong><br />
+  Connect work-platform events to replaceable agents while keeping context,
+  authority, continuity, and side effects explicit.
+</p>
 
-OpenMatter is an open, embeddable TypeScript SDK for putting external agents into chat, issue trackers, code hosts, kanban systems, forms, documents, and scheduled work.
+<p align="center">
+  <a href="https://matter.openma.dev/doc/">Documentation</a> ·
+  <a href="https://matter.openma.dev/doc/quickstart/">Quickstart</a> ·
+  <a href="docs/ARCHITECTURE_SNAPSHOT.md">Architecture</a> ·
+  <a href="docs/LOOPS.md">Loops</a>
+</p>
 
-The executable foundation composes two replaceable boundaries: `WorkIntegration` normalizes work-platform events and effects; `AgentDriver` maps durable Sessions and Turns to ACP, managed runtimes, or custom agent SDKs. Application code owns context construction, policy, and orchestration.
+---
 
-Work Profiles and OpenAPI compilation remain a directional integration layer; no compiler package is claimed as executable yet. Arbitrary SaaS semantics cannot be inferred from OpenAPI alone.
+OpenMatter is an open, embeddable TypeScript framework for keeping agents
+present in Slack, GitHub, Linear, and other work systems.
 
-**Immutable facts, explicit transitions.** Events, ContextProjection inputs, Turn inputs, permission decisions, Reactions, and effect intents are durable values rather than live mutable objects. Session, lease, and delivery state may change only through named, fenced state transitions. The runtime takes deep snapshots at asynchronous and durable boundaries; TypeScript `readonly` alone is not treated as immutability.
+A **Loop** is a built-in or user-defined process that repeatedly turns
+subscribed work events into terminal Reactions. The application decides what
+context an agent receives and which operations it may use; the agent retains
+the reasoning.
 
-## Core flow
+> Compile APIs and events. Keep context and policy in your application. Leave
+> the mind to the agent.
+
+## The shape
 
 ```text
-native event                              agent runtime
-    │                                          ▲
-    ▼                                          │
-WorkIntegration.ingest                  AgentDriver Stream
-    │                                          │
-    ▼                                          │
-WorkEvent → ContextProjection → Session → Turn │
-    │                                          │
-    └──────── application handler ─────────────┘
-                         │
-                         ▼
-                      Reaction
-                         │
-                         ▼
-                    WorkEffect intents
-                         │
-                         ▼
-               WorkIntegration.deliver
+work platform                                                work platform
+     │                                                            ▲
+     │ native event                                     approved effect
+     ▼                                                            │
+WorkIntegration ──▶ WorkEvent ──▶ Loop ──▶ ContextProjection     │
+                                      │                            │
+                                      ▼                            │
+                               Agent Session ──▶ Turn ──▶ Reaction
+                                      ▲                    │
+                                      │                    ▼
+                                  AgentDriver         durable outbox
 ```
 
-Every domain-complete accepted `WorkEvent` reaches one terminal `Reaction`. A reaction may contain replies, reactions, forms, approvals, work-item mutations, or no effects at all. Infrastructure failures leave recoverable claims instead of manufacturing false domain outcomes.
+Every domain-complete accepted `WorkEvent` reaches one immutable terminal
+`Reaction`, including the explicit no-op case. Infrastructure failures remain
+recoverable instead of being misreported as domain outcomes.
 
-Directional Work Profiles may later describe operations, events, Resource identities, authority, risk, and provider bindings as portable JSON. Those artifacts complement the code-first runtime; they do not replace its authorization or context decisions.
+[![OpenMatter architecture snapshot](docs/assets/openmatter-architecture-snapshot.png)](docs/ARCHITECTURE_SNAPSHOT.md)
 
-## Current packages
+## Why OpenMatter
 
-- `@openmatter/core`, `@openmatter/store`, `@openmatter/integration`, and `@openmatter/agent` define the immutable records and three Effect-native ports.
-- `@openmatter/runtime` provides the Event → Context → Session → Reaction → Effect lifecycle.
-- `@openmatter/store-memory`, `@openmatter/integration-mock`, and `@openmatter/agent-mock` are executable test/reference adapters.
-- `@openmatter/inbox` defines ACK-before-processing transport durability; `@openmatter/inbox-sqlite` is the embedded Node adapter.
-- `@openmatter/agent-claude` bridges the canonical `OpenMAAgentConnector` from the pinned `@openma/common` revision into the Effect-native `AgentDriver`; it does not reimplement Claude's managed SaaS runtime.
-- `@openmatter/integration-slack` is the first full Work Integration: signed HTTP/Socket ingress, semantic events plus passthrough, explicit Context readers, authority-scoped credentials, and separately granted Slack effects.
-- `@openmatter/orchestration` includes the Claude Tag-style Scope/WorkThread/Session preset.
-- `@openmatter/host-cloudflare` and `@openmatter/host-local` bind the same application to Worker Queues or Slack Socket Mode.
-- `@openmatter/fastify` and `@openmatter/hono` mount provider-neutral `@openmatter/http` endpoints without owning application policy or server lifecycle.
-- `examples/basic`, `examples/slack-cloudflare`, and `examples/slack-local` show the three executable composition shapes.
+- **The Loop is the product boundary.** Activation, context, continuity,
+  permissions, reactions, and recovery compose in one reusable process.
+- **Agents remain replaceable.** `AgentDriver` connects durable Sessions and
+  Turns to ACP-compatible connectors, managed runtimes, in-process SDKs, or
+  custom agents.
+- **Work systems remain replaceable.** `WorkIntegration` normalizes provider
+  events, Context readers, and a finite set of explicitly granted Effects.
+- **Durability is structural.** Events, ContextProjections, Turn inputs,
+  permission decisions, Reactions, Effects, and delivery receipts are portable
+  immutable facts. Leases and fenced writes handle retries and stale workers.
+- **Deployment stays yours.** OpenMatter owns no mandatory server, queue,
+  scheduler, database, credential service, Hub, or SaaS control plane.
 
-See [Project structure](docs/PROJECT_STRUCTURE.md) for dependency direction and
-package ownership.
+## Run the executable example
 
-## Build an HTTP operation
+The repository targets Node.js 22.5+, TypeScript 6, and Effect 3.
+
+```sh
+git clone https://github.com/openma-ai/OpenMatter.git
+cd OpenMatter
+pnpm install
+pnpm check
+pnpm --filter @openmatter/example-basic build
+pnpm --filter @openmatter/example-basic start
+```
+
+The basic example uses the Memory Store and mock adapters, then executes the
+same Event → Context → Session → Turn → Reaction lifecycle used by real
+integrations. See
+[`examples/basic/src/index.ts`](examples/basic/src/index.ts) for the complete
+runnable composition.
+
+## Define a Loop
+
+`defineLoop()` keeps a portable, JSON-safe definition next to executable
+TypeScript. The definition can be inspected, versioned, generated, and later
+visualized without pretending arbitrary application logic is serializable.
 
 ```ts
-import { Effect } from "effect";
-import { makeMockAgentDriver } from "@openmatter/agent-mock";
-import { makeMockIntegration } from "@openmatter/integration-mock";
-import { createOpenMatter } from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
+import { defineLoop } from "@openmatter/runtime";
 
-const chat = makeMockIntegration({ id: "chat" });
-const worker = makeMockAgentDriver({ id: "worker", output: "Hello" });
-const app = createOpenMatter({
-  store: makeMemoryStore(),
-  integrations: { chat: chat.integration },
-  agents: { worker: worker.driver },
-});
-
-app.on("chat.message.received", (work) =>
-  Effect.gen(function* () {
-    const context = yield* work.context.project({
-      scopeId: "project:openmatter",
-      workThreadId: "discussion:runtime",
-      items: [work.context.event()],
-      grants: ["chat.message.reply"],
-    });
-
-    const result = yield* work
-      .agent("worker")
-      .session({
-        scopeId: context.scopeId,
-        workThreadId: context.workThreadId,
-        privacyPartition: "team",
-      })
-      .turn({ context, allow: context.grants });
-
-    const reply = yield* work.effect(context, {
-      integrationId: "chat",
-      operation: "message.reply",
-      input: { text: result.output ?? null },
-    });
-
-    return work.react.effects([reply]);
-  }),
+const issueTriage = defineLoop(
+  {
+    id: "issue-triage",
+    version: "0.1.0",
+    spec: {
+      sources: ["linear.issue.updated"],
+      workThread: "linear.issue",
+      session: "per-work-thread",
+    },
+  },
+  (loop) =>
+    loop.on("linear.issue.updated", (work) =>
+      work.react.none("No action required"),
+    ),
 );
 
-await app.acceptFrom("chat", nativeWebhookBody);
+app.loop(issueTriage);
 ```
 
-This is the executable v0 surface. Real platform, durable-store, and Agent Driver adapters replace the mocks without changing handler semantics. The SDK provides conventions and typed boundaries, not a closed configuration language.
+`app.loop()` installs into the same runtime kernel as the low-level `app.on()`
+API. OpenMatter does not add a second graph executor, Actor DSL, or hidden
+scheduler.
 
-## Two replaceable boundaries
-
-OpenMatter composes two semantic interfaces:
-
-- **Work Integration** maps provider events, references, context, capabilities, authentication, and effects into OpenMatter.
-- **Agent Driver** maps sessions, turns, event streams, permissions, cancellation, and results to ACP, Claude managed runtimes, in-process SDKs, or custom agents.
-
-ACP is the first open Agent Driver binding. HTTP, WebSocket, webhooks, polling, and SDK calls are transport choices of a binding, not new core domains.
-
-## Matter
-
-A `Matter` is a durable identity for “the thing being worked on.” It may be represented by a Linear issue ID, GitHub pull request, URL, channel thread, team alias, natural-language phrase, or several of these at once.
-
-OpenMatter does not require every mention to resolve. Unknown or ambiguous references retain their raw text and provenance until application code, a deterministic resolver, an agent proposal, or a user confirmation links them.
-
-## Scheduled work
-
-Proactive behavior enters through a scheduler/source adapter; it is not a special kind of agent or a timer hidden inside the Runtime:
+For Slack, the built-in `claudeTag()` Loop already defines mention, direct
+message, slash-command, Scope, WorkThread, Session, and reply behavior:
 
 ```ts
-app.on("schedule.issue-patrol.tick", (work) => {
-  // Build context and optionally invoke an agent exactly as for a webhook event.
-  return work.react.none("Nothing requires attention");
-});
+import { claudeTag } from "@openmatter/orchestration";
 
-// Cloud scheduler, queue consumer, cron process, or test adapter:
-await app.accept(scheduleAdapter.tick("issue-patrol", scheduledAt));
+app.loop(
+  claudeTag({
+    agentId: "claude",
+    commandVisibility: "ephemeral",
+  }),
+);
 ```
 
-Every domain-complete `WorkEvent` reaches one immutable terminal `Reaction`.
-Operation delivery has its own durable receipts; a reaction with no effects is
-still explicit and observable. Infrastructure failures keep recoverable claims
-instead of manufacturing a false domain result.
+See the [Claude Tag guide](https://matter.openma.dev/doc/orchestration/claude-tag/)
+for the complete composition.
 
-## Work context
+## What belongs where
 
-OpenMatter keeps distinct concepts distinct:
+| OpenMatter owns                        | The agent owns                       | The host application owns          |
+| -------------------------------------- | ------------------------------------ | ---------------------------------- |
+| Event normalization and subscription   | Reasoning and planning               | Server/process lifecycle           |
+| Scope and WorkThread association       | Private transcript and scratch state | Credential acquisition and storage |
+| Authorized ContextProjection           | Internal tool-use sequence           | Queue and scheduler registration   |
+| Agent Session continuity policy        | Model/runtime implementation         | Product-specific policy and UI     |
+| Operation grants and terminal Reaction | How to satisfy the Turn              | Deployment and observability       |
+| Durable Effect intents and recovery    |                                      |                                    |
 
-- `ResourceAddress` identifies a provider resource.
-- `Matter` identifies the durable thing being worked on and may link several provider resources.
-- `AgentScope` owns shared authority, policy, bindings, and candidate context.
-- `WorkThread` owns the structured continuity of one piece of work across events and providers.
-- `ContextProjection` is the authorized snapshot delivered to one Turn.
-- `AgentSession` is an external runtime continuity handle, not the only durable source of truth.
+This boundary is deliberate: OpenMatter orchestrates **what the agent sees,
+when it runs, what continuity it receives, and what it may do**—not how it
+thinks.
 
-A Channel is not automatically a Scope, WorkThread, or Agent Session. Multiple channels can share a Scope; one Matter can connect a message thread, issue, pull request, and document.
+## Work integrations
 
-## Agent boundary
+The shipped integrations follow the same SDK shape: signed ingress, standard
+WorkEvents, authority-scoped credentials, explicit Context readers, and a
+finite operation allowlist.
 
-OpenMatter does not implement another agent brain. `AgentDriver` maps OpenMatter sessions, turns, operation grants, event streams, permissions, and cancellation to:
+| Integration | Credential authority        | Context and Effects                                                                                       |
+| ----------- | --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Slack**   | installation workspace/team | Message, thread, conversation, and user Context; replies, reactions, ephemeral messages, views, and files |
+| **GitHub**  | GitHub App installation     | Repository, issue, pull request, review, workflow; comments, reactions, reviews, merge, and dispatch      |
+| **Linear**  | organization/workspace      | Issue, comments, project, document; issue, comment, project, and document mutations                       |
 
-- Agent Client Protocol;
-- managed-agent runtimes;
-- in-process SDKs;
-- MCP-backed tools;
-- custom agents.
+Provider-native payloads remain available as recursively sanitized JSON.
+Arbitrary REST or GraphQL calls are not smuggled through a generic operation.
+Application policy decides which advertised capabilities enter a
+`ContextProjection.grants` list.
 
-The agent owns reasoning, planning, transcript, and private tool state. OpenMatter owns work-side context, authority, continuity, reactions, and effect receipts.
+## Replaceable boundaries
 
-ACP and Claude Managed wire events are normalized by `@openma/common` into one deeply immutable `OpenMAEvent` contract. OpenMatter persists and streams that contract directly—there is no UI-specific or camelCase duplicate event model.
+| Boundary        | Contract             | Included adapters                                                                      |
+| --------------- | -------------------- | -------------------------------------------------------------------------------------- |
+| Work platform   | `WorkIntegration`    | Slack, GitHub, Linear, mock                                                            |
+| Agent runtime   | `AgentDriver`        | `OpenMAAgentConnector` bridge, mock, custom drivers                                    |
+| Durable state   | `OpenMatterStore`    | Memory reference adapter; production adapters remain application choices               |
+| Credentials     | `CredentialResolver` | Static/example sources; environment, vault, OAuth, or control plane remain replaceable |
+| HTTP framework  | `HttpEndpoint`       | Fastify and Hono components                                                            |
+| Host lifecycle  | application boundary | Cloudflare Queue host and local Slack Socket Mode host                                 |
+| Durable ingress | `DurableInbox`       | Embedded SQLite adapter for local Node                                                 |
 
-## Deploy Slack without changing orchestration
+ACP and managed-agent wire events are normalized by the pinned
+`@openma/common` contract into one deeply immutable `OpenMAEvent` stream. The
+Effect-native bridge does not duplicate the event vocabulary or implement
+another managed-agent SaaS runtime.
 
-The core Runtime owns no server, scheduler, queue, or process loop. Optional host
-adapters translate platform lifecycle into the same application boundary:
+## Deploy without changing the Loop
 
-- Cloudflare receives signed Slack HTTP requests, returns URL-verification
-  challenges, and enqueues verified native inputs before running the Agent in a
-  Queue consumer. See
-  [`examples/slack-cloudflare`](examples/slack-cloudflare/src/index.ts).
-- A local Node process uses Slack's official Socket Mode SDK, so it needs no
-  public webhook URL. See
-  [`examples/slack-local`](examples/slack-local/src/index.ts).
+The same Slack application and `claudeTag()` Loop can run in two included host
+shapes:
 
-Both modes share `makeSlackIntegration()` and `installClaudeTag()`. Switching
-transport does not change Scope, ContextProjection, Session, Reaction, or
-effect semantics. A Cloudflare deployment must inject a durable
-`OpenMatterStore`; `store-memory` is intentionally not a production database.
-The Queue host provides durable ingress retries. The local Socket Mode host
-persists each native envelope through `DurableInbox` before acknowledging it;
-`@openmatter/inbox-sqlite` supplies the embedded Node implementation. A fully
-durable local deployment needs both that inbox and a durable `OpenMatterStore`.
+- **Cloudflare Workers + Queues** — signed HTTP ingress is acknowledged after
+  durable enqueue; a Queue consumer runs the application. Scheduled Effect
+  recovery remains an explicit host entry point.
+- **Local Node + Socket Mode** — no public webhook URL is required. Native
+  envelopes enter a `DurableInbox` before acknowledgement; the SQLite adapter
+  supplies embedded ingress durability.
 
-Cloudflare Cron, EventBridge, Kubernetes CronJob, and Node timers keep their own
-registration, overlap, retry, and wake-up semantics. OpenMatter does not embed a
-scheduler. Each decoded tick follows the same Scope, Matter, WorkThread,
-Session, Turn, and Reaction lifecycle.
+Fastify and Hono components mount provider-neutral `HttpEndpoint` values when
+the user owns the server. A scheduler is just another source adapter:
+Cloudflare Cron, EventBridge, Kubernetes CronJob, or a Node timer emits a
+WorkEvent and the same Loop handles it.
 
-All durable fields use one portable `JsonValue` contract. Integration-native payloads, Agent handles, and provider receipts remain available, but adapters must encode them as JSON instead of leaking live SDK objects into storage.
+See the [deployment guide](https://matter.openma.dev/doc/operate/deployment/),
+[`examples/slack-cloudflare`](examples/slack-cloudflare/src/index.ts), and
+[`examples/slack-local`](examples/slack-local/src/index.ts).
+
+## One visible bot, many work profiles
+
+A Slack bot name and avatar identify the visible `BotResource`; they do not
+define one universal personality. Multiple Scope bindings beneath the same bot
+may select different versioned AgentProfiles, context policies, memory
+namespaces, and execution credentials.
+
+```text
+BotResource / SurfaceIdentity
+└── ScopeBinding
+    ├── AgentScope                  shared policy and authority
+    ├── AgentProfile revision       runtime, role, prompt, style
+    ├── ExecutionIdentity           bot, app, or delegated principal
+    └── WorkThread
+        └── AgentSession → Turn     runtime continuity and invocation
+```
+
+Visible authorship, behavior, and execution credentials never select each
+other implicitly. Read the [identity model](docs/IDENTITY_MODEL.md).
+
+## Packages
+
+| Group              | Packages                                                                      |
+| ------------------ | ----------------------------------------------------------------------------- |
+| Foundation         | `@openmatter/core`, `store`, `integration`, `agent`, `runtime`, `credentials` |
+| Reference adapters | `store-memory`, `integration-mock`, `agent-mock`                              |
+| Work platforms     | `integration-slack`, `integration-github`, `integration-linear`               |
+| Agent bridge       | `agent-claude`                                                                |
+| Orchestration      | `orchestration`                                                               |
+| HTTP and hosts     | `http`, `fastify`, `hono`, `host-cloudflare`, `host-local`                    |
+| Ingress durability | `inbox`, `inbox-sqlite`                                                       |
+
+The dependency direction and ownership of every package are documented in
+[Project structure](docs/PROJECT_STRUCTURE.md).
 
 ## What OpenMatter is not
 
-- Not a connector catalog that must hand-code every SaaS.
-- Not a partial wrapper around Activepieces, Zapier, or another workflow runtime.
-- Not another prompt graph, planner, or model SDK.
-- Not a replacement for ACP, OpenAPI, AsyncAPI, GraphQL, or MCP.
-- Not a mandatory Hub, SaaS control plane, credential service, database, queue, or cloud.
-- Not a closed JSON workflow DSL.
+- Not another agent brain, prompt graph, planner, or model SDK.
+- Not a replacement for ACP, MCP, OpenAPI, AsyncAPI, or GraphQL.
+- Not a mandatory Hub, SaaS control plane, database, queue, scheduler, or
+  credential service.
+- Not a generic arbitrary-provider API proxy.
+- Not a closed JSON workflow language.
 
-## Documentation
+OpenAPI and future Work Profiles may reduce integration authoring, but provider
+semantics, authority, risk, and resource identity cannot be inferred safely
+from an API schema alone.
 
-- [Product and architecture brief](docs/BRIEF.md)
-- [Executable Effect runtime architecture](docs/RUNTIME_ARCHITECTURE.md)
-- [Current design decisions](docs/DECISIONS.md)
-- [Domain model](docs/DOMAIN_MODEL.md)
-- [SDK shape](docs/SDK_SHAPE.md)
-- [Work Profiles, bindings, and Matter references](docs/INTEGRATIONS.md)
-- [Agent runtime and session lifecycle](docs/AGENT_RUNTIME.md)
-- [Executable technical design](docs/TECHNICAL_DESIGN.md)
-- [Standards and platform references](docs/REFERENCES.md)
-- [Package structure](docs/PROJECT_STRUCTURE.md)
-- [Slack, Claude Tag preset, and deployment hosts](docs/SLACK_CLAUDE_TAG.md)
-- [Fastify and Hono framework components](docs/HTTP_COMPONENTS.md)
-- Directional Work Profile layer: [architecture](docs/ARCHITECTURE.md) and [draft specification](docs/SDK_SPEC.md)
+## Status
 
-> [!IMPORTANT]
-> OpenMatter has an executable v0 vertical slice. Its contracts remain pre-stable until they are exercised by real integrations, Agent Drivers, durable stores, and a conformance harness.
+OpenMatter currently ships an executable **v0 vertical slice**. Contracts are
+pre-stable while they are exercised by production-grade Store adapters, Agent
+connectors, integrations, and a conformance harness.
 
-## Executable foundation
+The foundation already includes:
 
-The repository now contains the first runnable vertical slice:
-
-- Effect Schema domain contracts;
-- Effect Service/Layer ports for storage, work integrations, and agent drivers;
-- persisted context projections with provenance, grants, and digests;
+- Effect Schema domain contracts and Effect Service/Layer ports;
+- immutable ContextProjections with provenance, grants, and digests;
 - authority/privacy-bound Agent Sessions and validated OpenMAEvent streams;
-- enforced grants for Agent turns and provider operations;
-- leased event/session/effect claims with full-lifecycle heartbeat renewal and stale-worker fencing;
-- insert-once terminal Reactions, immutable authorized Effect intents, retry receipts, and outbox recovery;
-- stable logical Turns, checkpointed Agent streams, durable permission decisions, and idempotent Session creation;
-- memory storage, mock work-platform, and mock agent adapters;
-- the same execution pipeline for request/serverless and long-lived sources.
+- leased Event, Session, and Effect claims with heartbeat renewal and fencing;
+- stable logical Turns, checkpointed streams, and durable permission decisions;
+- insert-once terminal Reactions and recoverable Effect delivery receipts.
 
-Run it with:
+## Read next
 
-```bash
+- [Documentation site](https://matter.openma.dev/doc/)
+- [Quickstart](https://matter.openma.dev/doc/quickstart/)
+- [Architecture snapshot](docs/ARCHITECTURE_SNAPSHOT.md)
+- [Runtime architecture](docs/RUNTIME_ARCHITECTURE.md)
+- [Domain model](docs/DOMAIN_MODEL.md)
+- [Loops](docs/LOOPS.md)
+- [SDK shape](docs/SDK_SHAPE.md)
+- [Integrations](docs/INTEGRATIONS.md)
+- [Credentials](docs/CREDENTIALS.md)
+- [Agent runtime](docs/AGENT_RUNTIME.md)
+- [Design decisions](docs/DECISIONS.md)
+
+## Development
+
+```sh
 pnpm install
 pnpm check
 ```
+
+`pnpm check` formats, tests, type-checks, and builds the complete workspace.

@@ -2,7 +2,7 @@ import type { AgentDriver } from "@openmatter/agent";
 import { makeLocalSlackRuntime } from "@openmatter/host-local";
 import type { DurableInbox } from "@openmatter/inbox";
 import { makeSlackIntegration } from "@openmatter/integration-slack";
-import { installClaudeTag } from "@openmatter/orchestration";
+import { claudeTag } from "@openmatter/orchestration";
 import { createOpenMatter } from "@openmatter/runtime";
 import type { OpenMatterStore } from "@openmatter/store";
 
@@ -27,7 +27,7 @@ export const makeLocalSlackService = (options: LocalSlackOptions) => {
     integrations: { slack: slack.integration },
     agents: { claude: options.claude },
   });
-  installClaudeTag(app, { agentId: "claude" });
+  app.loop(claudeTag({ agentId: "claude" }));
 
   return makeLocalSlackRuntime({
     appToken: options.appToken,
