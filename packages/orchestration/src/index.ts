@@ -1,5 +1,10 @@
 import type { ContextItem } from "@openmatter/core";
-import type { OpenMatterApplication, WorkContext } from "@openmatter/runtime";
+import {
+  defineLoop,
+  type Loop,
+  type OpenMatterApplication,
+  type WorkContext,
+} from "@openmatter/runtime";
 import { Effect } from "effect";
 
 export interface ClaudeTagOptions {
@@ -41,7 +46,7 @@ const loadContext = (
     }
   });
 
-export const installClaudeTag = (
+const installClaudeTagHandlers = (
   app: OpenMatterApplication,
   options: ClaudeTagOptions,
 ): OpenMatterApplication => {
@@ -79,7 +84,14 @@ export const installClaudeTag = (
       if (!isRecord(work.event.payload)) {
         throw new Error("Claude Tag requires a Slack message payload");
       }
-      const { activation, channelId, threadTs, surface } = work.event.payload;
+      const {
+        activation,
+        channelId,
+        contextTeamId,
+        messageTs,
+        threadTs,
+        surface,
+      } = work.event.payload;
       if (
         work.event.type === `${integrationId}.message.received` &&
         activation !== "direct"
@@ -90,25 +102,36 @@ export const installClaudeTag = (
       }
       if (
         typeof channelId !== "string" ||
+        typeof messageTs !== "string" ||
         typeof threadTs !== "string" ||
         (surface !== "channel" && surface !== "dm")
       ) {
-        throw new Error("Claude Tag requires channelId, threadTs, and surface");
+        throw new Error(
+          "Claude Tag requires channelId, messageTs, threadTs, and surface",
+        );
       }
       const scopeId = `${integrationId}:${work.event.source.authority}:${surface}:${channelId}`;
-      const workThreadId = `${integrationId}:${work.event.source.authority}:${channelId}:thread:${threadTs}`;
+      const isDmConversation = surface === "dm" && threadTs === messageTs;
+      const operation = isDmConversation ? "message.post" : "message.reply";
+      const workThreadId = isDmConversation
+        ? `${integrationId}:${work.event.source.authority}:${channelId}:dm`
+        : `${integrationId}:${work.event.source.authority}:${channelId}:thread:${threadTs}`;
       const { context, turn } = yield* projectAndTurn(
         work,
         scopeId,
         workThreadId,
-        `${integrationId}.message.reply`,
+        `${integrationId}.${operation}`,
       );
       const reply = yield* work.effect(context, {
         integrationId,
-        operation: "message.reply",
+        operation,
         input: {
+          teamId: work.event.source.authority,
           channelId,
-          threadTs,
+          ...(typeof contextTeamId === "string"
+            ? { clientContextTeamId: contextTeamId }
+            : {}),
+          ...(operation === "message.reply" ? { threadTs } : {}),
           text: outputText(turn.output),
         },
       });
@@ -147,6 +170,7 @@ export const installClaudeTag = (
         integrationId,
         operation: commandOperation,
         input: {
+          teamId: work.event.source.authority,
           channelId,
           ...(commandOperation === "message.ephemeral" ? { userId } : {}),
           text: outputText(turn.output),
@@ -159,3 +183,32 @@ export const installClaudeTag = (
   app.on(`${integrationId}.message.received`, handleMessage);
   return app.on(`${integrationId}.command.invoked`, handleCommand);
 };
+
+export const claudeTag = (options: ClaudeTagOptions): Loop =>
+  defineLoop(
+    {
+      id: "claude-tag",
+      version: "0.1.0",
+      description: "Keep Claude present in Slack conversations and commands",
+      spec: {
+        integration: "slack",
+        sources: [
+          "slack.message.mentioned",
+          "slack.message.received",
+          "slack.command.invoked",
+        ],
+        association: {
+          scope: "slack.channel-or-dm",
+          workThread: "slack.thread-or-dm-conversation",
+        },
+        agent: {
+          id: options.agentId,
+          session: "per-work-thread",
+        },
+        commandVisibility: options.commandVisibility ?? "ephemeral",
+        context: options.context === undefined ? "event" : "extension:context",
+        reaction: "terminal-per-event",
+      },
+    },
+    (app) => installClaudeTagHandlers(app, options),
+  );

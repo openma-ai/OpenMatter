@@ -8,9 +8,16 @@ export default defineConfig({
   resolve: {
     alias: {
       "@openmatter/core": fromRoot("./packages/core/src/index.ts"),
+      "@openmatter/credentials": fromRoot(
+        "./packages/credentials/src/index.ts",
+      ),
       "@openmatter/store": fromRoot("./packages/store/src/index.ts"),
       "@openmatter/store-memory": fromRoot(
         "./packages/store-memory/src/index.ts",
+      ),
+      "@openmatter/inbox": fromRoot("./packages/inbox/src/index.ts"),
+      "@openmatter/inbox-sqlite": fromRoot(
+        "./packages/inbox-sqlite/src/index.ts",
       ),
       "@openmatter/integration": fromRoot(
         "./packages/integration/src/index.ts",
@@ -21,7 +28,16 @@ export default defineConfig({
       "@openmatter/integration-slack": fromRoot(
         "./packages/integration-slack/src/index.ts",
       ),
+      "@openmatter/integration-github": fromRoot(
+        "./packages/integration-github/src/index.ts",
+      ),
+      "@openmatter/integration-linear": fromRoot(
+        "./packages/integration-linear/src/index.ts",
+      ),
       "@openmatter/agent": fromRoot("./packages/agent/src/index.ts"),
+      "@openmatter/agent-claude": fromRoot(
+        "./packages/agent-claude/src/index.ts",
+      ),
       "@openmatter/agent-mock": fromRoot("./packages/agent-mock/src/index.ts"),
       "@openmatter/runtime": fromRoot("./packages/runtime/src/index.ts"),
       "@openmatter/host-cloudflare": fromRoot(
@@ -31,6 +47,9 @@ export default defineConfig({
       "@openmatter/orchestration": fromRoot(
         "./packages/orchestration/src/index.ts",
       ),
+      "@openmatter/http": fromRoot("./packages/http/src/index.ts"),
+      "@openmatter/fastify": fromRoot("./packages/fastify/src/index.ts"),
+      "@openmatter/hono": fromRoot("./packages/hono/src/index.ts"),
     },
   },
   test: {

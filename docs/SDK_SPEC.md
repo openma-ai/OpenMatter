@@ -539,7 +539,7 @@ interface SecurityDefinition {
 }
 ```
 
-A host `CredentialProvider` binds a configured authority to concrete credentials. The Runtime MUST prevent the agent from selecting arbitrary credential material or overriding trusted provider hosts unless policy explicitly permits it.
+A host `CredentialResolver` binds a configured authority to concrete credentials. The executable SDK defines this port in `@openmatter/credentials`; it does not prescribe whether the resolver is backed by environment variables, a vault, OAuth installation storage, or a managed control plane. The Runtime MUST prevent the agent from selecting arbitrary credential material or overriding trusted provider hosts unless policy explicitly permits it.
 
 ## 12. Runtime messages
 

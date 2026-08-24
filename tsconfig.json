@@ -13,8 +13,11 @@
     "skipLibCheck": true,
     "paths": {
       "@openmatter/core": ["./packages/core/src/index.ts"],
+      "@openmatter/credentials": ["./packages/credentials/src/index.ts"],
       "@openmatter/store": ["./packages/store/src/index.ts"],
       "@openmatter/store-memory": ["./packages/store-memory/src/index.ts"],
+      "@openmatter/inbox": ["./packages/inbox/src/index.ts"],
+      "@openmatter/inbox-sqlite": ["./packages/inbox-sqlite/src/index.ts"],
       "@openmatter/integration": ["./packages/integration/src/index.ts"],
       "@openmatter/integration-mock": [
         "./packages/integration-mock/src/index.ts"
@@ -22,14 +25,24 @@
       "@openmatter/integration-slack": [
         "./packages/integration-slack/src/index.ts"
       ],
+      "@openmatter/integration-github": [
+        "./packages/integration-github/src/index.ts"
+      ],
+      "@openmatter/integration-linear": [
+        "./packages/integration-linear/src/index.ts"
+      ],
       "@openmatter/agent": ["./packages/agent/src/index.ts"],
+      "@openmatter/agent-claude": ["./packages/agent-claude/src/index.ts"],
       "@openmatter/agent-mock": ["./packages/agent-mock/src/index.ts"],
       "@openmatter/runtime": ["./packages/runtime/src/index.ts"],
       "@openmatter/host-cloudflare": [
         "./packages/host-cloudflare/src/index.ts"
       ],
       "@openmatter/host-local": ["./packages/host-local/src/index.ts"],
-      "@openmatter/orchestration": ["./packages/orchestration/src/index.ts"]
+      "@openmatter/orchestration": ["./packages/orchestration/src/index.ts"],
+      "@openmatter/http": ["./packages/http/src/index.ts"],
+      "@openmatter/fastify": ["./packages/fastify/src/index.ts"],
+      "@openmatter/hono": ["./packages/hono/src/index.ts"]
     },
     "types": ["node", "vitest/globals"]
   },

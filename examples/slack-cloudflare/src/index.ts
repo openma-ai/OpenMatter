@@ -5,7 +5,7 @@ import {
   type CloudflareQueuePort,
 } from "@openmatter/host-cloudflare";
 import { makeSlackIntegration } from "@openmatter/integration-slack";
-import { installClaudeTag } from "@openmatter/orchestration";
+import { claudeTag } from "@openmatter/orchestration";
 import { createOpenMatter } from "@openmatter/runtime";
 import type { OpenMatterStore } from "@openmatter/store";
 
@@ -35,21 +35,23 @@ export const makeWorker = (ports: CloudflarePorts) => {
         integrations: { slack: slack.integration },
         agents: { claude: ports.claude(environment) },
       });
-      installClaudeTag(app, {
-        agentId: "claude",
-        context: (work) => [
-          work.context.value({
-            kind: "channel-policy",
-            value: { source: "application", activation: "mention-only" },
-            provenance: [
-              {
-                sourceType: "application-config",
-                sourceId: "cloudflare-worker",
-              },
-            ],
-          }),
-        ],
-      });
+      app.loop(
+        claudeTag({
+          agentId: "claude",
+          context: (work) => [
+            work.context.value({
+              kind: "channel-policy",
+              value: { source: "application", activation: "mention-only" },
+              provenance: [
+                {
+                  sourceType: "application-config",
+                  sourceId: "cloudflare-worker",
+                },
+              ],
+            }),
+          ],
+        }),
+      );
       return app;
     },
     slack: {
@@ -63,5 +65,7 @@ export const makeWorker = (ports: CloudflarePorts) => {
       runtime.fetch(request, environment),
     queue: (batch: CloudflareQueueBatch, environment: Environment) =>
       runtime.queue(batch, environment),
+    scheduled: (_controller: unknown, environment: Environment) =>
+      runtime.scheduled(environment),
   };
 };

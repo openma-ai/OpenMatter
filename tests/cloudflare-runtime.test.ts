@@ -31,6 +31,32 @@ interface TestEnvironment {
 }
 
 describe("Cloudflare OpenMatter runtime", () => {
+  it("exposes durable effect recovery as a scheduled host entrypoint", async () => {
+    let recoveries = 0;
+    const application = {
+      recoverEffectsEffect: () =>
+        Effect.sync(() => {
+          recoveries += 1;
+          return [];
+        }),
+    } as unknown as OpenMatterApplication;
+    const runtime = makeCloudflareRuntime<TestEnvironment>({
+      application: () => application,
+      slack: {
+        signingSecret: (environment) => environment.signingSecret,
+        queue: (environment) => environment.events,
+      },
+    });
+    const environment: TestEnvironment = {
+      signingSecret: "signing-secret",
+      events: { send: async () => ({ outcome: "ok" }) },
+    };
+
+    await runtime.scheduled(environment);
+
+    expect(recoveries).toBe(1);
+  });
+
   it("answers Slack URL verification without enqueueing work", async () => {
     const jobs: unknown[] = [];
     const runtime = makeCloudflareRuntime<TestEnvironment>({
@@ -114,6 +140,7 @@ describe("Cloudflare OpenMatter runtime", () => {
     const response = await runtime.fetch(signedRequest(body), environment);
 
     expect(response.status).toBe(200);
+    expect(await response.text()).toBe("");
     expect(jobs).toEqual([
       {
         schemaVersion: "0.1",

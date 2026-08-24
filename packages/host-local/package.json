@@ -16,6 +16,8 @@
     }
   },
   "dependencies": {
+    "@openmatter/core": "workspace:*",
+    "@openmatter/inbox": "workspace:*",
     "@openmatter/runtime": "workspace:*",
     "@slack/socket-mode": "3.0.0",
     "undici": "7.29.0"

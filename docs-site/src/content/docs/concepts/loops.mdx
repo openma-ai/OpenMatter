@@ -1,0 +1,81 @@
+---
+title: Loops
+description: Define persistent Agent behavior without adding a workflow runtime.
+---
+
+import { Aside, Card, CardGrid } from "@astrojs/starlight/components";
+
+A **Loop** is a built-in or user-defined process definition that keeps an Agent present in a work environment. It repeatedly turns subscribed Events into one terminal Reaction while keeping work continuity, Context, permissions, and recovery explicit.
+
+```text
+Event → Scope / WorkThread → Context → Agent Session / Turn → Reaction → next Event
+```
+
+<CardGrid>
+  <Card title="Built-in Loop" icon="puzzle">
+    A reusable process such as `claudeTag()` with established activation,
+    continuity, Context, and Reaction rules.
+  </Card>
+  <Card title="User-defined Loop" icon="seti:typescript">
+    Application code packaged with a portable definition through `defineLoop()`.
+  </Card>
+</CardGrid>
+
+## Define one
+
+```ts
+import { defineLoop } from "@openmatter/runtime";
+
+const issueTriage = defineLoop(
+  {
+    id: "issue-triage",
+    version: "0.1.0",
+    description: "Triage issue updates with an Agent",
+    spec: {
+      sources: ["linear.issue.updated"],
+      workThread: "linear.issue",
+      session: "per-work-thread",
+    },
+  },
+  (loopApp) =>
+    loopApp.on("linear.issue.updated", (work) => {
+      return work.react.none("No action required");
+    }),
+);
+
+app.loop(issueTriage);
+```
+
+`loop.definition` contains portable JSON for inspection, versioning, generation, and future visual tooling. `loop.install` remains executable TypeScript. This separation gives the framework a declarative surface without pretending arbitrary application logic can be serialized.
+
+<Aside type="note" title="One Runtime">
+  `app.loop()` installs the Loop into the same Event and durability kernel used
+  by the low-level `app.on()` API. There is no separate LoopRun, graph executor,
+  Actor DSL, or hidden scheduler.
+</Aside>
+
+## What the Loop owns
+
+- event subscriptions and activation;
+- Scope and WorkThread association;
+- ContextProjection construction;
+- Agent and Session continuity policy;
+- operation grants and terminal Reaction behavior;
+- the meaning of proactive timer or polling Events.
+
+The Agent still owns reasoning, planning, and its internal tool-use sequence. A timer remains a host/source concern: once it emits a WorkEvent, the Loop handles it exactly like a webhook or user event.
+
+## Use a built-in Loop
+
+```ts
+import { claudeTag } from "@openmatter/orchestration";
+
+app.loop(
+  claudeTag({
+    agentId: "claude",
+    commandVisibility: "ephemeral",
+  }),
+);
+```
+
+Built-in and user-defined Loops implement the same interface. Drop to `app.on()` whenever the standard definition is not expressive enough.

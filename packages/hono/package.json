@@ -1,0 +1,27 @@
+{
+  "name": "@openmatter/hono",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@openmatter/http": "workspace:*"
+  },
+  "peerDependencies": {
+    "hono": "^4.13.3"
+  },
+  "devDependencies": {
+    "hono": "4.13.3"
+  }
+}

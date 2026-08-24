@@ -1,4 +1,4 @@
-import type { OpenMAEvent } from "@openmatter/agent";
+import { createOpenMAEvent, type OpenMAEvent } from "@openmatter/agent";
 import type { Reaction, Turn, WorkEffect } from "@openmatter/core";
 import { makeMemoryStore } from "@openmatter/store-memory";
 import { Effect } from "effect";
@@ -236,40 +236,48 @@ describe("memory store durability contract", () => {
     await Effect.runPromise(
       store.saveTurn(turn, "binding-1", reclaimed.lease.token),
     );
-    const firstEvent: OpenMAEvent = {
-      schemaVersion: "0.1",
-      id: "agent-event-1",
-      sessionId: "session-1",
-      turnId: turn.id,
-      sequence: 1,
-      type: "assistant.output",
-      timestamp: "2026-08-20T08:02:02.000Z",
-      payload: { text: "first" },
-    };
+    const firstEvent: OpenMAEvent = createOpenMAEvent({
+      event_id: "agent-event-1",
+      session_id: "session-1",
+      turn_id: turn.id,
+      seq: 1,
+      type: "agent.message",
+      occurred_at: "2026-08-20T08:02:02.000Z",
+      source: { kind: "harness", harness: "test" },
+      data: { text: "first" },
+    });
     await Effect.runPromise(
       store.appendAgentEvent(firstEvent, "binding-1", reclaimed.lease.token),
     );
     await expect(
       Effect.runPromise(
         store.appendAgentEvent(
-          {
-            ...firstEvent,
-            id: "agent-event-conflict",
-            payload: { text: "other" },
-          },
+          createOpenMAEvent({
+            event_id: "agent-event-conflict",
+            session_id: firstEvent.session_id,
+            turn_id: firstEvent.turn_id!,
+            seq: firstEvent.seq!,
+            type: "agent.message",
+            occurred_at: firstEvent.occurred_at,
+            source: firstEvent.source,
+            data: { text: "other" },
+          }),
           "binding-1",
           reclaimed.lease.token,
         ),
       ),
     ).rejects.toThrow("Conflicting Agent event");
 
-    const terminalEvent: OpenMAEvent = {
-      ...firstEvent,
-      id: "agent-event-terminal",
-      sequence: 2,
+    const terminalEvent: OpenMAEvent = createOpenMAEvent({
+      event_id: "agent-event-terminal",
+      session_id: firstEvent.session_id,
+      turn_id: firstEvent.turn_id!,
+      seq: 2,
       type: "turn.completed",
-      payload: {},
-    };
+      occurred_at: firstEvent.occurred_at,
+      source: firstEvent.source,
+      data: {},
+    });
     await Effect.runPromise(
       store.appendAgentEvent(terminalEvent, "binding-1", reclaimed.lease.token),
     );

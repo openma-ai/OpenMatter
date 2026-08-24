@@ -342,7 +342,7 @@ export const makeMemoryStore = (
         assertSessionLease(bindingKey, leaseToken);
         const terminalEvent = agentEvents.find(
           (event) =>
-            event.turnId === turn.id &&
+            event.turn_id === turn.id &&
             [
               "turn.completed",
               "turn.failed",
@@ -369,8 +369,8 @@ export const makeMemoryStore = (
     getAgentEvents: (turnId) =>
       Effect.sync(() =>
         agentEvents
-          .filter((event) => event.turnId === turnId)
-          .sort((left, right) => left.sequence - right.sequence)
+          .filter((event) => event.turn_id === turnId)
+          .sort((left, right) => (left.seq ?? 0) - (right.seq ?? 0))
           .map(copy),
       ),
 
@@ -398,13 +398,12 @@ export const makeMemoryStore = (
         assertSessionLease(bindingKey, leaseToken);
         const existing = agentEvents.find(
           (candidate) =>
-            candidate.turnId === event.turnId &&
-            candidate.sequence === event.sequence,
+            candidate.turn_id === event.turn_id && candidate.seq === event.seq,
         );
         if (existing !== undefined) {
           if (JSON.stringify(existing) !== JSON.stringify(event)) {
             throw new StoreError({
-              message: `Conflicting Agent event for ${event.turnId} sequence ${event.sequence}`,
+              message: `Conflicting Agent event for ${event.turn_id} sequence ${event.seq}`,
             });
           }
           return;

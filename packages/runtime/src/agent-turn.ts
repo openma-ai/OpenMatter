@@ -3,6 +3,11 @@ import {
   AgentDriverError,
   AgentSessionHandleSchema,
   OpenMAEventSchema,
+  createOpenMAEvent,
+  immutableJson,
+  isPermissionRequestEvent,
+  isTurnTerminalEvent,
+  turnTerminalStatus,
   type AgentDriverRegistry,
   type AgentSessionHandle,
   type OpenMAEvent,
@@ -30,12 +35,7 @@ import {
   type AgentTurnResult,
 } from "./contracts.js";
 import type { LeaseRuntime } from "./lease.js";
-import {
-  digest,
-  isJsonObject,
-  outputFrom,
-  sessionHandleFrom,
-} from "./portable-json.js";
+import { outputFrom, sessionHandleFrom } from "./portable-json.js";
 
 export interface AgentTurnRuntime {
   readonly run: (
@@ -168,14 +168,7 @@ export const makeAgentTurnRuntime = (options: {
         const claimedSession = Effect.gen(function* () {
           const storedTurn = yield* store.getTurn(turnId);
           const storedEvents = yield* store.getAgentEvents(turnId);
-          const storedTerminal = storedEvents.find((agentEvent) =>
-            [
-              "turn.completed",
-              "turn.failed",
-              "turn.cancelled",
-              "turn.interrupted",
-            ].includes(agentEvent.type),
-          );
+          const storedTerminal = storedEvents.find(isTurnTerminalEvent);
 
           // A Turn is a logical invocation, not a process attempt. If the Agent
           // finished before the Event's terminal commit, replay reuses its
@@ -192,13 +185,11 @@ export const makeAgentTurnRuntime = (options: {
                 message: `Turn references an unknown Agent Session: ${turnId}`,
               });
             }
-            const outcome = storedTerminal.type.slice(
-              "turn.".length,
-            ) as AgentTurnResult["outcome"];
+            const outcome = turnTerminalStatus(storedTerminal)!;
             const completedTurn: Turn = {
               ...storedTurn,
               state: outcome === "interrupted" ? "cancelled" : outcome,
-              completedAt: storedTurn.completedAt ?? storedTerminal.timestamp,
+              completedAt: storedTurn.completedAt ?? storedTerminal.occurred_at,
             };
             if (
               storedTurn.state !== completedTurn.state ||
@@ -227,17 +218,17 @@ export const makeAgentTurnRuntime = (options: {
                   message: `Partial Turn references an unknown Agent Session: ${turn.id}`,
                 });
               }
-              const sequence = (storedEvents.at(-1)?.sequence ?? 0) + 1;
-              const interruptedEvent: OpenMAEvent = {
-                schemaVersion: "0.1",
-                id: `${turn.id}:runtime-interrupted:${sequence}`,
-                sessionId: turn.sessionId,
-                turnId: turn.id,
-                sequence,
+              const sequence = (storedEvents.at(-1)?.seq ?? 0) + 1;
+              const interruptedEvent: OpenMAEvent = createOpenMAEvent({
+                event_id: `${turn.id}:runtime-interrupted:${sequence}`,
                 type: "turn.interrupted",
-                timestamp: options.clock(),
-                payload: { reason },
-              };
+                session_id: turn.sessionId,
+                turn_id: turn.id,
+                seq: sequence,
+                occurred_at: options.clock(),
+                source: { kind: "openma", adapter: "runtime" },
+                data: { reason },
+              });
               yield* store.appendAgentEvent(
                 interruptedEvent,
                 bindingKey,
@@ -246,7 +237,7 @@ export const makeAgentTurnRuntime = (options: {
               const interruptedTurn: Turn = {
                 ...turn,
                 state: "cancelled",
-                completedAt: interruptedEvent.timestamp,
+                completedAt: interruptedEvent.occurred_at,
               };
               yield* store.saveTurn(
                 interruptedTurn,
@@ -493,7 +484,7 @@ export const makeAgentTurnRuntime = (options: {
           );
           activeTurn = runningTurn;
 
-          const lastSequence = storedEvents.at(-1)?.sequence ?? 0;
+          const lastSequence = storedEvents.at(-1)?.seq ?? 0;
           const interpreted = driver
             .turn({
               session: handle,
@@ -517,6 +508,15 @@ export const makeAgentTurnRuntime = (options: {
                         message: "Agent emitted an invalid OpenMAEvent",
                       });
                     }
+                    const durableEvent = yield* Effect.try({
+                      try: () => immutableJson(agentEvent) as OpenMAEvent,
+                      catch: (cause) =>
+                        new AgentDriverError({
+                          message:
+                            "Agent emitted an OpenMAEvent that is not an immutable JSON fact",
+                          cause,
+                        }),
+                    });
                     if (state.terminal !== undefined) {
                       return yield* new AgentDriverError({
                         message:
@@ -524,8 +524,8 @@ export const makeAgentTurnRuntime = (options: {
                       });
                     }
                     if (
-                      agentEvent.sessionId !== session.id ||
-                      agentEvent.turnId !== turnId
+                      durableEvent.session_id !== session.id ||
+                      durableEvent.turn_id !== turnId
                     ) {
                       return yield* new AgentDriverError({
                         message:
@@ -533,36 +533,23 @@ export const makeAgentTurnRuntime = (options: {
                       });
                     }
                     if (
-                      !Number.isInteger(agentEvent.sequence) ||
-                      agentEvent.sequence !== state.expectedSequence
+                      !Number.isInteger(durableEvent.seq) ||
+                      durableEvent.seq !== state.expectedSequence
                     ) {
                       return yield* new AgentDriverError({
-                        message: `Agent event sequence mismatch: expected ${state.expectedSequence}, received ${agentEvent.sequence}`,
+                        message: `Agent event sequence mismatch: expected ${state.expectedSequence}, received ${durableEvent.seq}`,
                       });
                     }
 
-                    if (agentEvent.type === "permission.requested") {
+                    if (isPermissionRequestEvent(durableEvent)) {
                       if (!capabilities.permissions) {
                         return yield* new AgentDriverError({
                           message:
                             "Agent requested permission but its driver does not support permission responses",
                         });
                       }
-                      const requestId =
-                        isJsonObject(agentEvent.payload) &&
-                        typeof agentEvent.payload.requestId === "string"
-                          ? agentEvent.payload.requestId
-                          : undefined;
-                      if (requestId === undefined) {
-                        return yield* new AgentDriverError({
-                          message:
-                            "permission.requested payload must contain requestId",
-                        });
-                      }
-                      const requestFingerprint = yield* digest({
-                        type: agentEvent.type,
-                        payload: agentEvent.payload,
-                      });
+                      const requestId = durableEvent.data.callback_id;
+                      const requestFingerprint = durableEvent.data.fingerprint;
                       const storedDecision = yield* store.getPermissionDecision(
                         turnId,
                         requestId,
@@ -580,7 +567,7 @@ export const makeAgentTurnRuntime = (options: {
                         (yield* decidePermission({
                           agentId,
                           requestId,
-                          event: agentEvent,
+                          event: durableEvent,
                           context: turnContext,
                         }).pipe(
                           Effect.flatMap((approved) =>
@@ -606,20 +593,15 @@ export const makeAgentTurnRuntime = (options: {
                         approved: decision.approved,
                       });
                     }
-                    const terminal = [
-                      "turn.completed",
-                      "turn.failed",
-                      "turn.cancelled",
-                      "turn.interrupted",
-                    ].includes(agentEvent.type)
-                      ? agentEvent
+                    const terminal = isTurnTerminalEvent(durableEvent)
+                      ? durableEvent
                       : undefined;
                     // A terminal event becomes durable only after the Stream
                     // closes cleanly. Otherwise a later illegal event could
                     // turn a rejected stream into success on crash replay.
                     if (terminal === undefined) {
                       yield* store.appendAgentEvent(
-                        agentEvent,
+                        durableEvent,
                         bindingKey,
                         sessionClaim.lease.token,
                       );
@@ -628,7 +610,7 @@ export const makeAgentTurnRuntime = (options: {
                       expectedSequence: state.expectedSequence + 1,
                       events:
                         terminal === undefined
-                          ? [...state.events, agentEvent]
+                          ? [...state.events, durableEvent]
                           : state.events,
                       terminal,
                     };
@@ -679,9 +661,7 @@ export const makeAgentTurnRuntime = (options: {
             sessionClaim.lease.token,
           );
           const events = [...streamState.events, streamState.terminal];
-          const outcome = streamState.terminal.type.slice(
-            "turn.".length,
-          ) as AgentTurnResult["outcome"];
+          const outcome = turnTerminalStatus(streamState.terminal)!;
           const turn: Turn = {
             ...runningTurn,
             state: outcome === "interrupted" ? "cancelled" : outcome,

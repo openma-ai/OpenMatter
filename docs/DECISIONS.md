@@ -62,6 +62,10 @@ This document records the active v0 decisions. Earlier briefs that conflict with
 ## Domain model
 
 - The core lifecycle remains `WorkEvent → AgentScope → Matter → WorkThread → AgentSession → Turn → Reaction`.
+- A provider-visible `BotResource` is not an AgentProfile. One stable bot name, avatar, and account may serve many AgentScopes and versioned AgentProfiles.
+- `AgentProfile` replaces Persona as the preferred behavioral concept: it describes model, role, instructions, style, Context policy, and requested tools rather than inventing a separate person.
+- SurfaceIdentity, ExecutionIdentity, AgentProfile, AgentScope, WorkThread, and AgentSession remain separate boundaries. Credentials bind to execution principals and capabilities, never to persona prose.
+- Creating a separate provider bot is an explicit branding, compliance, ownership, or hard-isolation choice; it is not the default consequence of adding an Agent role.
 - A Profile `ResourceAddress` is a provider representation; a `Matter` is the durable identity of the thing being worked on.
 - A Channel is not automatically a Scope, WorkThread, or Session.
 - Multiple channels and provider authorities may bind into one AgentScope when policy permits.

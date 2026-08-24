@@ -4,7 +4,7 @@ import { makeMemoryStore } from "@openmatter/store-memory";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { makeSlackIntegration } from "../packages/integration-slack/src/index.js";
-import { installClaudeTag } from "../packages/orchestration/src/index.js";
+import { claudeTag } from "../packages/orchestration/src/index.js";
 
 describe("built-in Claude Tag orchestration", () => {
   it("turns a channel mention into one thread-scoped agent turn and reply", async () => {
@@ -33,7 +33,7 @@ describe("built-in Claude Tag orchestration", () => {
       agents: { claude: claude.driver },
       clock: () => "2026-08-20T10:00:00.000Z",
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     const receipts = await app.acceptFrom("slack", {
       type: "event_callback",
@@ -70,6 +70,103 @@ describe("built-in Claude Tag orchestration", () => {
     ]);
   });
 
+  it("carries the Slack authority into built-in Effects for dynamic credentials", async () => {
+    const authorizations: Array<string | null> = [];
+    const slack = makeSlackIntegration({
+      credentials: async (teamId) => ({
+        botToken: `token-${teamId}`,
+        botUserId: `BOT-${teamId}`,
+      }),
+      fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        authorizations.push(new Headers(init?.headers).get("authorization"));
+        return new Response(JSON.stringify({ ok: true }));
+      }) as typeof fetch,
+    });
+    const store = makeMemoryStore();
+    const claude = makeMockAgentDriver({ id: "claude", output: "done" });
+    const app = createOpenMatter({
+      store,
+      integrations: { slack: slack.integration },
+      agents: { claude: claude.driver },
+    });
+    app.loop(claudeTag({ agentId: "claude" }));
+
+    await app.acceptFrom("slack", {
+      type: "event_callback",
+      team_id: "TWORK",
+      event_id: "EvDynamicAuthority",
+      event: {
+        type: "app_mention",
+        user: "U01",
+        text: "<@BOT-TWORK> investigate",
+        ts: "1724140800.123456",
+        channel: "C01",
+        event_ts: "1724140800.123456",
+      },
+    });
+
+    expect(authorizations).toEqual(["Bearer token-TWORK"]);
+  });
+
+  it("carries Enterprise channel context into the Slack reply", async () => {
+    const requests: Array<{ authorization: string | null; body: unknown }> = [];
+    const slack = makeSlackIntegration({
+      credentials: async (authorityId) => ({
+        botToken: `token-${authorityId}`,
+        botUserId: `BOT-${authorityId}`,
+      }),
+      fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          authorization: new Headers(init?.headers).get("authorization"),
+          body: JSON.parse(String(init?.body)),
+        });
+        return new Response(JSON.stringify({ ok: true }));
+      }) as typeof fetch,
+    });
+    const app = createOpenMatter({
+      store: makeMemoryStore(),
+      integrations: { slack: slack.integration },
+      agents: {
+        claude: makeMockAgentDriver({ id: "claude", output: "done" }).driver,
+      },
+    });
+    app.loop(claudeTag({ agentId: "claude" }));
+
+    await app.acceptFrom("slack", {
+      type: "event_callback",
+      team_id: "TSOURCE",
+      context_team_id: "TCONTEXT",
+      authorizations: [
+        {
+          enterprise_id: "EORG",
+          team_id: null,
+          is_enterprise_install: true,
+        },
+      ],
+      event_id: "EvEnterpriseReply",
+      event: {
+        type: "app_mention",
+        user: "U01",
+        text: "<@BOT-EORG> inspect",
+        ts: "1724140800.123456",
+        channel: "C01",
+        event_ts: "1724140800.123456",
+      },
+    });
+
+    expect(requests).toEqual([
+      {
+        authorization: "Bearer token-EORG",
+        body: {
+          channel: "C01",
+          thread_ts: "1724140800.123456",
+          client_context_team_id: "TCONTEXT",
+          text: "done",
+        },
+      },
+    ]);
+  });
+
   it("lets application code add authorized channel context without replacing the preset", async () => {
     const slack = makeSlackIntegration({
       botToken: "xoxb-test",
@@ -84,23 +181,25 @@ describe("built-in Claude Tag orchestration", () => {
       integrations: { slack: slack.integration },
       agents: { claude: claude.driver },
     });
-    installClaudeTag(app, {
-      agentId: "claude",
-      context: (work) =>
-        Effect.succeed([
-          work.context.value({
-            id: "channel-memory",
-            kind: "channel-memory",
-            value: { repository: "openma-ai/OpenMatter" },
-            provenance: [
-              {
-                sourceType: "application-config",
-                sourceId: "slack:TWORK:C01",
-              },
-            ],
-          }),
-        ]),
-    });
+    app.loop(
+      claudeTag({
+        agentId: "claude",
+        context: (work) =>
+          Effect.succeed([
+            work.context.value({
+              id: "channel-memory",
+              kind: "channel-memory",
+              value: { repository: "openma-ai/OpenMatter" },
+              provenance: [
+                {
+                  sourceType: "application-config",
+                  sourceId: "slack:TWORK:C01",
+                },
+              ],
+            }),
+          ]),
+      }),
+    );
 
     await app.acceptFrom("slack", {
       type: "event_callback",
@@ -156,7 +255,7 @@ describe("built-in Claude Tag orchestration", () => {
       integrations: { slack: slack.integration },
       agents: { claude: claude.driver },
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     await app.acceptFrom("slack", {
       type: "event_callback",
@@ -177,7 +276,6 @@ describe("built-in Claude Tag orchestration", () => {
     expect(posted).toEqual([
       {
         channel: "D01",
-        thread_ts: "1724140801.000000",
         text: "private reply",
       },
     ]);
@@ -187,6 +285,110 @@ describe("built-in Claude Tag orchestration", () => {
         privacyPartition: "slack:TWORK:dm:D01",
       }),
     );
+  });
+
+  it("keeps ordinary direct messages in one conversation Session", async () => {
+    const posted: unknown[] = [];
+    const slack = makeSlackIntegration({
+      botToken: "xoxb-test",
+      botUserId: "BCLAUDE",
+      fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        posted.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ ok: true, channel: "D01" }));
+      }) as typeof fetch,
+    });
+    const store = makeMemoryStore();
+    const claude = makeMockAgentDriver({ id: "claude", output: "reply" });
+    const app = createOpenMatter({
+      store,
+      integrations: { slack: slack.integration },
+      agents: { claude: claude.driver },
+    });
+    app.loop(claudeTag({ agentId: "claude" }));
+
+    for (const [eventId, ts, text] of [
+      ["EvDM1", "1724140801.000000", "first question"],
+      ["EvDM2", "1724140802.000000", "follow-up question"],
+    ] as const) {
+      await app.acceptFrom("slack", {
+        type: "event_callback",
+        team_id: "TWORK",
+        event_id: eventId,
+        event: {
+          type: "message",
+          channel_type: "im",
+          user: "U02",
+          text,
+          ts,
+          channel: "D01",
+          event_ts: ts,
+        },
+      });
+    }
+    const snapshot = await Effect.runPromise(store.inspect);
+
+    expect(snapshot.sessions).toHaveLength(1);
+    expect(snapshot.sessions[0]).toEqual(
+      expect.objectContaining({
+        scopeId: "slack:TWORK:dm:D01",
+        workThreadId: "slack:TWORK:D01:dm",
+      }),
+    );
+    expect(posted).toEqual([
+      { channel: "D01", text: "reply" },
+      { channel: "D01", text: "reply" },
+    ]);
+  });
+
+  it("splits an explicit direct-message thread into its own WorkThread", async () => {
+    const posted: unknown[] = [];
+    const slack = makeSlackIntegration({
+      botToken: "xoxb-test",
+      botUserId: "BCLAUDE",
+      fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        posted.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ ok: true }));
+      }) as typeof fetch,
+    });
+    const store = makeMemoryStore();
+    const app = createOpenMatter({
+      store,
+      integrations: { slack: slack.integration },
+      agents: {
+        claude: makeMockAgentDriver({ id: "claude", output: "reply" }).driver,
+      },
+    });
+    app.loop(claudeTag({ agentId: "claude" }));
+
+    await app.acceptFrom("slack", {
+      type: "event_callback",
+      team_id: "TWORK",
+      event_id: "EvDMThread",
+      event: {
+        type: "message",
+        channel_type: "im",
+        user: "U02",
+        text: "reply inside the incident thread",
+        thread_ts: "1724140801.000000",
+        ts: "1724140802.000000",
+        channel: "D01",
+        event_ts: "1724140802.000000",
+      },
+    });
+    const snapshot = await Effect.runPromise(store.inspect);
+
+    expect(snapshot.sessions[0]).toEqual(
+      expect.objectContaining({
+        workThreadId: "slack:TWORK:D01:thread:1724140801.000000",
+      }),
+    );
+    expect(posted).toEqual([
+      {
+        channel: "D01",
+        thread_ts: "1724140801.000000",
+        text: "reply",
+      },
+    ]);
   });
 
   it("turns a slash command into an isolated invocation and response", async () => {
@@ -209,7 +411,7 @@ describe("built-in Claude Tag orchestration", () => {
       integrations: { slack: slack.integration },
       agents: { claude: claude.driver },
     });
-    installClaudeTag(app, { agentId: "claude" });
+    app.loop(claudeTag({ agentId: "claude" }));
 
     await app.acceptFrom("slack", {
       type: "slash_command",

@@ -3,7 +3,26 @@ import {
   type ContextProjection,
   type JsonValue,
 } from "@openmatter/core";
+import {
+  isOpenMAEvent as isCanonicalOpenMAEvent,
+  type OpenMAEvent as CanonicalOpenMAEvent,
+} from "@openma/common/agent-contract";
 import { Context, Data, Layer, Schema, type Effect, type Stream } from "effect";
+
+export {
+  createOpenMAEvent,
+  immutableJson,
+  isCallbackRequestEvent,
+  isElicitationRequestEvent,
+  isOpenMAEvent,
+  isPermissionRequestEvent,
+  isTurnTerminalEvent,
+  OPENMA_CANONICAL_EVENT_TYPES,
+  OPENMA_EVENT_SCHEMA_VERSION,
+  OPENMA_EVENT_TYPES,
+  turnTerminalStatus,
+} from "@openma/common/agent-contract";
+export type { OpenMAEventSource } from "@openma/common/agent-contract";
 
 export const AgentSessionHandleSchema = Schema.Struct({
   id: Schema.String,
@@ -20,19 +39,17 @@ export interface AgentSessionCreateInput {
   readonly idempotencyKey: string;
 }
 
-export const OpenMAEventSchema = Schema.Struct({
-  schemaVersion: Schema.String,
-  id: Schema.String,
-  sessionId: Schema.String,
-  turnId: Schema.String,
-  sequence: Schema.Number,
-  type: Schema.String,
-  timestamp: Schema.String,
-  payload: JsonValueSchema,
-  raw: Schema.optional(JsonValueSchema),
-}).annotations({ identifier: "OpenMAEvent" });
+/** Effect-facing view of the validator owned by openma-common. */
+export const OpenMAEventSchema = Schema.declare<CanonicalOpenMAEvent>(
+  isCanonicalOpenMAEvent,
+  {
+    identifier: "OpenMAEvent",
+    description: "Immutable OpenMA Agent event validated by openma-common",
+  },
+);
 
-export type OpenMAEvent = typeof OpenMAEventSchema.Type;
+/** The single canonical Agent event vocabulary lives in openma-common. */
+export type OpenMAEvent = CanonicalOpenMAEvent;
 
 export interface AgentTurnInput {
   readonly session: AgentSessionHandle;

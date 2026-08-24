@@ -5,10 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.5"
   },
   "scripts": {
-    "build": "tsdown -W",
+    "build": "tsdown",
     "check": "pnpm format:check && pnpm test && pnpm typecheck && pnpm build",
     "format": "prettier --write packages tests examples *.json *.ts *.yaml README.md docs/*.md",
     "format:check": "prettier --check packages tests examples *.json *.ts *.yaml README.md docs/*.md",

@@ -1,0 +1,45 @@
+---
+title: Slack
+description: Signed HTTP and Socket Mode ingress, semantic events, explicit context readers, and granted operations.
+---
+
+OpenMatter provides one Slack Work Integration with several deployment shapes. Signed HTTP and Socket Mode both submit the same portable native input to the same Integration.
+
+To see the Integration, Agent Driver, ContextProjection, Session, Reaction, and Effect composed together, start with the [built-in Claude Tag orchestration](/doc/orchestration/claude-tag/).
+
+## Supported input
+
+| Input | WorkEvent | Activation |
+| --- | --- | --- |
+| `app_mention` | `slack.message.mentioned` | Explicit mention |
+| Direct message | `slack.message.received` | Direct |
+| Channel message | `slack.message.received` | Observation |
+| Slash command | `slack.command.invoked` | Isolated command |
+| Block action | `slack.action.invoked` | Interaction |
+| Modal submission | `slack.form.submitted` | Structured form |
+| Unknown event | `slack.event.received` | Observation |
+
+## Authority-scoped credentials
+
+```ts
+import { makeCredentialResolver } from "@openmatter/credentials";
+import { makeSlackIntegration } from "@openmatter/integration-slack";
+
+const credentials = makeCredentialResolver(({ authority }) =>
+  credentialVault.slack(authority),
+);
+
+const slack = makeSlackIntegration({ credentials });
+```
+
+Slack Connect uses the authorized installation as authority, which may differ from the workspace that originated a shared-channel message. Organization-wide installations keep `contextTeamId` separate from Enterprise credential authority.
+
+## Operations
+
+The manifest enumerates posting, thread reply, ephemeral reply, reactions, update/delete/schedule, modal and App Home lifecycle, and portable text-file upload. Arbitrary Web API calls are intentionally not exposed as one unbounded operation.
+
+## HTTP and Socket Mode
+
+Signed HTTP endpoints can feed a durable Queue. Local Socket Mode needs no public webhook URL; `DurableInbox` persists the native envelope before acknowledgement. Both paths preserve the same WorkEvent and Reaction semantics.
+
+External-select suggestions and modal field-error `response_action` payloads have a three-second synchronous contract. They stay in the immediate host handler instead of pretending to be durable Agent work.

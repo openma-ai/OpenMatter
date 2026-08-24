@@ -42,6 +42,7 @@ import {
   SessionBusyError,
   WorkEventValidationError,
   type ConsumeSummary,
+  type Loop,
   type OpenMatterApplication,
   type OpenMatterOptions,
   type ReactionDraft,
@@ -456,10 +457,16 @@ export const createOpenMatter = (
                       attemptedAt,
                       ...(error.retryable
                         ? {
-                            nextRetryAt: new Date(
-                              Date.parse(attemptedAt) +
-                                (options.effectRetryDelayMs ?? 1_000),
-                            ).toISOString(),
+                            nextRetryAt:
+                              error.retryAt !== undefined &&
+                              Number.isFinite(Date.parse(error.retryAt))
+                                ? new Date(
+                                    Date.parse(error.retryAt),
+                                  ).toISOString()
+                                : new Date(
+                                    Date.parse(attemptedAt) +
+                                      (options.effectRetryDelayMs ?? 1_000),
+                                  ).toISOString(),
                           }
                         : {}),
                       error: error.message,
@@ -544,7 +551,7 @@ export const createOpenMatter = (
       const handlerProgram =
         handler === undefined
           ? Effect.succeed<ReactionDraft>({
-              status: "failed",
+              status: "completed",
               effects: [],
               reason: `No handler registered for ${workEvent.type}`,
             })
@@ -631,6 +638,10 @@ export const createOpenMatter = (
     acceptFromProgram(integrationId, input).pipe(Effect.provide(services));
 
   const app: OpenMatterApplication = {
+    loop: (loop: Loop) => {
+      loop.install(app);
+      return app;
+    },
     on: (eventTypes, handler) => {
       const types = typeof eventTypes === "string" ? [eventTypes] : eventTypes;
       for (const type of types) handlers.set(type, handler);

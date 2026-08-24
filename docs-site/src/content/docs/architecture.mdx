@@ -1,0 +1,39 @@
+---
+title: Architecture
+description: Two replaceable boundaries and one governed work loop.
+---
+
+OpenMatter standardizes work-side facts and transitions. It deliberately does not standardize the agent's reasoning, transcript, planner, or private tool state.
+
+```text
+native work event
+       ↓
+WorkIntegration.ingest
+       ↓
+WorkEvent → ContextProjection → AgentSession / Turn
+                                      ↓
+                              OpenMAEvent stream
+                                      ↓
+Reaction → authorized WorkEffects → WorkIntegration.deliver
+```
+
+## Public boundaries
+
+| Boundary | Owns | Does not own |
+| --- | --- | --- |
+| WorkIntegration | Ingress normalization, Context readers, operation delivery | Application policy or Agent sessions |
+| AgentDriver | Session handles, turns, stream mapping, cancellation | Work authority or provider credentials |
+| Store | Claims, fencing, snapshots, reactions, receipts | Provider transport or scheduler lifecycle |
+| Host | HTTP, queues, sockets, process and scheduler lifecycle | Domain semantics |
+
+## Design rules
+
+- Immutable facts cross async and durable boundaries.
+- Authorization produces the exact snapshot that will be committed.
+- Every valid WorkEvent has one terminal Reaction, including an explicit no-effect Reaction.
+- Provider and Agent details remain available without becoming the core vocabulary.
+- Storage, deployment, credentials, queues, and schedulers stay replaceable.
+
+## What OpenMatter is not
+
+OpenMatter is not another agent brain, workflow DSL, mandatory Hub, connector marketplace, credential service, or replacement for ACP, MCP, OpenAPI, AsyncAPI, or GraphQL.

@@ -1,0 +1,83 @@
+import type { ContextItem } from "@openmatter/core";
+import type { CredentialResolver } from "@openmatter/credentials";
+import type { WorkIntegration } from "@openmatter/integration";
+import type { IntegrationError } from "@openmatter/integration";
+import type { Effect } from "effect";
+
+export interface SlackIntegrationCommonOptions {
+  readonly fetch?: typeof globalThis.fetch;
+  readonly clock?: () => string;
+}
+
+export interface SlackCredentials {
+  readonly botToken: string;
+  readonly botUserId: string;
+}
+
+export type SlackCredentialResolver = CredentialResolver<SlackCredentials>;
+
+/** Convenience source for applications that do not need the request object. */
+export type SlackCredentialSource = (
+  authorityId: string,
+) =>
+  | SlackCredentials
+  | PromiseLike<SlackCredentials>
+  | Effect.Effect<SlackCredentials, IntegrationError>;
+
+export type SlackIntegrationOptions = SlackIntegrationCommonOptions &
+  (
+    | (SlackCredentials & { readonly credentials?: never })
+    | {
+        readonly credentials: SlackCredentialResolver | SlackCredentialSource;
+        readonly botToken?: never;
+        readonly botUserId?: never;
+      }
+  );
+
+export interface SlackIntegration {
+  readonly integration: WorkIntegration;
+  readonly context: SlackContextReader;
+}
+
+export interface SlackThreadContextInput {
+  /** Credential installation authority (workspace or Enterprise org ID). */
+  readonly teamId: string;
+  /** Workspace perspective for a channel reached through an org-wide token. */
+  readonly contextTeamId?: string;
+  readonly channelId: string;
+  readonly threadTs: string;
+  readonly limit?: number;
+  readonly cursor?: string;
+}
+
+export interface SlackHistoryContextInput {
+  readonly teamId: string;
+  readonly contextTeamId?: string;
+  readonly channelId: string;
+  readonly limit?: number;
+  readonly cursor?: string;
+  readonly oldest?: string;
+  readonly latest?: string;
+}
+
+export interface SlackContextReader {
+  readonly thread: (
+    input: SlackThreadContextInput,
+  ) => Effect.Effect<ContextItem, IntegrationError>;
+  readonly history: (
+    input: SlackHistoryContextInput,
+  ) => Effect.Effect<ContextItem, IntegrationError>;
+  readonly conversation: (input: {
+    readonly teamId: string;
+    readonly contextTeamId?: string;
+    readonly channelId: string;
+  }) => Effect.Effect<ContextItem, IntegrationError>;
+  readonly user: (input: {
+    readonly teamId: string;
+    readonly userId: string;
+  }) => Effect.Effect<ContextItem, IntegrationError>;
+  readonly file: (input: {
+    readonly teamId: string;
+    readonly fileId: string;
+  }) => Effect.Effect<ContextItem, IntegrationError>;
+}

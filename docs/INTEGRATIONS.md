@@ -110,6 +110,14 @@ Common event classes include:
 
 The core does not require a globally closed event enum.
 
+Resource-bearing integrations follow one payload convention without closing
+the rest of the payload: `activation`, `action`, lower-snake-case
+`resourceType`, stable `resourceId`, optional human `resourceKey`, and an
+optional bounded `actor`. A `resourceKey` aliases the same resource as
+`resourceId`; known containment is expressed separately as
+`parentResourceType`, `parentResourceId`, and `parentResourceKey`. The native
+payload remains available under the adapter's explicit redaction policy.
+
 OpenAPI webhooks and callbacks or AsyncAPI messages can generate EventDefinitions. They do not automatically solve subscription registration or provider signature verification; those are binding concerns.
 
 Every successfully normalized event enters `app.accept` through `acceptFrom` or

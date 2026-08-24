@@ -1,4 +1,8 @@
-import type { AgentDriver, OpenMAEvent } from "@openmatter/agent";
+import {
+  createOpenMAEvent,
+  type AgentDriver,
+  type OpenMAEvent,
+} from "@openmatter/agent";
 import { Effect, Stream } from "effect";
 
 export interface MockAgentDriver {
@@ -54,44 +58,49 @@ export const makeMockAgentDriver = (options: {
         ...(options.permissionRequestId === undefined
           ? []
           : [
-              {
-                schemaVersion: "0.1",
-                id: `${input.turnId}:permission`,
-                sessionId: input.sessionId,
-                turnId: input.turnId,
-                sequence: 1,
-                type: "permission.requested",
-                timestamp,
-                payload: { requestId: options.permissionRequestId },
-              } satisfies OpenMAEvent,
+              createOpenMAEvent({
+                event_id: `${input.turnId}:permission`,
+                session_id: input.sessionId,
+                turn_id: input.turnId,
+                seq: 1,
+                type: "callback.requested",
+                occurred_at: timestamp,
+                source: { kind: "harness", harness: options.id },
+                data: {
+                  callback_id: options.permissionRequestId,
+                  fingerprint: `${input.turnId}:${options.permissionRequestId}`,
+                  method: "permission.request",
+                  category: "permission",
+                },
+              }),
             ]),
-        {
-          schemaVersion: "0.1",
-          id: `${input.turnId}:output`,
-          sessionId: input.sessionId,
-          turnId: input.turnId,
-          sequence: options.permissionRequestId === undefined ? 1 : 2,
-          type: "assistant.output",
-          timestamp,
-          payload: { text: options.output },
-        },
+        createOpenMAEvent({
+          event_id: `${input.turnId}:output`,
+          session_id: input.sessionId,
+          turn_id: input.turnId,
+          seq: options.permissionRequestId === undefined ? 1 : 2,
+          type: "agent.message",
+          occurred_at: timestamp,
+          source: { kind: "harness", harness: options.id },
+          data: { text: options.output },
+        }),
         ...(options.omitTerminal
           ? []
           : [
-              {
-                schemaVersion: "0.1",
-                id: `${input.turnId}:terminal`,
-                sessionId: input.sessionId,
-                turnId: input.turnId,
-                sequence: options.permissionRequestId === undefined ? 2 : 3,
+              createOpenMAEvent({
+                event_id: `${input.turnId}:terminal`,
+                session_id: input.sessionId,
+                turn_id: input.turnId,
+                seq: options.permissionRequestId === undefined ? 2 : 3,
                 type: options.terminalType ?? "turn.completed",
-                timestamp,
-                payload: {},
-              } satisfies OpenMAEvent,
+                occurred_at: timestamp,
+                source: { kind: "harness", harness: options.id },
+                data: {},
+              }),
             ]),
       ];
       return Stream.fromIterable(
-        events.filter((event) => event.sequence > input.afterSequence),
+        events.filter((event) => (event.seq ?? 0) > input.afterSequence),
       );
     },
     respondToPermission: ({ requestId, approved }) =>

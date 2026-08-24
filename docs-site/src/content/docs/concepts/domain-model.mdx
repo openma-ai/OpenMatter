@@ -1,0 +1,42 @@
+---
+title: Domain model
+description: Separate provider location, governance, work identity, structured continuity, and agent continuity.
+---
+
+A channel is not automatically a Scope, WorkThread, or AgentSession.
+
+```text
+AgentScope
+├── policy · grants · bindings · candidate context
+├── Matter links
+└── WorkThread
+    ├── source anchors
+    ├── durable work context
+    └── AgentSession
+        └── Turn
+            └── OpenMAEvent stream
+```
+
+## WorkEvent
+
+An immutable observation normalized from a provider event, an internal source, or a schedule. Provider-native payloads remain available as raw portable JSON.
+
+## AgentScope
+
+A long-lived application-defined governance boundary. It owns shared authority, policy, bindings, subscriptions, memory namespaces, and candidate context. Several channels may map into one Scope; one channel may resolve to different Scopes.
+
+## Matter
+
+The durable identity of the thing being worked on. One Matter may link a Linear issue, GitHub pull request, Slack thread, URL, or an accepted natural-language alias. Unresolved references remain evidence; OpenMatter never invents a provider ID.
+
+## WorkThread
+
+The structured continuity of one ongoing piece of work. It may span providers and channels, and remains durable independently of an Agent runtime.
+
+## AgentSession and Turn
+
+AgentSession is a durable binding to an external agent-runtime session. Turn is one invocation inside it. The recommended binding key combines Agent, authority, Scope, WorkThread, and privacy partition.
+
+:::note[Continuity rule]
+Durable facts required for retry, audit, or cross-session continuity belong in OpenMatter records or referenced work resources—not only in an Agent transcript.
+:::

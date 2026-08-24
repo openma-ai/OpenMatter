@@ -3,9 +3,15 @@ import { makeMockAgentDriver } from "@openmatter/agent-mock";
 import {
   AgentDriverError,
   AgentSessionUnavailableError,
+  createOpenMAEvent,
+  isPermissionRequestEvent,
   type OpenMAEvent,
 } from "@openmatter/agent";
 import { makeMockIntegration } from "@openmatter/integration-mock";
+import {
+  IntegrationError,
+  type WorkIntegration,
+} from "@openmatter/integration";
 import { createOpenMatter } from "@openmatter/runtime";
 import { makeMemoryStore } from "@openmatter/store-memory";
 import { StoreError } from "@openmatter/store";
@@ -92,6 +98,75 @@ describe("OpenMatter runtime", () => {
     ]);
   });
 
+  it("projects a chunk-only canonical Agent message as one complete output", async () => {
+    const store = makeMemoryStore();
+    const worker = makeMockAgentDriver({ id: "worker", output: "unused" });
+    const driver = {
+      ...worker.driver,
+      turn: (input: Parameters<typeof worker.driver.turn>[0]) =>
+        Stream.make(
+          createOpenMAEvent({
+            event_id: `${input.turnId}:chunk-1`,
+            session_id: input.sessionId,
+            turn_id: input.turnId,
+            seq: 1,
+            type: "agent.message_chunk",
+            occurred_at: "2026-08-20T08:00:00.000Z",
+            source: { kind: "harness", harness: "acp" },
+            data: { text: "Hel", message_id: "message-1" },
+          }),
+          createOpenMAEvent({
+            event_id: `${input.turnId}:chunk-2`,
+            session_id: input.sessionId,
+            turn_id: input.turnId,
+            seq: 2,
+            type: "agent.message_chunk",
+            occurred_at: "2026-08-20T08:00:01.000Z",
+            source: { kind: "harness", harness: "acp" },
+            data: { text: "lo", message_id: "message-1" },
+          }),
+          createOpenMAEvent({
+            event_id: `${input.turnId}:terminal`,
+            session_id: input.sessionId,
+            turn_id: input.turnId,
+            seq: 3,
+            type: "turn.completed",
+            occurred_at: "2026-08-20T08:00:02.000Z",
+            source: { kind: "harness", harness: "acp" },
+            data: {},
+          }),
+        ),
+    };
+    let output: unknown;
+    const app = createOpenMatter({
+      store,
+      integrations: {},
+      agents: { worker: driver },
+    });
+    app.on("chat.message.received", (work) =>
+      Effect.gen(function* () {
+        const context = yield* work.context.project({
+          scopeId: "scope-1",
+          workThreadId: "thread-1",
+          items: [work.context.event()],
+        });
+        output = (yield* work
+          .agent("worker")
+          .session({
+            scopeId: "scope-1",
+            workThreadId: "thread-1",
+            privacyPartition: "team",
+          })
+          .turn({ context })).output;
+        return work.react.none();
+      }),
+    );
+
+    await app.accept(messageEvent("message-chunks"));
+
+    expect(output).toBe("Hello");
+  });
+
   it("records an explicit null reaction when a handler intentionally does nothing", async () => {
     const store = makeMemoryStore();
     const chat = makeMockIntegration({ id: "chat" });
@@ -117,6 +192,28 @@ describe("OpenMatter runtime", () => {
     );
     expect(receipt.deliveries).toEqual([]);
     expect(chat.delivered()).toEqual([]);
+  });
+
+  it("records a null reaction when no handler subscribes to an event", async () => {
+    const store = makeMemoryStore();
+    const chat = makeMockIntegration({ id: "chat" });
+    const app = createOpenMatter({
+      store,
+      integrations: { chat: chat.integration },
+      agents: {},
+    });
+
+    const receipt = await app.accept(messageEvent("message-unhandled"));
+
+    expect(receipt.reaction).toEqual(
+      expect.objectContaining({
+        eventId: "message-unhandled",
+        status: "completed",
+        effects: [],
+        reason: "No handler registered for chat.message.received",
+      }),
+    );
+    expect(receipt.deliveries).toEqual([]);
   });
 
   it("returns the stored terminal receipt without delivering effects twice", async () => {
@@ -365,6 +462,59 @@ describe("OpenMatter runtime", () => {
     ]);
   });
 
+  it("honors a provider's absolute retry time for outbox delivery", async () => {
+    const store = makeMemoryStore();
+    const chat: WorkIntegration = {
+      manifest: {
+        id: "chat",
+        displayName: "Chat",
+        events: [],
+        operations: ["message.reply"],
+      },
+      ingest: () => Effect.succeed([]),
+      deliver: () =>
+        Effect.fail(
+          new IntegrationError({
+            message: "provider rate limit",
+            retryable: true,
+            retryAt: "2026-08-20T08:01:00.000Z",
+          }),
+        ),
+    };
+    const app = createOpenMatter({
+      store,
+      integrations: { chat },
+      agents: {},
+      clock: () => "2026-08-20T08:00:00.000Z",
+      effectRetryDelayMs: 1_000,
+    });
+    app.on("chat.message.received", (work) =>
+      Effect.gen(function* () {
+        const context = yield* work.context.project({
+          scopeId: "scope-1",
+          workThreadId: "thread-1",
+          items: [work.context.event()],
+          grants: ["chat.message.reply"],
+        });
+        const effect = yield* work.effect(context, {
+          integrationId: "chat",
+          operation: "message.reply",
+          input: { text: "retry later" },
+        });
+        return work.react.effects([effect]);
+      }),
+    );
+
+    const receipt = await app.accept(messageEvent("provider-retry-at"));
+
+    expect(receipt.deliveries).toEqual([
+      expect.objectContaining({
+        status: "retryable-failed",
+        nextRetryAt: "2026-08-20T08:01:00.000Z",
+      }),
+    ]);
+  });
+
   it("rejects a forged effect that was not authorized by the runtime", async () => {
     const store = makeMemoryStore();
     const chat = makeMockIntegration({ id: "chat" });
@@ -578,40 +728,40 @@ describe("OpenMatter runtime", () => {
       turn: (input: Parameters<typeof worker.driver.turn>[0]) => {
         turnCalls += 1;
         const events: readonly OpenMAEvent[] = [
-          {
-            schemaVersion: "0.1",
-            id: `${input.turnId}:output`,
-            sessionId: input.sessionId,
-            turnId: input.turnId,
-            sequence: 1,
-            type: "assistant.output",
-            timestamp: now,
-            payload: { text: "before terminal" },
-          },
-          {
-            schemaVersion: "0.1",
-            id: `${input.turnId}:terminal`,
-            sessionId: input.sessionId,
-            turnId: input.turnId,
-            sequence: 2,
+          createOpenMAEvent({
+            event_id: `${input.turnId}:output`,
+            session_id: input.sessionId,
+            turn_id: input.turnId,
+            seq: 1,
+            type: "agent.message",
+            occurred_at: now,
+            source: { kind: "harness", harness: "test" },
+            data: { text: "before terminal" },
+          }),
+          createOpenMAEvent({
+            event_id: `${input.turnId}:terminal`,
+            session_id: input.sessionId,
+            turn_id: input.turnId,
+            seq: 2,
             type: "turn.completed",
-            timestamp: now,
-            payload: {},
-          },
-          {
-            schemaVersion: "0.1",
-            id: `${input.turnId}:illegal-extra`,
-            sessionId: input.sessionId,
-            turnId: input.turnId,
-            sequence: 3,
-            type: "assistant.output",
-            timestamp: now,
-            payload: { text: "after terminal" },
-          },
+            occurred_at: now,
+            source: { kind: "harness", harness: "test" },
+            data: {},
+          }),
+          createOpenMAEvent({
+            event_id: `${input.turnId}:illegal-extra`,
+            session_id: input.sessionId,
+            turn_id: input.turnId,
+            seq: 3,
+            type: "agent.message",
+            occurred_at: now,
+            source: { kind: "harness", harness: "test" },
+            data: { text: "after terminal" },
+          }),
         ];
         return Stream.fromIterable(
           events.filter(
-            (agentEvent) => agentEvent.sequence > input.afterSequence,
+            (agentEvent) => (agentEvent.seq ?? 0) > input.afterSequence,
           ),
         );
       },
@@ -651,8 +801,84 @@ describe("OpenMatter runtime", () => {
     const snapshot = await Effect.runPromise(store.inspect);
     expect(snapshot.reactions).toEqual([]);
     expect(snapshot.agentEvents.map((agentEvent) => agentEvent.type)).toEqual([
-      "assistant.output",
+      "agent.message",
     ]);
+  });
+
+  it("snapshots a mutable custom Driver event before the durable async boundary", async () => {
+    const memory = makeMemoryStore();
+    const store = {
+      ...memory,
+      appendAgentEvent: (...args: Parameters<typeof memory.appendAgentEvent>) =>
+        Effect.sleep("20 millis").pipe(
+          Effect.zipRight(memory.appendAgentEvent(...args)),
+        ),
+    };
+    const worker = makeMockAgentDriver({ id: "worker", output: "unused" });
+    const driver = {
+      ...worker.driver,
+      turn: (input: Parameters<typeof worker.driver.turn>[0]) => {
+        const mutable = {
+          schema_version: "oma.event.v1",
+          event_id: `${input.turnId}:output`,
+          session_id: input.sessionId,
+          turn_id: input.turnId,
+          seq: 1,
+          type: "agent.message",
+          occurred_at: "2026-08-20T08:00:00.000Z",
+          source: { kind: "harness", harness: "custom" },
+          data: { text: "authorized" },
+        } as unknown as OpenMAEvent;
+        setTimeout(() => {
+          (mutable.data as { text: string }).text = "mutated";
+        }, 0);
+        return Stream.make(
+          mutable,
+          createOpenMAEvent({
+            event_id: `${input.turnId}:terminal`,
+            session_id: input.sessionId,
+            turn_id: input.turnId,
+            seq: 2,
+            type: "turn.completed",
+            occurred_at: "2026-08-20T08:00:01.000Z",
+            source: { kind: "harness", harness: "custom" },
+            data: {},
+          }),
+        );
+      },
+    };
+    const app = createOpenMatter({
+      store,
+      integrations: {},
+      agents: { worker: driver },
+    });
+    app.on("chat.message.received", (work) =>
+      Effect.gen(function* () {
+        const context = yield* work.context.project({
+          scopeId: "scope-1",
+          workThreadId: "thread-1",
+          items: [work.context.event()],
+        });
+        yield* work
+          .agent("worker")
+          .session({
+            scopeId: "scope-1",
+            workThreadId: "thread-1",
+            privacyPartition: "team",
+          })
+          .turn({ context });
+        return work.react.none();
+      }),
+    );
+
+    const receipt = await app.accept(messageEvent("message-agent-snapshot"));
+
+    expect(receipt.reaction).toEqual(
+      expect.objectContaining({ status: "completed" }),
+    );
+    expect((await Effect.runPromise(memory.inspect)).agentEvents[0]).toEqual(
+      expect.objectContaining({ data: { text: "authorized" } }),
+    );
   });
 
   it("persists cancellation while preserving Effect interruption", async () => {
@@ -1783,14 +2009,21 @@ describe("OpenMatter runtime", () => {
       turn: (input: Parameters<typeof worker.driver.turn>[0]) =>
         worker.driver.turn(input).pipe(
           Stream.map((agentEvent) =>
-            agentEvent.type === "permission.requested"
-              ? {
-                  ...agentEvent,
-                  payload: {
-                    requestId: "permission-collision",
-                    operation: permissionOperation,
+            isPermissionRequestEvent(agentEvent)
+              ? createOpenMAEvent({
+                  event_id: agentEvent.event_id,
+                  session_id: agentEvent.session_id,
+                  turn_id: agentEvent.turn_id!,
+                  seq: agentEvent.seq!,
+                  type: "callback.requested",
+                  occurred_at: agentEvent.occurred_at,
+                  source: agentEvent.source,
+                  data: {
+                    ...agentEvent.data,
+                    fingerprint: `permission:${permissionOperation}`,
+                    params: { operation: permissionOperation },
                   },
-                }
+                })
               : agentEvent,
           ),
         ),
@@ -1868,16 +2101,16 @@ describe("OpenMatter runtime", () => {
           : worker.driver.resumeSession(handle),
       turn: (input: Parameters<typeof worker.driver.turn>[0]) => {
         turnCalls += 1;
-        const partial: OpenMAEvent = {
-          schemaVersion: "0.1",
-          id: `${input.turnId}:partial`,
-          sessionId: input.sessionId,
-          turnId: input.turnId,
-          sequence: 1,
-          type: "assistant.output",
-          timestamp: now,
-          payload: { text: "partial" },
-        };
+        const partial: OpenMAEvent = createOpenMAEvent({
+          event_id: `${input.turnId}:partial`,
+          session_id: input.sessionId,
+          turn_id: input.turnId,
+          seq: 1,
+          type: "agent.message",
+          occurred_at: now,
+          source: { kind: "harness", harness: "test" },
+          data: { text: "partial" },
+        });
         return Stream.make(partial).pipe(
           Stream.concat(
             Stream.fail(
@@ -1926,11 +2159,11 @@ describe("OpenMatter runtime", () => {
       expect.objectContaining({ state: "cancelled" }),
     ]);
     expect(snapshot.agentEvents.map((agentEvent) => agentEvent.type)).toEqual([
-      "assistant.output",
+      "agent.message",
       "turn.interrupted",
     ]);
     expect(
-      new Set(snapshot.agentEvents.map((agentEvent) => agentEvent.sessionId))
+      new Set(snapshot.agentEvents.map((agentEvent) => agentEvent.session_id))
         .size,
     ).toBe(1);
     expect(snapshot.sessions).toEqual([
@@ -2021,23 +2254,26 @@ describe("OpenMatter runtime", () => {
       ...worker.driver,
       turn: (input: Parameters<typeof worker.driver.turn>[0]) => {
         const timestamp = new Date().toISOString();
-        const output: OpenMAEvent = {
-          schemaVersion: "0.1",
-          id: `${input.turnId}:output`,
-          sessionId: input.sessionId,
-          turnId: input.turnId,
-          sequence: 1,
-          type: "assistant.output",
-          timestamp,
-          payload: { text: "once" },
-        };
-        const terminal: OpenMAEvent = {
-          ...output,
-          id: `${input.turnId}:terminal`,
-          sequence: 2,
+        const output: OpenMAEvent = createOpenMAEvent({
+          event_id: `${input.turnId}:output`,
+          session_id: input.sessionId,
+          turn_id: input.turnId,
+          seq: 1,
+          type: "agent.message",
+          occurred_at: timestamp,
+          source: { kind: "harness", harness: "test" },
+          data: { text: "once" },
+        });
+        const terminal: OpenMAEvent = createOpenMAEvent({
+          event_id: `${input.turnId}:terminal`,
+          session_id: input.sessionId,
+          turn_id: input.turnId,
+          seq: 2,
           type: "turn.completed",
-          payload: {},
-        };
+          occurred_at: timestamp,
+          source: { kind: "harness", harness: "test" },
+          data: {},
+        });
         return Stream.fromEffect(
           Deferred.succeed(started, undefined).pipe(
             Effect.zipRight(Effect.sleep("80 millis")),

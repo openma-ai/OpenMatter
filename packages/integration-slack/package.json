@@ -17,7 +17,9 @@
   },
   "dependencies": {
     "@openmatter/core": "workspace:*",
-    "@openmatter/integration": "workspace:*"
+    "@openmatter/credentials": "workspace:*",
+    "@openmatter/integration": "workspace:*",
+    "@openmatter/http": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

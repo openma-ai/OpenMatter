@@ -1,0 +1,29 @@
+---
+title: Deployment
+description: Compose a host without rewriting the runtime.
+---
+
+The same application can run in a local process, Cloudflare Worker, Fastify server, Hono app, or a custom Host.
+
+| Shape | Ingress | Durability boundary |
+| --- | --- | --- |
+| Local Node | Slack Socket Mode | DurableInbox + durable Store |
+| Cloudflare | Signed HTTP → Queue | Queue + durable Store |
+| Fastify / Hono | Portable HttpEndpoint | Chosen by the application |
+| Custom | Webhook, polling, stream, SDK | Chosen by the Host |
+
+## Portable HTTP components
+
+`@openmatter/http` defines a small `HttpEndpoint` contract. `@openmatter/fastify` and `@openmatter/hono` mount those endpoints while preserving raw request bytes and the provider Response. They do not own server startup or application policy.
+
+## Cloudflare
+
+The Slack Worker Host verifies and decodes HTTP input, queues native envelopes, classifies retryable failures, and respects runtime `retryAt`. It does not require Durable Objects; Store and Queue implementations are injected.
+
+## Local standalone
+
+The local Host owns Socket Mode connection lifecycle, in-flight Fibers, retry backoff, acknowledgement, and shutdown. SQLite `DurableInbox` prevents normal process work from being acknowledged before native ingress is persisted.
+
+## Recovery and scheduled work
+
+Hosts must schedule outbox recovery through `app.recoverEffects()`. Cloudflare Cron, a Node timer, EventBridge, or a Kubernetes CronJob owns the wake-up policy. Proactive patrol events enter through the same application boundary.

@@ -1,0 +1,37 @@
+---
+title: Work integrations
+description: Map a work platform without rebuilding its product SDK.
+---
+
+A Work Integration normalizes native events, materializes explicitly requested context, and delivers a finite set of granted operations.
+
+```ts
+interface WorkIntegration {
+  manifest: IntegrationManifest;
+  ingest(input: unknown): Effect<readonly WorkEvent[], IntegrationError>;
+  deliver(effect: WorkEffect): Effect<ProviderDeliveryResult, IntegrationError>;
+}
+```
+
+A real Integration commonly adds typed Context readers beside this core contract. Reads are explicit and bounded; receiving an event never grants permission to crawl an entire workspace.
+
+## Ingress
+
+- Verify transport authenticity beside provider decoding.
+- Preserve stable provider identity and idempotency keys.
+- Emit semantic events where semantics are known and generic observations otherwise.
+- Keep `resourceId` and its optional human `resourceKey` about the same subject;
+  represent known containment with explicit `parentResource*` fields.
+- Redact bearer capabilities before native payloads enter WorkEvent or Context.
+
+## Effects
+
+The Integration exposes explicit operations such as `message.reply` or `issue.comment.create`. Each WorkEffect is created from an authorized ContextProjection and committed before delivery. MCP may be the agent-facing tool surface; WorkIntegration remains the audited work-side binding.
+
+## Authority
+
+Authority identifies the configured provider installation or security boundary. Resource recognition and credential selection both depend on it, but credentials never enter profiles, events, Agent input, or receipts.
+
+:::tip[Integration strategy]
+Use a generic machine-readable binding when an API description is sufficient; add a semantic overlay for Resources and risk; write provider code only for behavior that cannot be described portably.
+:::
