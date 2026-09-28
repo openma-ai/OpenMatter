@@ -1,0 +1,35 @@
+{
+  "name": "@openmatter/project-host",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@openmatter/core": "workspace:*",
+    "@openmatter/store": "workspace:*",
+    "@openmatter/store-sqlite": "workspace:*",
+    "@openmatter/agent": "workspace:*",
+    "@openmatter/runtime": "workspace:*",
+    "@openmatter/orchestration": "workspace:*",
+    "@openmatter/project": "workspace:*",
+    "@openmatter/inbox": "workspace:*",
+    "@openmatter/inbox-sqlite": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^3.22.1"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

@@ -42,6 +42,7 @@ import {
   SessionBusyError,
   WorkEventValidationError,
   type ConsumeSummary,
+  type Loop,
   type OpenMatterApplication,
   type OpenMatterOptions,
   type ReactionDraft,
@@ -98,7 +99,7 @@ export const createOpenMatter = (
   );
   const lease = makeLeaseRuntime({ runtimeId });
   const { request: leaseRequest, withHeartbeat: withLeaseHeartbeat } = lease;
-  const runAgentTurn = makeAgentTurnRuntime({
+  const agentTurns = makeAgentTurnRuntime({
     clock,
     makeId,
     lease,
@@ -106,7 +107,9 @@ export const createOpenMatter = (
     ...(options.permissionPolicy === undefined
       ? {}
       : { permissionPolicy: options.permissionPolicy }),
-  }).run;
+  });
+  const runAgentTurn = agentTurns.run;
+  const cancelAgentTurn = agentTurns.cancel;
 
   const makeWorkContext = (
     event: WorkEvent,
@@ -273,6 +276,18 @@ export const createOpenMatter = (
           authority = event.source.authority,
           privacyPartition,
         }) => ({
+          cancel: () =>
+            cancelAgentTurn(
+              event,
+              agentId,
+              authority,
+              scopeId,
+              workThreadId,
+              privacyPartition,
+            ).pipe(
+              Effect.provideService(StoreService, store),
+              Effect.provideService(AgentDrivers, drivers),
+            ),
           turn: (input) => {
             const invocation = ++agentTurnSequence;
             const sealedInput = structuredClone({
@@ -637,6 +652,10 @@ export const createOpenMatter = (
     acceptFromProgram(integrationId, input).pipe(Effect.provide(services));
 
   const app: OpenMatterApplication = {
+    loop: (loop: Loop) => {
+      loop.install(app);
+      return app;
+    },
     on: (eventTypes, handler) => {
       const types = typeof eventTypes === "string" ? [eventTypes] : eventTypes;
       for (const type of types) handlers.set(type, handler);

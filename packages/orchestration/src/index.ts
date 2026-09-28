@@ -1,6 +1,28 @@
 import type { ContextItem } from "@openmatter/core";
-import type { OpenMatterApplication, WorkContext } from "@openmatter/runtime";
+import {
+  defineLoop,
+  type Loop,
+  type OpenMatterApplication,
+  type WorkContext,
+} from "@openmatter/runtime";
 import { Effect } from "effect";
+
+export {
+  linearAgentSurface,
+  projectLinearAgentSurface,
+  type LinearAgentSurfaceOptions,
+  type LinearAgentSurfaceProjectionInput,
+} from "./linear-agent-surface.js";
+export {
+  coordinatorLoop,
+  linearLoop,
+  type CoordinatorLoopOptions,
+  type CoordinatorAssociation,
+  type CoordinatorControl,
+  type CoordinatorRunAssociation,
+  type CoordinatorThread,
+  type LinearLoopOptions,
+} from "./coordinator-loop.js";
 
 export interface ClaudeTagOptions {
   readonly agentId: string;
@@ -41,7 +63,7 @@ const loadContext = (
     }
   });
 
-export const installClaudeTag = (
+const installClaudeTagHandlers = (
   app: OpenMatterApplication,
   options: ClaudeTagOptions,
 ): OpenMatterApplication => {
@@ -178,3 +200,32 @@ export const installClaudeTag = (
   app.on(`${integrationId}.message.received`, handleMessage);
   return app.on(`${integrationId}.command.invoked`, handleCommand);
 };
+
+export const claudeTag = (options: ClaudeTagOptions): Loop =>
+  defineLoop(
+    {
+      id: "claude-tag",
+      version: "0.1.0",
+      description: "Keep Claude present in Slack conversations and commands",
+      spec: {
+        integration: "slack",
+        sources: [
+          "slack.message.mentioned",
+          "slack.message.received",
+          "slack.command.invoked",
+        ],
+        association: {
+          scope: "slack.channel-or-dm",
+          workThread: "slack.thread-or-dm-conversation",
+        },
+        agent: {
+          id: options.agentId,
+          session: "per-work-thread",
+        },
+        commandVisibility: options.commandVisibility ?? "ephemeral",
+        context: options.context === undefined ? "event" : "extension:context",
+        reaction: "terminal-per-event",
+      },
+    },
+    (app) => installClaudeTagHandlers(app, options),
+  );

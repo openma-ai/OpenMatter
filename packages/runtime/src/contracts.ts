@@ -3,23 +3,24 @@ import type {
   AgentDriverError,
   OpenMAEvent,
 } from "@openmatter/agent";
-import type {
-  AgentSession,
-  ContextItem,
-  ContextProjection,
-  EffectDeliveryReceipt,
-  JsonValue,
-  ReactionReceipt,
-  Turn,
-  WorkEffect,
-  WorkEvent,
+import {
+  JsonValueSchema,
+  type AgentSession,
+  type ContextItem,
+  type ContextProjection,
+  type EffectDeliveryReceipt,
+  type JsonValue,
+  type ReactionReceipt,
+  type Turn,
+  type WorkEffect,
+  type WorkEvent,
 } from "@openmatter/core";
 import type {
   IntegrationError,
   WorkIntegration,
 } from "@openmatter/integration";
 import { StoreError, type OpenMatterStore } from "@openmatter/store";
-import { Data, type Effect } from "effect";
+import { Data, Schema, type Effect } from "effect";
 
 export class EventBusyError extends Data.TaggedError("EventBusyError")<{
   readonly eventId: string;
@@ -83,6 +84,11 @@ export interface AgentTurnResult {
   readonly output: JsonValue | undefined;
 }
 
+export interface AgentCancellationResult {
+  readonly status: "requested" | "idle";
+  readonly turnId?: string;
+}
+
 export interface AgentPermissionRequest {
   readonly agentId: string;
   readonly requestId: string;
@@ -129,6 +135,10 @@ export interface WorkContext {
       readonly authority?: string;
       readonly privacyPartition: string;
     }) => {
+      readonly cancel: () => Effect.Effect<
+        AgentCancellationResult,
+        AgentAccessError | AgentDriverError | StoreError
+      >;
       readonly turn: (
         input: AgentTurnOptions,
       ) => Effect.Effect<
@@ -151,6 +161,66 @@ export type WorkHandlerResult =
 
 export type WorkHandler = (work: WorkContext) => WorkHandlerResult;
 
+export interface LoopDefinition {
+  readonly id: string;
+  readonly version?: string;
+  readonly description?: string;
+  readonly spec?: JsonValue;
+}
+
+export interface Loop {
+  readonly definition: LoopDefinition;
+  readonly install: (
+    app: OpenMatterApplication,
+  ) => void | OpenMatterApplication;
+}
+
+const immutableLoopJson = <T extends JsonValue>(value: T): T => {
+  const snapshot = structuredClone(value) as T;
+  const freeze = (current: JsonValue): void => {
+    if (current === null || typeof current !== "object") return;
+    for (const nested of Array.isArray(current)
+      ? current
+      : Object.values(current)) {
+      freeze(nested);
+    }
+    Object.freeze(current);
+  };
+  freeze(snapshot);
+  return snapshot;
+};
+
+export const defineLoop = (
+  definition: LoopDefinition,
+  install: Loop["install"],
+): Loop => {
+  if (
+    typeof definition.id !== "string" ||
+    definition.id.length === 0 ||
+    (definition.version !== undefined &&
+      typeof definition.version !== "string") ||
+    (definition.description !== undefined &&
+      typeof definition.description !== "string") ||
+    (definition.spec !== undefined &&
+      !Schema.is(JsonValueSchema)(definition.spec))
+  ) {
+    throw new TypeError("Loop definition must contain portable JSON metadata");
+  }
+  const snapshot: LoopDefinition = Object.freeze({
+    id: definition.id,
+    ...(definition.version === undefined
+      ? {}
+      : { version: definition.version }),
+    ...(definition.description === undefined
+      ? {}
+      : { description: definition.description }),
+    ...(definition.spec === undefined
+      ? {}
+      : { spec: immutableLoopJson(definition.spec) }),
+  });
+  return Object.freeze({ definition: snapshot, install });
+};
+
 export interface OpenMatterOptions {
   readonly store: OpenMatterStore;
   readonly integrations: Readonly<Record<string, WorkIntegration>>;
@@ -167,6 +237,7 @@ export interface OpenMatterOptions {
 }
 
 export interface OpenMatterApplication {
+  readonly loop: (loop: Loop) => OpenMatterApplication;
   readonly on: (
     eventType: string | readonly string[],
     handler: WorkHandler,

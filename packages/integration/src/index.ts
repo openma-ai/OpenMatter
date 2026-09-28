@@ -6,6 +6,7 @@ import {
 } from "@openmatter/core";
 import { Context, Data, Layer, Schema, type Effect } from "effect";
 
+
 export class IntegrationError extends Data.TaggedError("IntegrationError")<{
   readonly message: string;
   readonly retryable: boolean;

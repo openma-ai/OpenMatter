@@ -14,6 +14,10 @@ export interface SqliteInboxOptions {
 }
 
 export interface SqliteInbox extends DurableInbox {
+  readonly inspect: Effect.Effect<
+    readonly { item: InboxItem; state: string; error: string | null }[],
+    InboxError
+  >;
   readonly close: Effect.Effect<void, InboxError>;
 }
 
@@ -312,5 +316,15 @@ export const makeSqliteInbox = (options: SqliteInboxOptions): SqliteInbox => {
       new InboxError({ message: "Unable to close inbox", cause }),
   });
 
-  return { enqueue, claim, complete, retry, renew, close };
+  const inspect = attempt("Unable to inspect inbox", () =>
+    database
+      .prepare("SELECT * FROM openmatter_inbox ORDER BY received_at,id")
+      .all()
+      .map((row) => ({
+        item: rowToItem(row),
+        state: requiredString(row, "state"),
+        error: typeof row.last_error === "string" ? row.last_error : null,
+      })),
+  );
+  return { enqueue, claim, complete, retry, renew, close, inspect };
 };

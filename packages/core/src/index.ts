@@ -162,6 +162,35 @@ export const AgentSessionSchema = Schema.Struct({
 
 export type AgentSession = typeof AgentSessionSchema.Type;
 
+export const ThreadGoalStatusSchema = Schema.Literal(
+  "active",
+  "paused",
+  "blocked",
+  "usage_limited",
+  "budget_limited",
+  "complete",
+);
+
+export type ThreadGoalStatus = typeof ThreadGoalStatusSchema.Type;
+
+/** A single current objective for a WorkThread, independent of its Sessions. */
+export const ThreadGoalSchema = Schema.Struct({
+  id: Schema.String,
+  scopeId: Schema.String,
+  workThreadId: Schema.String,
+  objective: Schema.String,
+  status: ThreadGoalStatusSchema,
+  tokenBudget: Schema.optional(Schema.Number),
+  tokensUsed: Schema.Number,
+  timeUsedSeconds: Schema.Number,
+  createdAt: Schema.String,
+  updatedAt: Schema.String,
+  revision: Schema.Number,
+  reason: Schema.optional(Schema.String),
+}).annotations({ identifier: "ThreadGoal" });
+
+export type ThreadGoal = typeof ThreadGoalSchema.Type;
+
 export const TurnSchema = Schema.Struct({
   id: Schema.String,
   sessionId: Schema.String,
@@ -181,6 +210,16 @@ export const TurnSchema = Schema.Struct({
 }).annotations({ identifier: "Turn" });
 
 export type Turn = typeof TurnSchema.Type;
+
+export const TurnCancellationRequestSchema = Schema.Struct({
+  turnId: Schema.String,
+  sessionId: Schema.String,
+  bindingKey: Schema.String,
+  requestedByEventId: Schema.String,
+  requestedAt: Schema.String,
+}).annotations({ identifier: "TurnCancellationRequest" });
+
+export type TurnCancellationRequest = typeof TurnCancellationRequestSchema.Type;
 
 export const PermissionDecisionSchema = Schema.Struct({
   turnId: Schema.String,
