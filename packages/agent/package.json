@@ -16,7 +16,7 @@
     }
   },
   "dependencies": {
-    "@openma/common": "github:openma-ai/openma-common#8e2c961319ac142386ad0827e4b34780f10a92f0",
+    "@openma/common": "github:openma-ai/openma-common#v0.6.0",
     "@openmatter/core": "workspace:*"
   },
   "peerDependencies": {
