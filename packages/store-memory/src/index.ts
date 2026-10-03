@@ -5,19 +5,25 @@ import type {
   PermissionDecision,
   Reaction,
   ReactionReceipt,
+  ThreadGoal,
   Turn,
+  TurnCancellationRequest,
   WorkEvent,
 } from "@openmatter/core";
+import { ThreadGoalStatusSchema } from "@openmatter/core";
 import type { OpenMAEvent } from "@openmatter/agent";
 import {
   StoreError,
+  type AccountThreadGoalInput,
+  type CreateThreadGoalInput,
   type LeaseRequest,
   type LeaseRenewal,
   type OpenMatterStore,
   type StoreSnapshot,
+  type UpdateThreadGoalInput,
   type WorkLease,
 } from "@openmatter/store";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 export interface MemoryStoreOptions {
   readonly makeLeaseToken?: () => string;
@@ -52,6 +58,9 @@ export const makeMemoryStore = (
   const contexts = new Map<string, ContextProjection>();
   const agentEvents: OpenMAEvent[] = [];
   const permissionDecisions = new Map<string, PermissionDecision>();
+  const goals = new Map<string, ThreadGoal>();
+  const goalUsage = new Map<string, AccountThreadGoalInput>();
+  const cancellations = new Map<string, TurnCancellationRequest>();
   let leaseSequence = 0;
   const clock = options.clock ?? (() => new Date().toISOString());
 
@@ -105,6 +114,37 @@ export const makeMemoryStore = (
       });
     }
   };
+
+  const fail = (message: string): never => {
+    throw new StoreError({ message });
+  };
+  const goalObjective = (objective: string) => {
+    const normalized = objective.trim();
+    if (!normalized) fail("Goal objective must not be blank");
+    return normalized;
+  };
+  const goalBudget = (budget: number | undefined) => {
+    if (budget !== undefined && (!Number.isSafeInteger(budget) || budget <= 0))
+      fail("Goal token budget must be a positive safe integer");
+  };
+  const requireGoal = (
+    workThreadId: string,
+    expectedGoalId?: string,
+  ): ThreadGoal => {
+    const goal = goals.get(workThreadId);
+    if (!goal) return fail(`No goal for WorkThread ${workThreadId}`);
+    if (expectedGoalId !== undefined && goal.id !== expectedGoalId)
+      fail("Stale goal identity");
+    return goal;
+  };
+  const activeTurnsFor = (sessionId: string) =>
+    [...turns.values()]
+      .filter(
+        (turn) =>
+          turn.sessionId === sessionId &&
+          (turn.state === "queued" || turn.state === "running"),
+      )
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
   const receiptFor = (eventId: string): ReactionReceipt | undefined => {
     const reaction = reactions.get(eventId);
@@ -411,6 +451,190 @@ export const makeMemoryStore = (
         agentEvents.push(copy(event));
       }),
 
+    createThreadGoal: (input: CreateThreadGoalInput) =>
+      storeTry(() => {
+        if (!input.scopeId.trim() || !input.workThreadId.trim())
+          fail("Goal scope and WorkThread identities must not be blank");
+        const objective = goalObjective(input.objective);
+        goalBudget(input.tokenBudget);
+        const existing = goals.get(input.workThreadId);
+        if (existing && existing.scopeId !== input.scopeId)
+          fail("Goal WorkThread belongs to another scope");
+        if (existing && existing.status !== "complete")
+          fail("WorkThread already has an unfinished goal");
+        const now = clock();
+        const goal: ThreadGoal = {
+          id: globalThis.crypto.randomUUID(),
+          scopeId: input.scopeId,
+          workThreadId: input.workThreadId,
+          objective,
+          status: "active",
+          ...(input.tokenBudget === undefined
+            ? {}
+            : { tokenBudget: input.tokenBudget }),
+          tokensUsed: 0,
+          timeUsedSeconds: 0,
+          createdAt: now,
+          updatedAt: now,
+          revision: 1,
+        };
+        if (existing) {
+          for (const key of [...goalUsage.keys()]) {
+            if (key.startsWith(`${existing.id}:`)) goalUsage.delete(key);
+          }
+          goals.delete(input.workThreadId);
+        }
+        goals.set(input.workThreadId, goal);
+        return copy(goal);
+      }),
+
+    getThreadGoal: (workThreadId) =>
+      Effect.sync(() => {
+        const goal = goals.get(workThreadId);
+        return goal === undefined ? undefined : copy(goal);
+      }),
+
+    listThreadGoals: (scopeId) =>
+      Effect.sync(() =>
+        [...goals.values()]
+          .filter((goal) => scopeId === undefined || goal.scopeId === scopeId)
+          .map(copy),
+      ),
+
+    updateThreadGoal: (workThreadId, input: UpdateThreadGoalInput) =>
+      storeTry(() => {
+        const goal = requireGoal(workThreadId, input.expectedGoalId);
+        if (
+          input.expectedRevision !== undefined &&
+          input.expectedRevision !== goal.revision
+        )
+          fail("Stale goal revision");
+        const objective =
+          input.objective === undefined
+            ? goal.objective
+            : goalObjective(input.objective);
+        const tokenBudget =
+          input.tokenBudget === undefined
+            ? goal.tokenBudget
+            : (input.tokenBudget ?? undefined);
+        goalBudget(tokenBudget);
+        let status = input.status ?? goal.status;
+        if (!Schema.is(ThreadGoalStatusSchema)(status))
+          fail("Invalid goal status");
+        if (
+          status === "active" &&
+          tokenBudget !== undefined &&
+          goal.tokensUsed >= tokenBudget
+        )
+          status = "budget_limited";
+        const reason =
+          input.reason === undefined
+            ? input.status === "active" || input.status === "complete"
+              ? undefined
+              : goal.reason
+            : input.reason.trim() || undefined;
+        if (
+          objective === goal.objective &&
+          tokenBudget === goal.tokenBudget &&
+          status === goal.status &&
+          reason === goal.reason
+        )
+          return copy(goal);
+        const { tokenBudget: _budget, reason: _reason, ...base } = goal;
+        const updated: ThreadGoal = {
+          ...base,
+          objective,
+          status,
+          ...(tokenBudget === undefined ? {} : { tokenBudget }),
+          ...(reason === undefined ? {} : { reason }),
+          updatedAt: clock(),
+          revision: goal.revision + 1,
+        };
+        goals.set(workThreadId, updated);
+        return copy(updated);
+      }),
+
+    accountThreadGoal: (workThreadId, input) =>
+      storeTry(() => {
+        const goal = requireGoal(workThreadId, input.goalId);
+        if (!input.turnId.trim()) fail("Goal usage requires a Turn identity");
+        for (const value of [input.tokensUsed, input.timeUsedSeconds]) {
+          if (!Number.isSafeInteger(value) || value < 0)
+            fail("Goal usage must be nonnegative safe integers");
+        }
+        const id = `${goal.id}:${input.turnId}`;
+        const existing = goalUsage.get(id);
+        if (existing) {
+          if (
+            existing.tokensUsed !== input.tokensUsed ||
+            existing.timeUsedSeconds !== input.timeUsedSeconds
+          )
+            fail("Conflicting goal usage for Turn");
+          return copy(goal);
+        }
+        const tokensUsed = goal.tokensUsed + input.tokensUsed;
+        const timeUsedSeconds = goal.timeUsedSeconds + input.timeUsedSeconds;
+        if (
+          !Number.isSafeInteger(tokensUsed) ||
+          !Number.isSafeInteger(timeUsedSeconds)
+        )
+          fail("Goal usage exceeds safe integer range");
+        const updated: ThreadGoal = {
+          ...goal,
+          tokensUsed,
+          timeUsedSeconds,
+          status:
+            goal.status === "active" &&
+            goal.tokenBudget !== undefined &&
+            tokensUsed >= goal.tokenBudget
+              ? "budget_limited"
+              : goal.status,
+          updatedAt: clock(),
+          revision: goal.revision + 1,
+        };
+        goalUsage.set(id, copy(input));
+        goals.set(workThreadId, updated);
+        return copy(updated);
+      }),
+
+    clearThreadGoal: (workThreadId, expectedGoalId) =>
+      storeTry(() => {
+        const goal = goals.get(workThreadId);
+        if (!goal) return false;
+        if (expectedGoalId !== undefined && goal.id !== expectedGoalId)
+          fail("Stale goal identity");
+        for (const key of [...goalUsage.keys()]) {
+          if (key.startsWith(`${goal.id}:`)) goalUsage.delete(key);
+        }
+        goals.delete(workThreadId);
+        return true;
+      }),
+
+    requestTurnCancellation: (bindingKey, requestedByEventId, requestedAt) =>
+      storeTry(() => {
+        const sessionId = activeSessionByBinding.get(bindingKey);
+        if (sessionId === undefined) return undefined;
+        const turn = activeTurnsFor(sessionId)[0];
+        if (turn === undefined) return undefined;
+        const existing = cancellations.get(turn.id);
+        if (existing !== undefined) return copy(existing);
+        const value: TurnCancellationRequest = {
+          turnId: turn.id,
+          sessionId,
+          bindingKey,
+          requestedByEventId,
+          requestedAt,
+        };
+        cancellations.set(turn.id, value);
+        return copy(value);
+      }),
+
+    getTurnCancellation: (turnId) =>
+      Effect.sync(() => {
+        const value = cancellations.get(turnId);
+        return value === undefined ? undefined : copy(value);
+      }),
+
     saveContext: (context) =>
       Effect.sync(() => {
         contexts.set(context.id, copy(context));
@@ -423,11 +647,13 @@ export const makeMemoryStore = (
       }),
 
     inspect: Effect.sync(() => ({
+      goals: [...goals.values()].map(copy),
       events: [...events.values()].map(copy),
       reactions: [...reactions.values()].map(copy),
       deliveries: [...deliveries.values()].map(copy),
       sessions: [...sessions.values()].map(copy),
       turns: [...turns.values()].map(copy),
+      turnCancellationRequests: [...cancellations.values()].map(copy),
       contexts: [...contexts.values()].map(copy),
       agentEvents: agentEvents.map(copy),
       permissionDecisions: [...permissionDecisions.values()].map(copy),

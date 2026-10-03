@@ -15,6 +15,9 @@ export default defineConfig({
       "@openmatter/store-memory": fromRoot(
         "./packages/store-memory/src/index.ts",
       ),
+      "@openmatter/store-sqlite": fromRoot(
+        "./packages/store-sqlite/src/index.ts",
+      ),
       "@openmatter/inbox": fromRoot("./packages/inbox/src/index.ts"),
       "@openmatter/inbox-sqlite": fromRoot(
         "./packages/inbox-sqlite/src/index.ts",
@@ -46,6 +49,13 @@ export default defineConfig({
       "@openmatter/host-local": fromRoot("./packages/host-local/src/index.ts"),
       "@openmatter/orchestration": fromRoot(
         "./packages/orchestration/src/index.ts",
+      ),
+      "@openmatter/project": fromRoot("./packages/project/src/index.ts"),
+      "@openmatter/project-host": fromRoot(
+        "./packages/project-host/src/index.ts",
+      ),
+      "@openmatter/project-mcp": fromRoot(
+        "./packages/project-mcp/src/index.ts",
       ),
       "@openmatter/http": fromRoot("./packages/http/src/index.ts"),
       "@openmatter/fastify": fromRoot("./packages/fastify/src/index.ts"),

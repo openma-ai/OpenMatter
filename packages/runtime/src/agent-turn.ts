@@ -31,6 +31,7 @@ import {
   SessionBusyError,
   type AgentPermissionPolicy,
   type AgentPermissionRequest,
+  type AgentCancellationResult,
   type AgentTurnOptions,
   type AgentTurnResult,
 } from "./contracts.js";
@@ -38,6 +39,18 @@ import type { LeaseRuntime } from "./lease.js";
 import { outputFrom, sessionHandleFrom } from "./portable-json.js";
 
 export interface AgentTurnRuntime {
+  readonly cancel: (
+    event: WorkEvent,
+    agentId: string,
+    authority: string,
+    scopeId: string,
+    workThreadId: string,
+    privacyPartition: string,
+  ) => Effect.Effect<
+    AgentCancellationResult,
+    AgentAccessError | AgentDriverError | StoreError,
+    OpenMatterStore | AgentDriverRegistry
+  >;
   readonly run: (
     event: WorkEvent,
     agentId: string,
@@ -66,6 +79,21 @@ export const makeAgentTurnRuntime = (options: {
   readonly sessionLeaseMs: number;
   readonly permissionPolicy?: AgentPermissionPolicy;
 }): AgentTurnRuntime => {
+  const bindingKeyFor = (
+    agentId: string,
+    authority: string,
+    scopeId: string,
+    workThreadId: string,
+    privacyPartition: string,
+  ) =>
+    JSON.stringify([
+      agentId,
+      authority,
+      scopeId,
+      workThreadId,
+      privacyPartition,
+    ]);
+
   const decidePermission = (
     request: AgentPermissionRequest,
   ): Effect.Effect<boolean, AgentDriverError> =>
@@ -142,13 +170,13 @@ export const makeAgentTurnRuntime = (options: {
               "Context projection does not match the agent session binding",
           });
         }
-        const bindingKey = JSON.stringify([
+        const bindingKey = bindingKeyFor(
           agentId,
           authority,
           scopeId,
           workThreadId,
           privacyPartition,
-        ]);
+        );
         const sessionClaim = yield* store.claimSession(
           bindingKey,
           options.lease.request(options.sessionLeaseMs),
@@ -326,6 +354,8 @@ export const makeAgentTurnRuntime = (options: {
             Effect.gen(function* () {
               const handle = yield* driver.createSession({
                 sessionId: planned.id,
+                scopeId: planned.scopeId,
+                workThreadId: planned.workThreadId,
                 bindingKey,
                 generation: planned.generation,
                 idempotencyKey: planned.id,
@@ -483,6 +513,49 @@ export const makeAgentTurnRuntime = (options: {
             sessionClaim.lease.token,
           );
           activeTurn = runningTurn;
+
+          const pendingCancellation = yield* store.getTurnCancellation(turnId);
+          if (pendingCancellation !== undefined) {
+            if (capabilities.cancel) {
+              yield* driver.cancel({ session: handle, turnId });
+            }
+            const sequence = (storedEvents.at(-1)?.seq ?? 0) + 1;
+            const cancelledEvent: OpenMAEvent = createOpenMAEvent({
+              event_id: `${turnId}:runtime-cancelled:${sequence}`,
+              type: "turn.cancelled",
+              session_id: session.id,
+              turn_id: turnId,
+              seq: sequence,
+              occurred_at: options.clock(),
+              source: { kind: "openma", adapter: "runtime" },
+              data: {
+                reason: "Cancellation requested by a WorkEvent",
+              },
+            });
+            yield* store.appendAgentEvent(
+              cancelledEvent,
+              bindingKey,
+              sessionClaim.lease.token,
+            );
+            const cancelledTurn: Turn = {
+              ...runningTurn,
+              state: "cancelled",
+              completedAt: cancelledEvent.occurred_at,
+            };
+            yield* store.saveTurn(
+              cancelledTurn,
+              bindingKey,
+              sessionClaim.lease.token,
+            );
+            activeTurn = undefined;
+            return {
+              session,
+              turn: cancelledTurn,
+              outcome: "cancelled" as const,
+              events: [...storedEvents, cancelledEvent],
+              output: outputFrom(storedEvents),
+            };
+          }
 
           const lastSequence = storedEvents.at(-1)?.seq ?? 0;
           const interpreted = driver
@@ -648,13 +721,58 @@ export const makeAgentTurnRuntime = (options: {
               ),
               Effect.onInterrupt(() =>
                 capabilities.cancel
-                  ? driver
-                      .cancel({ session: handle, turnId })
-                      .pipe(Effect.catchAll(() => Effect.void))
+                  ? store.getTurnCancellation(turnId).pipe(
+                      Effect.flatMap((requested) =>
+                        requested === undefined
+                          ? driver.cancel({ session: handle, turnId })
+                          : Effect.void,
+                      ),
+                      Effect.catchAll(() => Effect.void),
+                    )
                   : Effect.void,
               ),
             );
-          const streamState = yield* interpreted;
+          const waitForCancellation = (): Effect.Effect<
+            NonNullable<
+              Effect.Effect.Success<
+                ReturnType<typeof store.getTurnCancellation>
+              >
+            >,
+            StoreError
+          > =>
+            store
+              .getTurnCancellation(turnId)
+              .pipe(
+                Effect.flatMap((requested) =>
+                  requested === undefined
+                    ? Effect.sleep("50 millis").pipe(
+                        Effect.zipRight(waitForCancellation()),
+                      )
+                    : Effect.succeed(requested),
+                ),
+              );
+          const cancelled = waitForCancellation().pipe(
+            Effect.flatMap(() => store.getAgentEvents(turnId)),
+            Effect.map((durableEvents) => {
+              const sequence = (durableEvents.at(-1)?.seq ?? 0) + 1;
+              const terminal: OpenMAEvent = createOpenMAEvent({
+                event_id: `${turnId}:runtime-cancelled:${sequence}`,
+                type: "turn.cancelled",
+                session_id: session.id,
+                turn_id: turnId,
+                seq: sequence,
+                occurred_at: options.clock(),
+                source: { kind: "openma", adapter: "runtime" },
+                data: { reason: "Cancellation requested by a WorkEvent" },
+              });
+              return {
+                expectedSequence: sequence + 1,
+                events: durableEvents,
+                terminal,
+              };
+            }),
+          );
+          const streamState = yield* Effect.raceFirst(interpreted, cancelled);
           yield* store.appendAgentEvent(
             streamState.terminal,
             bindingKey,
@@ -726,5 +844,60 @@ export const makeAgentTurnRuntime = (options: {
       );
     });
 
-  return { run };
+  const cancel: AgentTurnRuntime["cancel"] = (
+    event,
+    agentId,
+    authority,
+    scopeId,
+    workThreadId,
+    privacyPartition,
+  ) =>
+    Effect.gen(function* () {
+      const store = yield* StoreService;
+      const drivers = yield* AgentDrivers;
+      const bindingKey = bindingKeyFor(
+        agentId,
+        authority,
+        scopeId,
+        workThreadId,
+        privacyPartition,
+      );
+      const cancellation = yield* store.requestTurnCancellation(
+        bindingKey,
+        event.id,
+        options.clock(),
+      );
+      if (cancellation === undefined) {
+        return { status: "idle" as const };
+      }
+      const session = yield* store.getSession(cancellation.sessionId);
+      if (session === undefined) {
+        return yield* new StoreError({
+          message: `Cancellation references an unknown Agent Session: ${cancellation.sessionId}`,
+        });
+      }
+      const driver = drivers.get(agentId);
+      if (driver === undefined || session.driverId !== driver.id) {
+        return yield* new AgentAccessError({
+          agentId,
+          message: `Unable to cancel unavailable agent: ${agentId}`,
+        });
+      }
+      const handle = sessionHandleFrom(session.externalHandle);
+      if (handle === undefined) {
+        return yield* new AgentDriverError({
+          message: "Stored Agent Session has no resumable cancellation handle",
+        });
+      }
+      const capabilities = yield* driver.capabilities();
+      if (!capabilities.cancel) {
+        return yield* new AgentDriverError({
+          message: `Agent Driver does not support cancellation: ${agentId}`,
+        });
+      }
+      yield* driver.cancel({ session: handle, turnId: cancellation.turnId });
+      return { status: "requested" as const, turnId: cancellation.turnId };
+    });
+
+  return { cancel, run };
 };

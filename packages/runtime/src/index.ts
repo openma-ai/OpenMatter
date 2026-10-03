@@ -99,7 +99,7 @@ export const createOpenMatter = (
   );
   const lease = makeLeaseRuntime({ runtimeId });
   const { request: leaseRequest, withHeartbeat: withLeaseHeartbeat } = lease;
-  const runAgentTurn = makeAgentTurnRuntime({
+  const agentTurns = makeAgentTurnRuntime({
     clock,
     makeId,
     lease,
@@ -107,7 +107,9 @@ export const createOpenMatter = (
     ...(options.permissionPolicy === undefined
       ? {}
       : { permissionPolicy: options.permissionPolicy }),
-  }).run;
+  });
+  const runAgentTurn = agentTurns.run;
+  const cancelAgentTurn = agentTurns.cancel;
 
   const makeWorkContext = (
     event: WorkEvent,
@@ -274,6 +276,18 @@ export const createOpenMatter = (
           authority = event.source.authority,
           privacyPartition,
         }) => ({
+          cancel: () =>
+            cancelAgentTurn(
+              event,
+              agentId,
+              authority,
+              scopeId,
+              workThreadId,
+              privacyPartition,
+            ).pipe(
+              Effect.provideService(StoreService, store),
+              Effect.provideService(AgentDrivers, drivers),
+            ),
           turn: (input) => {
             const invocation = ++agentTurnSequence;
             const sealedInput = structuredClone({

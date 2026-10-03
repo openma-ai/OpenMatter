@@ -18,10 +18,13 @@ importers:
         version: 3.9.6
       tsdown:
         specifier: 0.22.14
-        version: 0.22.14(typescript@6.0.3)
+        version: 0.22.14(typescript@6.0.3)(unrun@0.3.1)
       typescript:
         specifier: 6.0.3
         version: 6.0.3
+      unrun:
+        specifier: 0.3.1
+        version: 0.3.1
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@26.2.0)
@@ -259,6 +262,72 @@ importers:
         specifier: workspace:*
         version: link:../runtime
 
+  packages/project:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/inbox":
+        specifier: workspace:*
+        version: link:../inbox
+      "@openmatter/integration":
+        specifier: workspace:*
+        version: link:../integration
+      "@openmatter/orchestration":
+        specifier: workspace:*
+        version: link:../orchestration
+      "@openmatter/runtime":
+        specifier: workspace:*
+        version: link:../runtime
+
+  packages/project-host:
+    dependencies:
+      "@openmatter/agent":
+        specifier: workspace:*
+        version: link:../agent
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/inbox":
+        specifier: workspace:*
+        version: link:../inbox
+      "@openmatter/inbox-sqlite":
+        specifier: workspace:*
+        version: link:../inbox-sqlite
+      "@openmatter/orchestration":
+        specifier: workspace:*
+        version: link:../orchestration
+      "@openmatter/project":
+        specifier: workspace:*
+        version: link:../project
+      "@openmatter/runtime":
+        specifier: workspace:*
+        version: link:../runtime
+      "@openmatter/store":
+        specifier: workspace:*
+        version: link:../store
+      "@openmatter/store-sqlite":
+        specifier: workspace:*
+        version: link:../store-sqlite
+
+  packages/project-mcp:
+    dependencies:
+      "@modelcontextprotocol/server":
+        specifier: 2.0.0
+        version: 2.0.0
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/project":
+        specifier: workspace:*
+        version: link:../project
+      "@openmatter/project-host":
+        specifier: workspace:*
+        version: link:../project-host
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+
   packages/runtime:
     dependencies:
       "@openmatter/agent":
@@ -284,6 +353,15 @@ importers:
         version: link:../core
 
   packages/store-memory:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/store":
+        specifier: workspace:*
+        version: link:../store
+
+  packages/store-sqlite:
     dependencies:
       "@openmatter/core":
         specifier: workspace:*
@@ -342,6 +420,20 @@ packages:
       {
         integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==,
       }
+
+  "@modelcontextprotocol/core@2.0.0":
+    resolution:
+      {
+        integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==,
+      }
+    engines: { node: ">=20" }
+
+  "@modelcontextprotocol/server@2.0.0":
+    resolution:
+      {
+        integrity: sha512-YhHWdHfpFMQfd0prsEnxKeS3Qz3ytIGmsS0sth4KDjnacIT7hxk6hXHkJ9KysxlkvTM+WZAtQbbcUhdoP4Hvtw==,
+      }
+    engines: { node: ">=20" }
 
   "@openma/common@https://codeload.github.com/openma-ai/openma-common/tar.gz/9cebdb1bfc4630c5f6e2fc8f9b8f96599314c3f1":
     resolution:
@@ -649,6 +741,7 @@ packages:
       }
     cpu: [arm64]
     os: [android]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-darwin-arm64@0.8.7":
     resolution:
@@ -657,6 +750,7 @@ packages:
       }
     cpu: [arm64]
     os: [darwin]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-darwin-x64@0.8.7":
     resolution:
@@ -665,6 +759,7 @@ packages:
       }
     cpu: [x64]
     os: [darwin]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-freebsd-x64@0.8.7":
     resolution:
@@ -673,6 +768,7 @@ packages:
       }
     cpu: [x64]
     os: [freebsd]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-linux-arm-gnu@0.8.7":
     resolution:
@@ -682,6 +778,7 @@ packages:
     cpu: [arm]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-linux-arm-musl@0.8.7":
     resolution:
@@ -691,6 +788,7 @@ packages:
     cpu: [arm]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-linux-arm64-gnu@0.8.7":
     resolution:
@@ -700,6 +798,7 @@ packages:
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-linux-arm64-musl@0.8.7":
     resolution:
@@ -709,6 +808,7 @@ packages:
     cpu: [arm64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-linux-x64-gnu@0.8.7":
     resolution:
@@ -718,6 +818,7 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-linux-x64-musl@0.8.7":
     resolution:
@@ -727,6 +828,7 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-win32-arm64@0.8.7":
     resolution:
@@ -735,6 +837,7 @@ packages:
       }
     cpu: [arm64]
     os: [win32]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-codegen/binding-win32-x64@0.8.7":
     resolution:
@@ -743,6 +846,7 @@ packages:
       }
     cpu: [x64]
     os: [win32]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   "@yuku-parser/binding-android-arm64@0.8.7":
     resolution:
@@ -751,6 +855,7 @@ packages:
       }
     cpu: [arm64]
     os: [android]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-darwin-arm64@0.8.7":
     resolution:
@@ -759,6 +864,7 @@ packages:
       }
     cpu: [arm64]
     os: [darwin]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-darwin-x64@0.8.7":
     resolution:
@@ -767,6 +873,7 @@ packages:
       }
     cpu: [x64]
     os: [darwin]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-freebsd-x64@0.8.7":
     resolution:
@@ -775,6 +882,7 @@ packages:
       }
     cpu: [x64]
     os: [freebsd]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-linux-arm-gnu@0.8.7":
     resolution:
@@ -784,6 +892,7 @@ packages:
     cpu: [arm]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-linux-arm-musl@0.8.7":
     resolution:
@@ -793,6 +902,7 @@ packages:
     cpu: [arm]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-linux-arm64-gnu@0.8.7":
     resolution:
@@ -802,6 +912,7 @@ packages:
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-linux-arm64-musl@0.8.7":
     resolution:
@@ -811,6 +922,7 @@ packages:
     cpu: [arm64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-linux-x64-gnu@0.8.7":
     resolution:
@@ -820,6 +932,7 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-linux-x64-musl@0.8.7":
     resolution:
@@ -829,6 +942,7 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-win32-arm64@0.8.7":
     resolution:
@@ -837,6 +951,7 @@ packages:
       }
     cpu: [arm64]
     os: [win32]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-parser/binding-win32-x64@0.8.7":
     resolution:
@@ -845,6 +960,7 @@ packages:
       }
     cpu: [x64]
     os: [win32]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   "@yuku-toolchain/types@0.8.7":
     resolution:
@@ -1650,6 +1766,19 @@ packages:
       }
     engines: { node: ">=20.18.1" }
 
+  unrun@0.3.1:
+    resolution:
+      {
+        integrity: sha512-onIck/oNnCaytwths1ZVp1LK2Gq2hPoyFhiHebObuUXqR3S0uHuLLaBK8K6mRRgV7Ptip8AnNvaUsgzwWwBZuA==,
+      }
+    engines: { node: ^22.13.0 || >=24.0.0 }
+    hasBin: true
+    peerDependencies:
+      synckit: ^0.11.11
+    peerDependenciesMeta:
+      synckit:
+        optional: true
+
   verkit@0.3.2:
     resolution:
       {
@@ -1778,6 +1907,12 @@ packages:
         integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==,
       }
 
+  zod@4.6.5:
+    resolution:
+      {
+        integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==,
+      }
+
 snapshots:
   "@agentclientprotocol/sdk@1.3.0(zod@4.4.3)":
     dependencies:
@@ -1807,6 +1942,15 @@ snapshots:
       ipaddr.js: 2.5.0
 
   "@jridgewell/sourcemap-codec@1.5.5": {}
+
+  "@modelcontextprotocol/core@2.0.0":
+    dependencies:
+      zod: 4.6.5
+
+  "@modelcontextprotocol/server@2.0.0":
+    dependencies:
+      "@modelcontextprotocol/core": 2.0.0
+      zod: 4.6.5
 
   "@openma/common@https://codeload.github.com/openma-ai/openma-common/tar.gz/9cebdb1bfc4630c5f6e2fc8f9b8f96599314c3f1":
     dependencies:
@@ -2383,7 +2527,7 @@ snapshots:
 
   tree-kill@1.2.2: {}
 
-  tsdown@0.22.14(typescript@6.0.3):
+  tsdown@0.22.14(typescript@6.0.3)(unrun@0.3.1):
     dependencies:
       ansis: 4.3.1
       cac: 7.0.0
@@ -2402,6 +2546,7 @@ snapshots:
       verkit: 0.3.2
     optionalDependencies:
       typescript: 6.0.3
+      unrun: 0.3.1
     transitivePeerDependencies:
       - "@typescript/native-preview"
       - "@volar/typescript"
@@ -2418,6 +2563,10 @@ snapshots:
   undici-types@8.3.0: {}
 
   undici@7.29.0: {}
+
+  unrun@0.3.1:
+    dependencies:
+      rolldown: 1.2.5
 
   verkit@0.3.2: {}
 
@@ -2515,3 +2664,5 @@ snapshots:
       "@yuku-parser/binding-win32-x64": 0.8.7
 
   zod@4.4.3: {}
+
+  zod@4.6.5: {}

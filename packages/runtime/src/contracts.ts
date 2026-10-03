@@ -84,6 +84,11 @@ export interface AgentTurnResult {
   readonly output: JsonValue | undefined;
 }
 
+export interface AgentCancellationResult {
+  readonly status: "requested" | "idle";
+  readonly turnId?: string;
+}
+
 export interface AgentPermissionRequest {
   readonly agentId: string;
   readonly requestId: string;
@@ -130,6 +135,10 @@ export interface WorkContext {
       readonly authority?: string;
       readonly privacyPartition: string;
     }) => {
+      readonly cancel: () => Effect.Effect<
+        AgentCancellationResult,
+        AgentAccessError | AgentDriverError | StoreError
+      >;
       readonly turn: (
         input: AgentTurnOptions,
       ) => Effect.Effect<
