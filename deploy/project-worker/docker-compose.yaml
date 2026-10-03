@@ -1,0 +1,30 @@
+# Run from the OpenMatter repo root:
+#   docker compose -f deploy/project-worker/docker-compose.yaml up --build
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: openmatter_projects
+      MYSQL_USER: openmatter
+      MYSQL_PASSWORD: openmatter
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - project-worker-mysql:/var/lib/mysql
+  project-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/project-worker/Dockerfile
+    depends_on:
+      - mysql
+    ports:
+      - "8788:8788"
+    environment:
+      PROJECT_WORKER_OPENMA_URL: http://host.docker.internal:8787
+      PROJECT_WORKER_STORE: mysql
+      PROJECT_WORKER_MYSQL_URL: mysql://openmatter:openmatter@mysql:3306/openmatter_projects
+      PROJECT_WORKER_CREDENTIAL_KEY: ${PROJECT_WORKER_CREDENTIAL_KEY}
+      PROJECT_WORKER_GITHUB_TOKEN: ${PROJECT_WORKER_GITHUB_TOKEN:-}
+      PROJECT_WORKER_WORKSPACE_ID: ${PROJECT_WORKER_WORKSPACE_ID:-}
+      PROJECT_WORKER_LISTEN: 0.0.0.0:8788
+volumes:
+  project-worker-mysql:

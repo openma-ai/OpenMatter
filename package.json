@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "build:projects": "tsdown --filter @openmatter/project --filter @openmatter/project-host --filter @openmatter/project-mcp --filter @openmatter/store-sqlite",
+    "build:projects": "tsdown --filter @openmatter/project --filter @openmatter/project-host --filter @openmatter/project-mcp --filter @openmatter/store-sqlite --filter @openmatter/store-mysql --filter @openmatter/project-worker",
     "check": "pnpm format:check && pnpm test && pnpm typecheck && pnpm build",
     "format": "prettier --write packages tests examples *.json *.ts *.yaml README.md docs/*.md",
     "format:check": "prettier --check packages tests examples *.json *.ts *.yaml README.md docs/*.md",

@@ -9,6 +9,25 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_WORKER_MYSQL_URL: mysql://openmatter:openmatter@127.0.0.1:3306/openmatter_projects
+    services:
+      # MariaDB 10.11 matches the store tests. PROJECT_WORKER_MYSQL_URL makes them run.
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: openmatter_projects
+          MARIADB_USER: openmatter
+          MARIADB_PASSWORD: openmatter
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+          --health-start-period=20s
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

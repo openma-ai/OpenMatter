@@ -328,6 +328,42 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
 
+  packages/project-worker:
+    dependencies:
+      "@openmatter/agent":
+        specifier: workspace:*
+        version: link:../agent
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/orchestration":
+        specifier: workspace:*
+        version: link:../orchestration
+      "@openmatter/project":
+        specifier: workspace:*
+        version: link:../project
+      "@openmatter/project-host":
+        specifier: workspace:*
+        version: link:../project-host
+      "@openmatter/project-mcp":
+        specifier: workspace:*
+        version: link:../project-mcp
+      "@openmatter/runtime":
+        specifier: workspace:*
+        version: link:../runtime
+      "@openmatter/store":
+        specifier: workspace:*
+        version: link:../store
+      "@openmatter/store-mysql":
+        specifier: workspace:*
+        version: link:../store-mysql
+      "@openmatter/store-sqlite":
+        specifier: workspace:*
+        version: link:../store-sqlite
+      mysql2:
+        specifier: 3.15.3
+        version: 3.15.3
+
   packages/runtime:
     dependencies:
       "@openmatter/agent":
@@ -360,6 +396,18 @@ importers:
       "@openmatter/store":
         specifier: workspace:*
         version: link:../store
+
+  packages/store-mysql:
+    dependencies:
+      "@openmatter/core":
+        specifier: workspace:*
+        version: link:../core
+      "@openmatter/store":
+        specifier: workspace:*
+        version: link:../store
+      mysql2:
+        specifier: 3.15.3
+        version: 3.15.3
 
   packages/store-sqlite:
     dependencies:
@@ -1013,6 +1061,13 @@ packages:
         integrity: sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A==,
       }
 
+  aws-ssl-profiles@1.1.2:
+    resolution:
+      {
+        integrity: sha512-NZKeq9AfyQvEeNlN0zSYAaWrmBffJh3IELMZfRpJVWgrpEbtEpnjvzqBPf+mxoI287JohRDoa+/nsfqqiZmF6g==,
+      }
+    engines: { node: ">= 6.0.0" }
+
   cac@7.0.0:
     resolution:
       {
@@ -1045,6 +1100,13 @@ packages:
       {
         integrity: sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ==,
       }
+
+  denque@2.1.0:
+    resolution:
+      {
+        integrity: sha512-HVQE3AAb/pxF8fQAoiqpvg9i3evqug3hoiwakOyZAwJm+6vZehbkYXZ0l4JxS+I3QxM97v5aaRNhj8v5oBhekw==,
+      }
+    engines: { node: ">=0.10" }
 
   dequal@2.0.3:
     resolution:
@@ -1198,6 +1260,12 @@ packages:
     engines: { node: ^8.16.0 || ^10.6.0 || >=11.0.0 }
     os: [darwin]
 
+  generate-function@2.3.1:
+    resolution:
+      {
+        integrity: sha512-eeB5GfMNeevm/GRYq20ShmsaGcmI81kIX2K9XQx5miC8KdHaC6Jm0qQ8ZNeGOi7wYB8OsdxKs+Y2oVuTFuVwKQ==,
+      }
+
   get-tsconfig@5.0.0-beta.5:
     resolution:
       {
@@ -1218,6 +1286,13 @@ packages:
         integrity: sha512-U9LYDy1CwhMCnprUfeAZWZGByVbhd54hwepegYTK7Pi5NvqEj63ifz5z+xukznehT7i6NIZRu89Ay1AZmRsLEQ==,
       }
 
+  iconv-lite@0.7.3:
+    resolution:
+      {
+        integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==,
+      }
+    engines: { node: ">=0.10.0" }
+
   import-without-cache@0.4.0:
     resolution:
       {
@@ -1231,6 +1306,12 @@ packages:
         integrity: sha512-aq+t5NAc+cS6rZQQVWC2x98CPqGtKKTMDd4Gaodv0wShnItdKg/51djkGJ1hqH+Oy0ivDftCbSLCQob8zso01w==,
       }
     engines: { node: ">= 10" }
+
+  is-property@1.0.2:
+    resolution:
+      {
+        integrity: sha512-Ks/IoX00TtClbGQr4TWXemAnktAQvYB7HzcCxDGqEZU6oCmb2INHuOoKxbtR+HFkmYWBKv/dOZtGRiAjDhj92g==,
+      }
 
   json-schema-ref-resolver@3.0.0:
     resolution:
@@ -1360,11 +1441,38 @@ packages:
       }
     engines: { node: ">= 12.0.0" }
 
+  long@5.3.2:
+    resolution:
+      {
+        integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==,
+      }
+
+  lru.min@1.1.5:
+    resolution:
+      {
+        integrity: sha512-5J9ysMYUpYIg9RF2vJpy9SinEmSviFSe0GyPpCQ4L5QSkLAgeLXlTAOu2ZwWUU5m+0SBl6gUU1R1ZQB3aKypfA==,
+      }
+    engines: { bun: ">=1.0.0", deno: ">=1.30.0", node: ">=8.0.0" }
+
   magic-string@0.30.21:
     resolution:
       {
         integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==,
       }
+
+  mysql2@3.15.3:
+    resolution:
+      {
+        integrity: sha512-FBrGau0IXmuqg4haEZRBfHNWB5mUARw6hNwPDXXGg0XzVJ50mr/9hb267lvpVMnhZ1FON3qNd4Xfcez1rbFwSg==,
+      }
+    engines: { node: ">= 8.0" }
+
+  named-placeholders@1.1.6:
+    resolution:
+      {
+        integrity: sha512-Tz09sEL2EEuv5fFowm419c1+a/jSMiBjI9gHxVLrVdbUkkNUUfjsVYs9pVZu5oCon/kmRh9TfLEObFtkVxmY0w==,
+      }
+    engines: { node: ">=8.0.0" }
 
   nanoid@3.3.18:
     resolution:
@@ -1596,6 +1704,12 @@ packages:
       }
     engines: { node: ">=10" }
 
+  safer-buffer@2.1.2:
+    resolution:
+      {
+        integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==,
+      }
+
   secure-json-parse@4.1.0:
     resolution:
       {
@@ -1609,6 +1723,12 @@ packages:
       }
     engines: { node: ">=10" }
     hasBin: true
+
+  seq-queue@0.0.5:
+    resolution:
+      {
+        integrity: sha512-hr3Wtp/GZIc/6DAGPDcV4/9WoZhjrkXsi5B/07QgX8tsdc6ilr7BFM6PM6rbdAX1kFSDYeZGLipIZZKyQP0O5Q==,
+      }
 
   set-cookie-parser@2.7.2:
     resolution:
@@ -1641,6 +1761,13 @@ packages:
         integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==,
       }
     engines: { node: ">= 10.x" }
+
+  sqlstring@2.3.3:
+    resolution:
+      {
+        integrity: sha512-qC9iz2FlN7DQl3+wjwn3802RTyjCx7sDvfQEXchwa6CWOx07/WVfh91gBmQ9fahw8snwGEWU3xGzOt4tFyHLxg==,
+      }
+    engines: { node: ">= 0.6" }
 
   stackback@0.0.2:
     resolution:
@@ -2193,6 +2320,8 @@ snapshots:
       "@fastify/error": 4.2.0
       fastq: 1.20.1
 
+  aws-ssl-profiles@1.1.2: {}
+
   cac@7.0.0: {}
 
   chai@6.2.2: {}
@@ -2202,6 +2331,8 @@ snapshots:
   cookie@1.1.1: {}
 
   defu@6.1.7: {}
+
+  denque@2.1.0: {}
 
   dequal@2.0.3: {}
 
@@ -2288,6 +2419,10 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
+  generate-function@2.3.1:
+    dependencies:
+      is-property: 1.0.2
+
   get-tsconfig@5.0.0-beta.5:
     dependencies:
       resolve-pkg-maps: 1.0.0
@@ -2296,9 +2431,15 @@ snapshots:
 
   hookable@6.1.1: {}
 
+  iconv-lite@0.7.3:
+    dependencies:
+      safer-buffer: 2.1.2
+
   import-without-cache@0.4.0: {}
 
   ipaddr.js@2.5.0: {}
+
+  is-property@1.0.2: {}
 
   json-schema-ref-resolver@3.0.0:
     dependencies:
@@ -2361,9 +2502,29 @@ snapshots:
       lightningcss-win32-arm64-msvc: 1.33.0
       lightningcss-win32-x64-msvc: 1.33.0
 
+  long@5.3.2: {}
+
+  lru.min@1.1.5: {}
+
   magic-string@0.30.21:
     dependencies:
       "@jridgewell/sourcemap-codec": 1.5.5
+
+  mysql2@3.15.3:
+    dependencies:
+      aws-ssl-profiles: 1.1.2
+      denque: 2.1.0
+      generate-function: 2.3.1
+      iconv-lite: 0.7.3
+      long: 5.3.2
+      lru.min: 1.1.5
+      named-placeholders: 1.1.6
+      seq-queue: 0.0.5
+      sqlstring: 2.3.3
+
+  named-placeholders@1.1.6:
+    dependencies:
+      lru.min: 1.1.5
 
   nanoid@3.3.18: {}
 
@@ -2488,9 +2649,13 @@ snapshots:
 
   safe-stable-stringify@2.5.0: {}
 
+  safer-buffer@2.1.2: {}
+
   secure-json-parse@4.1.0: {}
 
   semver@7.8.5: {}
+
+  seq-queue@0.0.5: {}
 
   set-cookie-parser@2.7.2: {}
 
@@ -2503,6 +2668,8 @@ snapshots:
   source-map-js@1.2.1: {}
 
   split2@4.2.0: {}
+
+  sqlstring@2.3.3: {}
 
   stackback@0.0.2: {}
 

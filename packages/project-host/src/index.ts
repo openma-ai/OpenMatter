@@ -1,4 +1,6 @@
 export {
+  goalContinuationText,
+  goalTurnTokens,
   projectWorkThreadId,
   type ProjectGoalInput,
   type ThreadGoal,

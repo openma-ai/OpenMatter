@@ -17,6 +17,7 @@
       "@openmatter/store": ["./packages/store/src/index.ts"],
       "@openmatter/store-memory": ["./packages/store-memory/src/index.ts"],
       "@openmatter/store-sqlite": ["./packages/store-sqlite/src/index.ts"],
+      "@openmatter/store-mysql": ["./packages/store-mysql/src/index.ts"],
       "@openmatter/inbox": ["./packages/inbox/src/index.ts"],
       "@openmatter/inbox-sqlite": ["./packages/inbox-sqlite/src/index.ts"],
       "@openmatter/integration": ["./packages/integration/src/index.ts"],
@@ -44,6 +45,7 @@
       "@openmatter/project": ["./packages/project/src/index.ts"],
       "@openmatter/project-host": ["./packages/project-host/src/index.ts"],
       "@openmatter/project-mcp": ["./packages/project-mcp/src/index.ts"],
+      "@openmatter/project-worker": ["./packages/project-worker/src/index.ts"],
       "@openmatter/http": ["./packages/http/src/index.ts"],
       "@openmatter/fastify": ["./packages/fastify/src/index.ts"],
       "@openmatter/hono": ["./packages/hono/src/index.ts"]
