@@ -1,0 +1,37 @@
+{
+  "name": "@openmatter/project-worker",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@openmatter/agent": "workspace:*",
+    "@openmatter/core": "workspace:*",
+    "@openmatter/orchestration": "workspace:*",
+    "@openmatter/project": "workspace:*",
+    "@openmatter/project-host": "workspace:*",
+    "@openmatter/project-mcp": "workspace:*",
+    "@openmatter/runtime": "workspace:*",
+    "@openmatter/store": "workspace:*",
+    "@openmatter/store-mysql": "workspace:*",
+    "@openmatter/store-sqlite": "workspace:*",
+    "mysql2": "3.15.3"
+  },
+  "peerDependencies": {
+    "effect": "^3.22.1"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

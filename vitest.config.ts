@@ -18,6 +18,9 @@ export default defineConfig({
       "@openmatter/store-sqlite": fromRoot(
         "./packages/store-sqlite/src/index.ts",
       ),
+      "@openmatter/store-mysql": fromRoot(
+        "./packages/store-mysql/src/index.ts",
+      ),
       "@openmatter/inbox": fromRoot("./packages/inbox/src/index.ts"),
       "@openmatter/inbox-sqlite": fromRoot(
         "./packages/inbox-sqlite/src/index.ts",
@@ -56,6 +59,9 @@ export default defineConfig({
       ),
       "@openmatter/project-mcp": fromRoot(
         "./packages/project-mcp/src/index.ts",
+      ),
+      "@openmatter/project-worker": fromRoot(
+        "./packages/project-worker/src/index.ts",
       ),
       "@openmatter/http": fromRoot("./packages/http/src/index.ts"),
       "@openmatter/fastify": fromRoot("./packages/fastify/src/index.ts"),

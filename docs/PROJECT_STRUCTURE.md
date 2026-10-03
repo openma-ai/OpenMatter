@@ -14,9 +14,11 @@ packages/
 ├── store                durable claims, snapshots, outbox and fencing port
 ├── store-memory         process-local Store reference adapter
 ├── store-sqlite         embedded Node Store adapter
+├── store-mysql          MySQL Store adapter for hosted Projects
 ├── project              project commands, controls and WorkIntegration
 ├── project-host         local project composition: config, inbox and coordinator
 ├── project-mcp          MCP binding for project controls and thread goals
+├── project-worker       multi-tenant cloud Projects HTTP service
 ├── inbox                durable native-ingress claim and fencing port
 ├── inbox-sqlite         embedded Node durable-inbox adapter
 ├── integration          work-platform ingress/egress port
