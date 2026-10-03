@@ -12,6 +12,7 @@ jobs:
     env:
       PROJECT_WORKER_MYSQL_URL: mysql://openmatter:openmatter@127.0.0.1:3306/openmatter_projects
     services:
+      # MariaDB 10.11 matches the store tests. PROJECT_WORKER_MYSQL_URL makes them run.
       mariadb:
         image: mariadb:10.11
         env:
