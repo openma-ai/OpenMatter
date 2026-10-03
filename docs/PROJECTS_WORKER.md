@@ -40,7 +40,9 @@ Backchat `ProjectCloudRouter` calls `GET /info` with no API key and no
 `x-active-tenant`, then requires `workspaceId` and `openmaUrl` to match the
 saved OpenMA workspace.
 
-Set `PROJECT_WORKER_WORKSPACE_ID` to that workspace. Unauthenticated
+Set `PROJECT_WORKER_WORKSPACE_ID` to that workspace. This is the supported
+single-tenant compatibility mode, including for a worker that stores many
+tenants in MySQL. It is independent of `PROJECT_WORKER_STORE`. Unauthenticated
 `GET /info` then returns:
 
 ```json
@@ -143,4 +145,7 @@ PROJECT_WORKER_MYSQL_URL=mysql://openmatter:openmatter@127.0.0.1:3306/openmatter
 ```
 
 Without `PROJECT_WORKER_MYSQL_URL`, MySQL cases skip and say why. SQLite
-covers the same worker routes.
+covers the same worker routes. CI starts MariaDB 10.11 and sets
+`PROJECT_WORKER_MYSQL_URL`, so the fencing, reopen, and tenant-isolation tests
+run there. CI does not set `PROJECT_WORKER_WORKSPACE_ID`; that remains the
+deploy-time switch for current backchat.
