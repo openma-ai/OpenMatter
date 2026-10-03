@@ -13,6 +13,10 @@ packages/
 ├── credentials          authority-scoped live credential resolver port
 ├── store                durable claims, snapshots, outbox and fencing port
 ├── store-memory         process-local Store reference adapter
+├── store-sqlite         embedded Node Store adapter
+├── project              project commands, controls and WorkIntegration
+├── project-host         local project composition: config, inbox and coordinator
+├── project-mcp          MCP binding for project controls and thread goals
 ├── inbox                durable native-ingress claim and fencing port
 ├── inbox-sqlite         embedded Node durable-inbox adapter
 ├── integration          work-platform ingress/egress port
@@ -38,6 +42,10 @@ packages/
 
 ```text
 store-memory ──→ store ──┐
+store-sqlite ───→ store ──┤
+project ─────────→ core + inbox + integration + orchestration + runtime
+project-host ────→ project + store-sqlite + inbox-sqlite + runtime
+project-mcp ─────→ project + project-host
 inbox-sqlite ──→ inbox ───┤
 integration-mock → integration ─┼─→ core
 agent-mock ─────→ agent ────────┤

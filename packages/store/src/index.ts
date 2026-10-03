@@ -5,7 +5,10 @@ import type {
   PermissionDecision,
   Reaction,
   ReactionReceipt,
+  ThreadGoal,
+  ThreadGoalStatus,
   Turn,
+  TurnCancellationRequest,
   WorkEvent,
 } from "@openmatter/core";
 import type { OpenMAEvent } from "@openmatter/agent";
@@ -61,18 +64,70 @@ export type TerminalReactionCommit =
   | { readonly _tag: "Committed"; readonly reaction: Reaction }
   | { readonly _tag: "Existing"; readonly reaction: Reaction };
 
+export interface CreateThreadGoalInput {
+  readonly scopeId: string;
+  readonly workThreadId: string;
+  readonly objective: string;
+  readonly tokenBudget?: number;
+}
+
+export interface UpdateThreadGoalInput {
+  readonly expectedGoalId?: string;
+  readonly expectedRevision?: number;
+  readonly objective?: string;
+  readonly status?: ThreadGoalStatus;
+  /** null removes the budget; omitting it preserves the current budget. */
+  readonly tokenBudget?: number | null;
+  /** An empty string clears a previous reason. */
+  readonly reason?: string;
+}
+
+export interface AccountThreadGoalInput {
+  readonly goalId: string;
+  readonly turnId: string;
+  /** Final nonnegative usage deltas for this Turn, applied exactly once. */
+  readonly tokensUsed: number;
+  readonly timeUsedSeconds: number;
+}
+
 export interface StoreSnapshot {
+  readonly goals: readonly ThreadGoal[];
   readonly events: readonly WorkEvent[];
   readonly reactions: readonly Reaction[];
   readonly deliveries: readonly EffectDeliveryReceipt[];
   readonly sessions: readonly AgentSession[];
   readonly turns: readonly Turn[];
+  readonly turnCancellationRequests: readonly TurnCancellationRequest[];
   readonly contexts: readonly ContextProjection[];
   readonly agentEvents: readonly OpenMAEvent[];
   readonly permissionDecisions: readonly PermissionDecision[];
 }
 
 export interface OpenMatterStore {
+  /** Only an absent or completed goal may be replaced. */
+  readonly createThreadGoal: (
+    input: CreateThreadGoalInput,
+  ) => Effect.Effect<ThreadGoal, StoreError>;
+  readonly getThreadGoal: (
+    workThreadId: string,
+  ) => Effect.Effect<ThreadGoal | undefined, StoreError>;
+  readonly listThreadGoals: (
+    scopeId?: string,
+  ) => Effect.Effect<readonly ThreadGoal[], StoreError>;
+  /** Stale goal IDs or revisions fail without changing the current goal. */
+  readonly updateThreadGoal: (
+    workThreadId: string,
+    input: UpdateThreadGoalInput,
+  ) => Effect.Effect<ThreadGoal, StoreError>;
+  /** Idempotent by goal/Turn. Conflicting receipts and stale goal IDs fail. */
+  readonly accountThreadGoal: (
+    workThreadId: string,
+    input: AccountThreadGoalInput,
+  ) => Effect.Effect<ThreadGoal, StoreError>;
+  readonly clearThreadGoal: (
+    workThreadId: string,
+    expectedGoalId?: string,
+  ) => Effect.Effect<boolean, StoreError>;
   readonly claimEvent: (
     event: WorkEvent,
     lease: LeaseRequest,
@@ -133,6 +188,16 @@ export interface OpenMatterStore {
   readonly getTurn: (
     turnId: string,
   ) => Effect.Effect<Turn | undefined, StoreError>;
+  /** Persist one cancellation intent for the currently active Turn bound to
+   * this Session. Existing intent wins, making webhook replay idempotent. */
+  readonly requestTurnCancellation: (
+    bindingKey: string,
+    requestedByEventId: string,
+    requestedAt: string,
+  ) => Effect.Effect<TurnCancellationRequest | undefined, StoreError>;
+  readonly getTurnCancellation: (
+    turnId: string,
+  ) => Effect.Effect<TurnCancellationRequest | undefined, StoreError>;
   readonly getAgentEvents: (
     turnId: string,
   ) => Effect.Effect<readonly OpenMAEvent[], StoreError>;

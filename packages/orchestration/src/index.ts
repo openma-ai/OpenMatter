@@ -7,6 +7,17 @@ import {
 } from "@openmatter/runtime";
 import { Effect } from "effect";
 
+export {
+  coordinatorLoop,
+  linearLoop,
+  type CoordinatorLoopOptions,
+  type CoordinatorAssociation,
+  type CoordinatorControl,
+  type CoordinatorRunAssociation,
+  type CoordinatorThread,
+  type LinearLoopOptions,
+} from "./coordinator-loop.js";
+
 export interface ClaudeTagOptions {
   readonly agentId: string;
   readonly commandVisibility?: "ephemeral" | "channel";

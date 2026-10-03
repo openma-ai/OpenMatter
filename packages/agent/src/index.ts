@@ -34,6 +34,9 @@ export type AgentSessionHandle = typeof AgentSessionHandleSchema.Type;
 export interface AgentSessionCreateInput {
   readonly sessionId: string;
   readonly bindingKey: string;
+  /** Stable work identity, independent of the session generation. */
+  readonly scopeId?: string;
+  readonly workThreadId?: string;
   readonly generation: number;
   /** Stable across replay; Drivers must make remote creation idempotent by it. */
   readonly idempotencyKey: string;
