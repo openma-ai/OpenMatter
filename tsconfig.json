@@ -14,6 +14,7 @@
     "paths": {
       "@openmatter/core": ["./packages/core/src/index.ts"],
       "@openmatter/credentials": ["./packages/credentials/src/index.ts"],
+      "@openmatter/bond": ["./packages/bond/src/index.ts"],
       "@openmatter/store": ["./packages/store/src/index.ts"],
       "@openmatter/store-memory": ["./packages/store-memory/src/index.ts"],
       "@openmatter/store-sqlite": ["./packages/store-sqlite/src/index.ts"],

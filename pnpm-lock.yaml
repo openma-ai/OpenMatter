@@ -122,6 +122,12 @@ importers:
         specifier: workspace:*
         version: link:../agent
 
+  packages/bond:
+    dependencies:
+      "@openmatter/credentials":
+        specifier: workspace:*
+        version: link:../credentials
+
   packages/core: {}
 
   packages/credentials: {}
