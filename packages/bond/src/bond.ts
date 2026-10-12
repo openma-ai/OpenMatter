@@ -22,6 +22,7 @@ import type {
   LinkHealth,
   LinkMethod,
   LinkMethodPolicy,
+  PrincipalPolicy,
   PrincipalResolution,
   ProviderAppConfig,
   Sealed,
@@ -63,7 +64,7 @@ export interface BondOptions {
   readonly leaseAttempts?: number;
   /** Report `expiring` for personal access tokens inside this window. Default 7 days. */
   readonly patWarningMs?: number;
-  /** Receives one fact per credential resolution. */
+  /** Receives one fact per credential resolution, granted or denied. */
   readonly audit?: (fact: AuditFact) => Effect.Effect<void>;
 }
 
@@ -112,9 +113,23 @@ export interface CredentialInput {
   /** Required when the tenant owns several Installations of the ProviderApp. */
   readonly installationId?: string;
   readonly principal: ExecutionPrincipalRequest;
+  /**
+   * The Session creator. Without it the requester counts as another
+   * participant, which needs `participantsAsPrincipal`.
+   */
   readonly sessionCreatorId?: string;
   readonly access: "read" | "write";
   readonly operation?: string;
+  /** Resource address for the audit fact, such as a project path. */
+  readonly resource?: string;
+}
+
+export interface ReplaceInstallationCredentialInput {
+  readonly tenantId: string;
+  readonly installationId: string;
+  readonly token: string;
+  readonly expiresAt?: string;
+  readonly actor: string;
 }
 
 const randomId = () => globalThis.crypto.randomUUID();
@@ -154,9 +169,9 @@ export const makeBond = (options: BondOptions) => {
       ),
     );
 
-  const config = (providerAppId: string) =>
+  const config = (tenantId: string, providerAppId: string) =>
     options.providerApps
-      .get(providerAppId)
+      .get({ tenantId, providerAppId })
       .pipe(
         Effect.mapError((cause) =>
           bondError("config", cause.message, { cause }),
@@ -220,7 +235,7 @@ export const makeBond = (options: BondOptions) => {
 
   const link = (input: LinkInput) =>
     Effect.gen(function* () {
-      const cfg = yield* config(input.providerAppId);
+      const cfg = yield* config(input.tenantId, input.providerAppId);
       if (!allowedLinkMethods(cfg.linkMethodPolicy).includes(input.method)) {
         return yield* Effect.fail(
           bondError(
@@ -229,7 +244,15 @@ export const makeBond = (options: BondOptions) => {
           ),
         );
       }
-      const scopes = input.grant.scopes ?? [];
+      if (input.grant.scopes === undefined) {
+        return yield* Effect.fail(
+          bondError(
+            "scope_not_allowed",
+            "The provider did not report the granted scopes",
+          ),
+        );
+      }
+      const scopes = input.grant.scopes;
       const extra = scopes.filter((s) => !cfg.allowedScopes.includes(s));
       if (extra.length > 0) {
         return yield* Effect.fail(
@@ -290,8 +313,10 @@ export const makeBond = (options: BondOptions) => {
         );
       }
 
-      // Rule 3: one active link per (tenant, user, ProviderApp). Relinking by
-      // either method revokes the previous grant first.
+      // Rule 3: one active link per (tenant, user, ProviderApp). The new link
+      // is persisted first, so a failure leaves the previous one intact. The
+      // same provider account is updated in place; a different one replaces
+      // the previous link, which is then retired.
       const previous = yield* fromStore(
         store.findUserLink({
           tenantId: input.tenantId,
@@ -299,10 +324,6 @@ export const makeBond = (options: BondOptions) => {
           providerAppId: cfg.id,
         }),
       );
-      if (previous !== undefined) {
-        yield* revokeAtProvider(cfg, previous);
-        yield* tombstone(previous, input.actor, "relinked");
-      }
 
       const access = yield* seal(
         input.grant.accessToken,
@@ -336,6 +357,19 @@ export const makeBond = (options: BondOptions) => {
           ),
         );
       }
+      if (previous !== undefined) {
+        if (previous.id !== result.id) {
+          yield* tombstone(previous, input.actor, "relinked");
+        }
+        // Pasting the same token again must not revoke the token just stored.
+        const previousAccess = yield* open(
+          previous.access,
+          SealPurpose.userAccess,
+        );
+        if (previousAccess !== input.grant.accessToken) {
+          yield* revokeAtProvider(cfg, previous);
+        }
+      }
       return result;
     });
 
@@ -351,7 +385,7 @@ export const makeBond = (options: BondOptions) => {
         return yield* Effect.fail(bondError("not_found", "No such link"));
       }
       if (found.status === "revoked") return { providerRevoked: false };
-      const cfg = yield* config(found.providerAppId);
+      const cfg = yield* config(q.tenantId, found.providerAppId);
       const providerRevoked = yield* revokeAtProvider(cfg, found);
       yield* tombstone(found, q.actor, q.reason);
       return { providerRevoked };
@@ -363,7 +397,7 @@ export const makeBond = (options: BondOptions) => {
     readonly providerAppId: string;
   }) =>
     Effect.gen(function* () {
-      const cfg = yield* config(q.providerAppId);
+      const cfg = yield* config(q.tenantId, q.providerAppId);
       const allowed = allowedLinkMethods(cfg.linkMethodPolicy);
       const links = yield* fromStore(
         store.listUserLinks({ ...q, status: "active" }),
@@ -387,7 +421,7 @@ export const makeBond = (options: BondOptions) => {
 
   const claimInstallation = (input: ClaimInstallationInput) =>
     Effect.gen(function* () {
-      const cfg = yield* config(input.providerAppId);
+      const cfg = yield* config(input.tenantId, input.providerAppId);
       const credential =
         input.credential === undefined
           ? undefined
@@ -420,7 +454,60 @@ export const makeBond = (options: BondOptions) => {
           ),
         );
       }
+      if (result === "already_owned" && credential !== undefined) {
+        // Re-registering a rotated bot token replaces the stored one.
+        const owned = (yield* fromStore(
+          store.listInstallations({
+            tenantId: input.tenantId,
+            providerAppId: cfg.id,
+          }),
+        )).find(
+          (i) =>
+            i.providerInstallationId === input.providerInstallationId &&
+            i.status === "active",
+        );
+        if (owned !== undefined) {
+          yield* fromStore(
+            store.updateInstallationCredential({
+              tenantId: input.tenantId,
+              installationId: owned.id,
+              credential,
+              ...(input.credential?.expiresAt === undefined
+                ? {}
+                : { credentialExpiresAt: input.credential.expiresAt }),
+            }),
+          );
+          appTokenCache.delete(owned.id);
+        }
+      }
       return result;
+    });
+
+  /** Replaces an Installation's stored credential and drops the cached token. */
+  const replaceInstallationCredential = (
+    input: ReplaceInstallationCredentialInput,
+  ) =>
+    Effect.gen(function* () {
+      const credential = yield* seal(
+        input.token,
+        SealPurpose.installationCredential,
+      );
+      const result = yield* fromStore(
+        store.updateInstallationCredential({
+          tenantId: input.tenantId,
+          installationId: input.installationId,
+          credential,
+          ...(input.expiresAt === undefined
+            ? {}
+            : { credentialExpiresAt: input.expiresAt }),
+        }),
+      );
+      appTokenCache.delete(input.installationId);
+      if (result === "not_found") {
+        return yield* Effect.fail(
+          bondError("not_found", "No such active installation"),
+        );
+      }
     });
 
   const releaseInstallation = (q: {
@@ -450,10 +537,18 @@ export const makeBond = (options: BondOptions) => {
           ? found
           : undefined;
       }
-      const all = yield* fromStore(
+      const active = (yield* fromStore(
         store.listInstallations({ tenantId, providerAppId: cfg.id }),
-      );
-      return all.find((i) => i.status === "active");
+      )).filter((i) => i.status === "active");
+      if (active.length > 1) {
+        return yield* Effect.fail(
+          bondError(
+            "installation_required",
+            `The tenant has ${active.length} installations of ${cfg.id}; name one`,
+          ),
+        );
+      }
+      return active[0];
     });
 
   /** Reads the requester's link and settles PAT expiry and method policy. */
@@ -516,19 +611,24 @@ export const makeBond = (options: BondOptions) => {
       return { usable: true, link: found } as LinkState;
     });
 
-  const resolvePrincipal = (input: CredentialInput) =>
+  const resolvePrincipal = (
+    input: CredentialInput,
+    seen: { policy?: PrincipalPolicy } = {},
+  ) =>
     Effect.gen(function* () {
-      const cfg = yield* config(input.providerAppId);
+      const cfg = yield* config(input.tenantId, input.providerAppId);
+      seen.policy = cfg.principalPolicy;
       const p = yield* provider(cfg);
       const installation = yield* activeInstallation(
         input.tenantId,
         cfg,
         input.installationId,
       );
-      const state =
-        input.principal.runAs === "requester"
+      const state: LinkState =
+        input.principal.runAs === "requester" &&
+        input.principal.trigger === "attended"
           ? yield* linkState(input.tenantId, cfg, input.principal.requesterId)
-          : ({ usable: false, reason: "no_link" } as const);
+          : { usable: false, reason: "no_link" };
       const selected = selectPrincipal({
         config: cfg,
         installation,
@@ -551,7 +651,11 @@ export const makeBond = (options: BondOptions) => {
     });
 
   /** Single-flight refresh under the store lease. */
-  const freshUserToken = (cfg: ProviderAppConfig, start: UserLink) =>
+  const freshUserToken = (
+    cfg: ProviderAppConfig,
+    start: UserLink,
+    force = false,
+  ) =>
     Effect.gen(function* () {
       const p = yield* provider(cfg);
       let current = start;
@@ -578,7 +682,11 @@ export const makeBond = (options: BondOptions) => {
             ),
           );
         }
-        if (current.method === "pat" || linkHealth(current) === "ok") {
+        const forced = force && current.revision === start.revision;
+        if (
+          current.method === "pat" ||
+          (!forced && linkHealth(current) === "ok")
+        ) {
           return current;
         }
         if (current.refresh === undefined) {
@@ -617,7 +725,8 @@ export const makeBond = (options: BondOptions) => {
         if (
           latest !== undefined &&
           (rotatedByOther(latest) ||
-            (latest.revision !== current.revision &&
+            (!forced &&
+              latest.revision !== current.revision &&
               linkHealth(latest) === "ok"))
         ) {
           yield* fromStore(
@@ -644,7 +753,8 @@ export const makeBond = (options: BondOptions) => {
                     tenantId: current.tenantId,
                     linkId: current.id,
                     status: "refresh_failed",
-                    reason: cause.message,
+                    // Never the provider's message: it is not ours to store.
+                    reason: `the provider rejected the refresh${cause.status === undefined ? "" : ` (HTTP ${cause.status})`}`,
                   }),
                 );
               }
@@ -755,66 +865,182 @@ export const makeBond = (options: BondOptions) => {
       return minted;
     });
 
-  const credential = (input: CredentialInput) =>
+  const resolveCredential = (
+    input: CredentialInput,
+    seen: { policy?: PrincipalPolicy },
+  ) =>
     Effect.gen(function* () {
-      const {
-        cfg,
-        provider: p,
-        installation,
-        state,
-        resolution,
-      } = yield* resolvePrincipal(input);
-      let result: BondCredential;
-      if (resolution.principal.kind === "app") {
-        if (installation === undefined) {
-          return yield* Effect.fail(
-            bondError("app_not_configured", `${cfg.id} has no app principal`),
-          );
-        }
-        const minted = yield* appToken(cfg, p, installation);
-        result = {
-          token: minted.token,
-          principal: resolution.principal,
-          ...(minted.expiresAt === undefined
-            ? {}
-            : { expiresAt: minted.expiresAt }),
-        };
-      } else {
-        if (!state.usable) {
-          return yield* Effect.fail(
-            bondError("link_required", "No usable link"),
-          );
-        }
-        const fresh = yield* freshUserToken(cfg, state.link);
-        const token = yield* open(fresh.access, SealPurpose.userAccess);
-        result = {
-          token,
-          principal: resolution.principal,
-          method: fresh.method,
-          ...(fresh.accessExpiresAt === undefined
-            ? {}
-            : { expiresAt: fresh.accessExpiresAt }),
-        };
-      }
-      if (options.audit !== undefined) {
-        yield* options.audit({
-          at: clock(),
-          tenantId: input.tenantId,
-          providerAppId: cfg.id,
-          ...(input.principal.requesterId === undefined
-            ? {}
-            : { requestingActor: input.principal.requesterId }),
-          executionPrincipal: result.principal,
-          ...(result.method === undefined ? {} : { method: result.method }),
-          policy: resolution.policy,
-          fallback: resolution.fallback,
-          access: input.access,
-          ...(input.operation === undefined
-            ? {}
-            : { operation: input.operation }),
+      const resolved = yield* resolvePrincipal(input, seen);
+      const { cfg, provider: p, installation } = resolved;
+      let { resolution } = resolved;
+
+      const appCredential = (r: PrincipalResolution) =>
+        Effect.gen(function* () {
+          if (installation === undefined || r.principal.kind !== "app") {
+            return yield* Effect.fail(
+              bondError("app_not_configured", `${cfg.id} has no app principal`),
+            );
+          }
+          const minted = yield* appToken(cfg, p, installation);
+          const result: BondCredential = {
+            token: minted.token,
+            principal: r.principal,
+            ...(minted.expiresAt === undefined
+              ? {}
+              : { expiresAt: minted.expiresAt }),
+          };
+          return result;
         });
+
+      if (resolution.principal.kind === "app") {
+        return { credential: yield* appCredential(resolution), resolution };
       }
+      const { state } = resolved;
+      if (!state.usable) {
+        return yield* Effect.fail(bondError("link_required", "No usable link"));
+      }
+      const fresh = yield* Effect.either(freshUserToken(cfg, state.link));
+      if (Either.isLeft(fresh)) {
+        const e = fresh.left;
+        const ended =
+          !e.retryable &&
+          (e.reason === "refresh_failed" ||
+            e.reason === "revoked" ||
+            e.reason === "expired" ||
+            e.reason === "method_disallowed");
+        if (!ended) return yield* Effect.fail(e);
+        // Rule 1: the link ended during this call. Re-select with the link's
+        // state, which falls back to the app principal only under `user`.
+        const reselected = selectPrincipal({
+          config: cfg,
+          installation,
+          link: {
+            usable: false,
+            reason: e.reason as
+              "refresh_failed" | "revoked" | "expired" | "method_disallowed",
+          },
+          request: input.principal,
+          ...(input.sessionCreatorId === undefined
+            ? {}
+            : { sessionCreatorId: input.sessionCreatorId }),
+          access: input.access,
+          delegationMarker: p.delegationMarker,
+        });
+        if (
+          Either.isLeft(reselected) ||
+          reselected.right.principal.kind !== "app"
+        ) {
+          return yield* Effect.fail(e);
+        }
+        resolution = reselected.right;
+        return { credential: yield* appCredential(resolution), resolution };
+      }
+      const token = yield* open(fresh.right.access, SealPurpose.userAccess);
+      const result: BondCredential = {
+        token,
+        principal: resolution.principal,
+        method: fresh.right.method,
+        ...(fresh.right.accessExpiresAt === undefined
+          ? {}
+          : { expiresAt: fresh.right.accessExpiresAt }),
+      };
       return { credential: result, resolution };
+    });
+
+  const auditFact = (
+    input: CredentialInput,
+    outcome:
+      | {
+          readonly granted: true;
+          readonly credential: BondCredential;
+          readonly resolution: PrincipalResolution;
+        }
+      | {
+          readonly granted: false;
+          readonly error: BondError;
+          readonly policy?: PrincipalPolicy;
+        },
+  ): AuditFact => ({
+    at: clock(),
+    outcome: outcome.granted ? "granted" : "denied",
+    ...(outcome.granted ? {} : { denial: outcome.error.reason }),
+    tenantId: input.tenantId,
+    providerAppId: input.providerAppId,
+    ...(input.principal.requesterId === undefined
+      ? {}
+      : { requestingActor: input.principal.requesterId }),
+    trigger: input.principal.trigger,
+    ...(outcome.granted
+      ? {
+          executionPrincipal: outcome.credential.principal,
+          ...(outcome.credential.method === undefined
+            ? {}
+            : { method: outcome.credential.method }),
+          policy: outcome.resolution.policy,
+        }
+      : outcome.policy === undefined
+        ? {}
+        : { policy: outcome.policy }),
+    fallback: outcome.granted ? outcome.resolution.fallback : false,
+    access: input.access,
+    ...(input.operation === undefined ? {} : { operation: input.operation }),
+    ...(input.resource === undefined ? {} : { resource: input.resource }),
+  });
+
+  /** Resolves a credential and audits the outcome, granted or denied. */
+  const credential = (input: CredentialInput) =>
+    Effect.suspend(() => {
+      const seen: { policy?: PrincipalPolicy } = {};
+      const sink = options.audit;
+      return resolveCredential(input, seen).pipe(
+        Effect.tap((r) =>
+          sink === undefined
+            ? Effect.void
+            : sink(auditFact(input, { granted: true, ...r })),
+        ),
+        Effect.tapError((error) =>
+          sink === undefined
+            ? Effect.void
+            : sink(
+                auditFact(input, {
+                  granted: false,
+                  error,
+                  ...(seen.policy === undefined ? {} : { policy: seen.policy }),
+                }),
+              ),
+        ),
+      );
+    });
+
+  /**
+   * The application saw the provider reject a token Bond handed out. A
+   * personal access token ends as `expired`. An OAuth link is refreshed under
+   * the lease at once; a rejected refresh ends it as `refresh_failed`.
+   */
+  const reportRejected = (q: {
+    readonly tenantId: string;
+    readonly linkId: string;
+  }) =>
+    Effect.gen(function* () {
+      const found = yield* fromStore(store.getUserLink(q));
+      if (found === undefined) {
+        return yield* Effect.fail(bondError("not_found", "No such link"));
+      }
+      if (found.status !== "active") return found.status;
+      if (found.method === "pat") {
+        yield* fromStore(
+          store.updateUserLinkStatus({
+            tenantId: q.tenantId,
+            linkId: found.id,
+            status: "expired",
+            reason: "the provider rejected the personal access token",
+          }),
+        );
+        return "expired" as const;
+      }
+      const cfg = yield* config(q.tenantId, found.providerAppId);
+      yield* freshUserToken(cfg, found, true);
+      return "active" as const;
     });
 
   /**
@@ -827,10 +1053,13 @@ export const makeBond = (options: BondOptions) => {
       readonly installationId?: string;
       readonly access: "read" | "write";
       readonly sessionCreatorId?: string;
+      readonly operation?: string;
+      readonly resource?: string;
     },
   ): CredentialResolver<BondCredential> => ({
     resolve: (request) =>
       Effect.suspend(() => {
+        // Fail closed: Bond never guesses who an operation runs as.
         if (request.principal === undefined) {
           return Effect.fail(
             new CredentialError({
@@ -867,7 +1096,9 @@ export const makeBond = (options: BondOptions) => {
     unlink,
     narrowLinkMethods,
     claimInstallation,
+    replaceInstallationCredential,
     releaseInstallation,
+    reportRejected,
     resolvePrincipal: (input: CredentialInput) =>
       resolvePrincipal(input).pipe(
         Effect.map((r): PrincipalResolution => r.resolution),

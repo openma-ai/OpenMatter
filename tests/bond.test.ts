@@ -4,6 +4,7 @@ import {
   BondError,
   ConfigError,
   ProviderError,
+  StoreError,
   bondStoreConformanceCases,
   makeBond,
   makeMemoryBondStore,
@@ -86,7 +87,11 @@ const fakeProvider = (clock: () => number): FakeProvider => {
         if (p.delayMs > 0) yield* Effect.sleep(p.delayMs);
         if (p.reject) {
           return yield* Effect.fail(
-            new ProviderError({ message: "invalid_grant", rejected: true }),
+            new ProviderError({
+              message: "invalid_grant body=secret-marker",
+              rejected: true,
+              status: 400,
+            }),
           );
         }
         expect(refreshToken.startsWith("refresh-")).toBe(true);
@@ -120,7 +125,7 @@ const setup = (over: Partial<ProviderAppConfig> = {}) => {
   const audit: AuditFact[] = [];
   const bond = makeBond({
     providerApps: {
-      get: (id) => {
+      get: ({ providerAppId: id }) => {
         const cfg = configs.get(id);
         return cfg === undefined
           ? Effect.fail(
@@ -181,7 +186,18 @@ const oauthLink = (
   });
 
 const attended = (requesterId = "u1") =>
-  ({ tenantId: "t1", runAs: "requester", requesterId }) as const;
+  ({
+    tenantId: "t1",
+    trigger: "attended",
+    runAs: "requester",
+    requesterId,
+  }) as const;
+
+const unattendedApp = {
+  tenantId: "t1",
+  trigger: "unattended",
+  runAs: "app",
+} as const;
 
 describe("BondStore conformance (memory adapter)", () => {
   for (const c of bondStoreConformanceCases({
@@ -206,49 +222,106 @@ describe("selectPrincipal", () => {
     link: { id: "l1" },
   } as unknown as Parameters<typeof selectPrincipal>[0]["link"];
   const noLink = { usable: false, reason: "no_link" } as const;
+  type Request = Parameters<typeof selectPrincipal>[0]["request"];
   const pick = (
     policy: ProviderAppConfig["principalPolicy"],
-    hasLink: boolean,
-    hasInstallation: boolean,
-    unattended = false,
+    opts: {
+      readonly runAs?: "app" | "requester";
+      readonly unattended?: boolean;
+      readonly link?: boolean;
+      readonly installation?: boolean;
+    } = {},
   ) =>
     selectPrincipal({
       config: { ...baseConfig, principalPolicy: policy },
-      installation: hasInstallation ? installation : undefined,
-      link: hasLink ? link : noLink,
-      request: unattended
-        ? { tenantId: "t1", runAs: "requester" }
-        : { tenantId: "t1", runAs: "requester", requesterId: "u1" },
+      installation: opts.installation === false ? undefined : installation,
+      link: opts.link === false ? noLink : link,
+      request: (opts.runAs === "app"
+        ? {
+            tenantId: "t1",
+            trigger: opts.unattended === true ? "unattended" : "attended",
+            runAs: "app",
+            requesterId: "u1",
+          }
+        : attended()) as Request,
+      sessionCreatorId: "u1",
       access: "write",
       delegationMarker: false,
     });
   const kind = (r: ReturnType<typeof pick>) =>
     Either.isRight(r)
-      ? `${r.right.principal.kind}${r.right.fallback ? ":fallback" : ""}`
+      ? `${r.right.principal.kind}${r.right.fallback ? `:${r.right.fallback.reason}` : ""}`
       : r.left.reason;
 
-  it("follows the policy table", () => {
-    expect(kind(pick("app", true, true))).toBe("app");
-    expect(kind(pick("app", false, true))).toBe("app");
-    expect(kind(pick("user", true, true))).toBe("user");
-    expect(kind(pick("user", false, true))).toBe("app:fallback");
-    expect(kind(pick("user_only", true, true))).toBe("user");
-    expect(kind(pick("user_only", false, true))).toBe("link_required");
+  it("follows the runAs by policy matrix", () => {
+    expect(kind(pick("app"))).toBe("app:policy_app");
+    expect(kind(pick("user"))).toBe("user");
+    expect(kind(pick("user", { link: false }))).toBe("app:no_link");
+    expect(kind(pick("user_only"))).toBe("user");
+    expect(kind(pick("user_only", { link: false }))).toBe("link_required");
+    expect(kind(pick("app", { runAs: "app" }))).toBe("app");
+    expect(kind(pick("user", { runAs: "app" }))).toBe("app");
+    expect(kind(pick("user_only", { runAs: "app" }))).toBe("app_disallowed");
+    expect(kind(pick("user_only", { runAs: "app", unattended: true }))).toBe(
+      "unattended_unsupported",
+    );
   });
 
-  it("never lends a person's link to unattended work", () => {
-    expect(kind(pick("user", true, true, true))).toBe("app");
-    expect(kind(pick("user_only", true, true, true))).toBe(
-      "unattended_unsupported",
-    );
-    expect(kind(pick("user", true, false, true))).toBe(
-      "unattended_unsupported",
-    );
+  it("never lends a person's link to unattended work, even with a known actor", () => {
+    expect(kind(pick("user", { runAs: "app", unattended: true }))).toBe("app");
+    expect(
+      kind(
+        pick("user", { runAs: "app", unattended: true, installation: false }),
+      ),
+    ).toBe("unattended_unsupported");
+    const unattendedRequester = selectPrincipal({
+      config: { ...baseConfig, principalPolicy: "user" },
+      installation,
+      link,
+      request: {
+        tenantId: "t1",
+        trigger: "unattended",
+        runAs: "requester",
+        requesterId: "u1",
+      } as unknown as Request,
+      sessionCreatorId: "u1",
+      access: "read",
+      delegationMarker: false,
+    });
+    expect(kind(unattendedRequester)).toBe("invalid_principal_request");
+  });
+
+  it("rejects malformed requests instead of guessing", () => {
+    for (const request of [
+      { tenantId: "t1", trigger: "attended", runAs: "requester" },
+      { tenantId: "t1", runAs: "app" },
+      {
+        tenantId: "t1",
+        trigger: "attended",
+        runAs: "owner",
+        requesterId: "u1",
+      },
+    ]) {
+      const r = selectPrincipal({
+        config: { ...baseConfig, principalPolicy: "user" },
+        installation,
+        link,
+        request: request as unknown as Request,
+        sessionCreatorId: "u1",
+        access: "read",
+        delegationMarker: false,
+      });
+      expect(kind(r)).toBe("invalid_principal_request");
+    }
   });
 
   it("offers only the user principal without an installation", () => {
-    expect(kind(pick("user", false, false))).toBe("link_required");
-    expect(kind(pick("app", true, false))).toBe("app_not_configured");
+    expect(kind(pick("user", { link: false, installation: false }))).toBe(
+      "link_required",
+    );
+    expect(kind(pick("app", { installation: false }))).toBe(
+      "app_not_configured",
+    );
   });
 
   it("records the fallback reason", () => {
@@ -257,31 +330,30 @@ describe("selectPrincipal", () => {
       installation,
       link: { usable: false, reason: "refresh_failed" },
       request: attended(),
+      sessionCreatorId: "u1",
       access: "read",
       delegationMarker: false,
     });
     expect(Either.getOrThrow(r).fallback).toEqual({ reason: "refresh_failed" });
   });
 
-  it("requires the opt-in for user output without a delegation marker", () => {
-    const r = selectPrincipal({
-      config: { ...baseConfig, allowUserPrincipalOutput: false },
-      installation: undefined,
+  it("requires the opt-in for user output without a delegation marker and never switches to the app", () => {
+    const input = {
+      config: {
+        ...baseConfig,
+        principalPolicy: "user",
+        allowUserPrincipalOutput: false,
+      },
+      installation,
       link,
       request: attended(),
-      access: "write",
+      sessionCreatorId: "u1",
       delegationMarker: false,
-    });
-    expect(Either.isLeft(r) && r.left.reason).toBe("user_output_disabled");
-    const read = selectPrincipal({
-      config: { ...baseConfig, allowUserPrincipalOutput: false },
-      installation: undefined,
-      link,
-      request: attended(),
-      access: "read",
-      delegationMarker: false,
-    });
-    expect(Either.isRight(read)).toBe(true);
+    } as const;
+    expect(kind(selectPrincipal({ ...input, access: "write" }))).toBe(
+      "user_output_disabled",
+    );
+    expect(kind(selectPrincipal({ ...input, access: "read" }))).toBe("user");
   });
 
   it("runs as another participant only with participantsAsPrincipal", () => {
@@ -304,6 +376,19 @@ describe("selectPrincipal", () => {
         }),
       ),
     ).toBe("user");
+  });
+
+  it("treats an unknown Session creator as another participant", () => {
+    const { sessionCreatorId: _c, ...input } = {
+      config: baseConfig,
+      installation: undefined,
+      link,
+      request: attended("u1"),
+      sessionCreatorId: "u1",
+      access: "read",
+      delegationMarker: false,
+    } as const;
+    expect(kind(selectPrincipal(input))).toBe("participant_not_allowed");
   });
 });
 
@@ -402,16 +487,109 @@ describe("Bond linking", () => {
     expect(err.reason).toBe("provider_user_linked_elsewhere");
   });
 
-  it("relinking revokes the previous grant first", async () => {
+  it("relinking persists the new token before revoking the previous one", async () => {
     const ctx = setup();
     const first = await run(oauthLink(ctx));
-    const second = await run(oauthLink(ctx));
-    expect(second.id).not.toBe(first.id);
+    const second = await run(
+      ctx.bond.link({
+        tenantId: "t1",
+        appUserId: "u1",
+        providerAppId: "gl",
+        method: "pat",
+        providerUser: { id: "42", login: "alice" },
+        grant: {
+          accessToken: "glpat-new",
+          accessExpiresAt: new Date(ctx.now() + 30 * DAY).toISOString(),
+          scopes: ["read_user"],
+        },
+        actor: "u1",
+      }),
+    );
+    // Same provider account: updated in place with the other method.
+    expect(second.id).toBe(first.id);
+    expect(second.method).toBe("pat");
+    expect(second.refresh).toBeUndefined();
     expect(ctx.provider.revoked).toEqual(["access-0"]);
+
+    // A different provider account replaces the link and retires the old one.
+    const third = await run(oauthLink(ctx, { providerUserId: "43" }));
+    expect(third.id).not.toBe(first.id);
+    expect(ctx.provider.revoked).toEqual(["access-0", "glpat-new"]);
     const old = await run(
       ctx.store.getUserLink({ tenantId: "t1", linkId: first.id }),
     );
     expect(old?.status).toBe("revoked");
+  });
+
+  it("relinking with the same token does not revoke it", async () => {
+    const ctx = setup({ linkMethodPolicy: "pat_only" });
+    const pat = () =>
+      ctx.bond.link({
+        tenantId: "t1",
+        appUserId: "u1",
+        providerAppId: "gl",
+        method: "pat",
+        providerUser: { id: "42", login: "alice" },
+        grant: {
+          accessToken: "glpat-same",
+          accessExpiresAt: new Date(ctx.now() + 30 * DAY).toISOString(),
+          scopes: ["read_user"],
+        },
+        actor: "u1",
+      });
+    const first = await run(pat());
+    const again = await run(pat());
+    expect(again.id).toBe(first.id);
+    expect(again.status).toBe("active");
+    expect(ctx.provider.revoked).toEqual([]);
+  });
+
+  it("keeps the previous link when storing the new one fails", async () => {
+    const ctx = setup();
+    const first = await run(oauthLink(ctx));
+    const failing = makeBond({
+      providerApps: { get: () => Effect.succeed(baseConfig) },
+      store: {
+        ...ctx.store,
+        upsertUserLink: () =>
+          Effect.fail(new StoreError({ message: "database unavailable" })),
+      },
+      cipher: ctx.cipher,
+      providers: { gitlab: ctx.provider },
+    });
+    const err = await fail(
+      failing.link({
+        tenantId: "t1",
+        appUserId: "u1",
+        providerAppId: "gl",
+        method: "oauth",
+        providerUser: { id: "43", login: "alice2" },
+        grant: { accessToken: "a2", refreshToken: "r2", scopes: ["read_user"] },
+        actor: "u1",
+      }),
+    );
+    expect(err.reason).toBe("store");
+    const kept = await run(
+      ctx.store.getUserLink({ tenantId: "t1", linkId: first.id }),
+    );
+    expect(kept?.status).toBe("active");
+    expect(ctx.provider.revoked).toEqual([]);
+  });
+
+  it("refuses a grant whose scopes the provider did not report", async () => {
+    const ctx = setup();
+    const err = await fail(
+      ctx.bond.link({
+        tenantId: "t1",
+        appUserId: "u1",
+        providerAppId: "gl",
+        method: "oauth",
+        providerUser: { id: "42", login: "alice" },
+        grant: { accessToken: "a", refreshToken: "r" },
+        actor: "u1",
+      }),
+    );
+    expect(err.reason).toBe("scope_not_allowed");
   });
 
   it("narrowing the policy disables and revokes links of the removed method", async () => {
@@ -444,6 +622,7 @@ describe("Bond linking", () => {
         tenantId: "t1",
         providerAppId: "gl",
         principal: attended("u1"),
+        sessionCreatorId: "u1",
         access: "read",
       }),
     );
@@ -460,8 +639,10 @@ describe("Bond credentials", () => {
         tenantId: "t1",
         providerAppId: "gl",
         principal: attended(),
+        sessionCreatorId: "u1",
         access: "write",
         operation: "git.push",
+        resource: "group/project",
       }),
     );
     expect(credential.token).toBe("access-0");
@@ -472,6 +653,9 @@ describe("Bond credentials", () => {
     });
     expect(ctx.audit).toHaveLength(1);
     expect(ctx.audit[0]).toMatchObject({
+      outcome: "granted",
+      trigger: "attended",
+      resource: "group/project",
       requestingActor: "u1",
       method: "oauth",
       policy: "user_only",
@@ -493,6 +677,7 @@ describe("Bond credentials", () => {
             tenantId: "t1",
             providerAppId: "gl",
             principal: attended(),
+            sessionCreatorId: "u1",
             access: "read",
           }),
         ),
@@ -541,6 +726,7 @@ describe("Bond credentials", () => {
             tenantId: "t1",
             providerAppId: "gl",
             principal: attended(),
+            sessionCreatorId: "u1",
             access: "read",
           }),
         ),
@@ -561,6 +747,7 @@ describe("Bond credentials", () => {
       tenantId: "t1",
       providerAppId: "gl",
       principal: attended(),
+      sessionCreatorId: "u1",
       access: "read",
     });
     expect((await fail(req)).reason).toBe("refresh_failed");
@@ -582,6 +769,7 @@ describe("Bond credentials", () => {
           tenantId: "t1",
           providerAppId: "gl",
           principal: attended(),
+          sessionCreatorId: "u1",
           access: "read",
         }),
       ),
@@ -630,6 +818,7 @@ describe("Bond credentials", () => {
         tenantId: "t1",
         providerAppId: "gl",
         principal: attended(),
+        sessionCreatorId: "u1",
         access: "read",
       }),
     );
@@ -643,7 +832,7 @@ describe("Bond credentials", () => {
       ctx.bond.credential({
         tenantId: "t1",
         providerAppId: "gl",
-        principal: { tenantId: "t1", runAs: "app" },
+        principal: unattendedApp,
         access: "write",
       }),
     );
@@ -672,7 +861,7 @@ describe("Bond credentials", () => {
       ctx.bond.credential({
         tenantId: "t1",
         providerAppId: "gl",
-        principal: { tenantId: "t1", runAs: "app" },
+        principal: unattendedApp,
         access: "write",
       }),
     );
@@ -684,6 +873,7 @@ describe("Bond credentials", () => {
         tenantId: "t1",
         providerAppId: "gl",
         principal: attended("nobody"),
+        sessionCreatorId: "nobody",
         access: "write",
       }),
     );
@@ -722,7 +912,7 @@ describe("Bond credentials", () => {
       ctx.bond.credential({
         tenantId: "t1",
         providerAppId: "gl",
-        principal: { tenantId: "t1", runAs: "app" },
+        principal: unattendedApp,
         access: "read",
       }),
     );
@@ -735,6 +925,7 @@ describe("Bond credentials", () => {
     const resolver = ctx.bond.credentialResolver(() => ({
       providerAppId: "gl",
       access: "read",
+      sessionCreatorId: "u1",
     }));
     const ok = await run(
       resolver.resolve({
@@ -762,10 +953,299 @@ describe("Bond credentials", () => {
         tenantId: "t1",
         providerAppId: "missing",
         principal: attended(),
+        sessionCreatorId: "u1",
         access: "read",
       }),
     );
     expect(err).toBeInstanceOf(BondError);
     expect(err.reason).toBe("config");
+  });
+
+  const claimBot = (
+    ctx: ReturnType<typeof setup>,
+    providerInstallationId = "bot-1",
+    token = "glpat-bot",
+  ) =>
+    ctx.bond.claimInstallation({
+      tenantId: "t1",
+      providerAppId: "gl",
+      providerInstallationId,
+      actor: "admin",
+      verified: true,
+      credential: {
+        token,
+        expiresAt: new Date(ctx.now() + 30 * DAY).toISOString(),
+      },
+    });
+
+  it("treats a webhook with a mapped actor as unattended", async () => {
+    const ctx = setup({ principalPolicy: "user" });
+    await run(oauthLink(ctx));
+    await run(claimBot(ctx));
+    const r = await run(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: { ...unattendedApp, requesterId: "u1" },
+        sessionCreatorId: "u1",
+        access: "write",
+      }),
+    );
+    expect(r.credential.principal.kind).toBe("app");
+    expect(ctx.audit.at(-1)).toMatchObject({
+      outcome: "granted",
+      trigger: "unattended",
+      requestingActor: "u1",
+      executionPrincipal: { kind: "app" },
+    });
+  });
+
+  it("requires a named installation when the tenant owns several", async () => {
+    const ctx = setup({ principalPolicy: "app" });
+    await run(claimBot(ctx, "bot-1", "glpat-one"));
+    await run(claimBot(ctx, "bot-2", "glpat-two"));
+    const err = await fail(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: unattendedApp,
+        access: "read",
+      }),
+    );
+    expect(err.reason).toBe("installation_required");
+    const [first] = await run(
+      ctx.store.listInstallations({ tenantId: "t1", providerAppId: "gl" }),
+    );
+    const named = await run(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        installationId: first?.id ?? "",
+        principal: unattendedApp,
+        access: "read",
+      }),
+    );
+    expect(named.credential.token).toBe("glpat-one");
+  });
+
+  it("falls back to the app in the same call when the refresh is rejected under user", async () => {
+    const ctx = setup({ principalPolicy: "user" });
+    await run(claimBot(ctx));
+    const link = await run(oauthLink(ctx, { expiresInMs: 60_000 }));
+    ctx.provider.reject = true;
+    const r = await run(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: attended(),
+        sessionCreatorId: "u1",
+        access: "write",
+      }),
+    );
+    expect(r.credential.token).toBe("glpat-bot");
+    expect(r.resolution.fallback).toEqual({ reason: "refresh_failed" });
+    expect(ctx.audit.at(-1)?.fallback).toEqual({ reason: "refresh_failed" });
+    const stored = await run(
+      ctx.store.getUserLink({ tenantId: "t1", linkId: link.id }),
+    );
+    expect(stored?.status).toBe("refresh_failed");
+    // The provider's message is never stored.
+    expect(stored?.statusReason).toBe(
+      "the provider rejected the refresh (HTTP 400)",
+    );
+  });
+
+  it("does not switch principals on a transport failure", async () => {
+    const ctx = setup({ principalPolicy: "user" });
+    await run(claimBot(ctx));
+    await run(oauthLink(ctx, { expiresInMs: 60_000 }));
+    const mutable = ctx.provider as {
+      refreshUserToken: BondProvider["refreshUserToken"];
+    };
+    const original = mutable.refreshUserToken;
+    mutable.refreshUserToken = () =>
+      Effect.fail(new ProviderError({ message: "timeout", rejected: false }));
+    const err = await fail(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: attended(),
+        sessionCreatorId: "u1",
+        access: "write",
+      }),
+    );
+    mutable.refreshUserToken = original;
+    expect(err.reason).toBe("provider");
+    expect(err.retryable).toBe(true);
+  });
+
+  it("audits denials with the reason and policy", async () => {
+    const ctx = setup();
+    await fail(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: attended(),
+        sessionCreatorId: "u1",
+        access: "write",
+        operation: "git.push",
+        resource: "group/project",
+      }),
+    );
+    await fail(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: unattendedApp,
+        access: "write",
+      }),
+    );
+    expect(ctx.audit).toEqual([
+      expect.objectContaining({
+        outcome: "denied",
+        denial: "link_required",
+        policy: "user_only",
+        trigger: "attended",
+        requestingActor: "u1",
+        operation: "git.push",
+        resource: "group/project",
+        fallback: false,
+      }),
+      expect.objectContaining({
+        outcome: "denied",
+        denial: "unattended_unsupported",
+        trigger: "unattended",
+      }),
+    ]);
+    expect(ctx.audit[0]?.executionPrincipal).toBeUndefined();
+  });
+
+  it("replaces a rotated bot credential and drops the cached token", async () => {
+    const ctx = setup({ principalPolicy: "app" });
+    await run(claimBot(ctx, "bot-1", "glpat-old"));
+    const read = () =>
+      run(
+        ctx.bond.credential({
+          tenantId: "t1",
+          providerAppId: "gl",
+          principal: unattendedApp,
+          access: "read",
+        }),
+      ).then((r) => r.credential.token);
+    expect(await read()).toBe("glpat-old");
+    expect(await run(claimBot(ctx, "bot-1", "glpat-rotated"))).toBe(
+      "already_owned",
+    );
+    expect(await read()).toBe("glpat-rotated");
+    const [installation] = await run(
+      ctx.store.listInstallations({ tenantId: "t1", providerAppId: "gl" }),
+    );
+    await run(
+      ctx.bond.replaceInstallationCredential({
+        tenantId: "t1",
+        installationId: installation?.id ?? "",
+        token: "glpat-third",
+        actor: "admin",
+      }),
+    );
+    expect(await read()).toBe("glpat-third");
+    const err = await fail(
+      ctx.bond.replaceInstallationCredential({
+        tenantId: "t2",
+        installationId: installation?.id ?? "",
+        token: "glpat-foreign",
+        actor: "intruder",
+      }),
+    );
+    expect(err.reason).toBe("not_found");
+    expect(await read()).toBe("glpat-third");
+  });
+
+  it("ends a personal access token the provider rejected", async () => {
+    const ctx = setup({ linkMethodPolicy: "pat_only" });
+    const link = await run(
+      ctx.bond.link({
+        tenantId: "t1",
+        appUserId: "u1",
+        providerAppId: "gl",
+        method: "pat",
+        providerUser: { id: "42", login: "alice" },
+        grant: {
+          accessToken: "glpat-1",
+          accessExpiresAt: new Date(ctx.now() + 30 * DAY).toISOString(),
+          scopes: ["read_user"],
+        },
+        actor: "u1",
+      }),
+    );
+    expect(
+      await run(ctx.bond.reportRejected({ tenantId: "t1", linkId: link.id })),
+    ).toBe("expired");
+    const err = await fail(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: attended(),
+        sessionCreatorId: "u1",
+        access: "read",
+      }),
+    );
+    expect(err.reason).toBe("expired");
+  });
+
+  it("refreshes an OAuth link at once when the provider rejected its token", async () => {
+    const ctx = setup();
+    const link = await run(oauthLink(ctx));
+    expect(
+      await run(ctx.bond.reportRejected({ tenantId: "t1", linkId: link.id })),
+    ).toBe("active");
+    expect(ctx.provider.refreshCalls).toBe(1);
+    const r = await run(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: attended(),
+        sessionCreatorId: "u1",
+        access: "read",
+      }),
+    );
+    expect(r.credential.token).toBe("access-1");
+  });
+
+  it("reads policy per tenant", async () => {
+    const ctx = setup();
+    await run(oauthLink(ctx));
+    const perTenant = makeBond({
+      providerApps: {
+        get: ({ tenantId }) =>
+          Effect.succeed({
+            ...baseConfig,
+            principalPolicy: tenantId === "t1" ? "user_only" : "app",
+          }),
+      },
+      store: ctx.store,
+      cipher: ctx.cipher,
+      providers: { gitlab: ctx.provider },
+    });
+    const t1 = await run(
+      perTenant.resolvePrincipal({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: attended(),
+        sessionCreatorId: "u1",
+        access: "read",
+      }),
+    );
+    expect(t1.policy).toBe("user_only");
+    const t2 = await fail(
+      perTenant.resolvePrincipal({
+        tenantId: "t2",
+        providerAppId: "gl",
+        principal: { ...attended(), tenantId: "t2" },
+        sessionCreatorId: "u1",
+        access: "read",
+      }),
+    );
+    expect(t2.reason).toBe("app_not_configured");
   });
 });

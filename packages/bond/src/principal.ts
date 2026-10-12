@@ -12,7 +12,10 @@ import type {
 /** The requester's link as seen at selection time. */
 export type LinkState =
   | { readonly usable: true; readonly link: UserLink }
-  | { readonly usable: false; readonly reason: FallbackReason };
+  | {
+      readonly usable: false;
+      readonly reason: Exclude<FallbackReason, "policy_app">;
+    };
 
 export interface PrincipalInputs {
   readonly config: ProviderAppConfig;
@@ -21,8 +24,9 @@ export interface PrincipalInputs {
   readonly link: LinkState;
   readonly request: ExecutionPrincipalRequest;
   /**
-   * The Session creator. When it differs from `request.requesterId`, the
-   * requester is another participant, which needs `participantsAsPrincipal`.
+   * The Session creator. The requester acts as the user principal only when
+   * they are the creator, or with `participantsAsPrincipal`. When absent, the
+   * requester is treated as another participant.
    */
   readonly sessionCreatorId?: string;
   readonly access: "read" | "write";
@@ -30,17 +34,52 @@ export interface PrincipalInputs {
   readonly delegationMarker: boolean;
 }
 
+/** Runtime check of the request shape, for callers outside TypeScript. */
+const requestProblem = (
+  request: ExecutionPrincipalRequest,
+): string | undefined => {
+  const r = request as {
+    readonly trigger?: unknown;
+    readonly runAs?: unknown;
+    readonly requesterId?: unknown;
+  };
+  if (r.trigger !== "attended" && r.trigger !== "unattended") {
+    return "trigger must be attended or unattended";
+  }
+  if (r.runAs !== "app" && r.runAs !== "requester") {
+    return "runAs must be app or requester";
+  }
+  if (r.runAs === "requester") {
+    if (r.trigger !== "attended")
+      return "runAs requester needs an attended trigger";
+    if (typeof r.requesterId !== "string" || r.requesterId === "") {
+      return "runAs requester needs a requesterId";
+    }
+  }
+  return undefined;
+};
+
 /**
- * Pure principal selection. Implements the policy table and rules 1, 2, 5,
- * and 6 in docs/BONDS.md, plus the IDENTITY_MODEL opt-in for providers
- * without a delegation marker.
+ * Pure principal selection. Implements the resolution table and rules 1, 2,
+ * 3, 5, and 6 in docs/BONDS.md "Principal selection".
  */
 export const selectPrincipal = (
   inputs: PrincipalInputs,
 ): Either.Either<PrincipalResolution, BondError> => {
   const { config, installation, link, request } = inputs;
   const policy = config.principalPolicy;
-  const unattended = request.requesterId === undefined;
+  const problem = requestProblem(request);
+  if (problem !== undefined) {
+    return Either.left(bondError("invalid_principal_request", problem));
+  }
+  const unattended = request.trigger === "unattended";
+  const base = {
+    policy,
+    trigger: request.trigger,
+    ...(request.requesterId === undefined
+      ? {}
+      : { requesterId: request.requesterId }),
+  };
 
   const app = (
     fallback: PrincipalResolution["fallback"],
@@ -58,46 +97,40 @@ export const selectPrincipal = (
               ),
         )
       : Either.right({
+          ...base,
           principal: {
             kind: "app",
             providerAppId: config.id,
             installationId: installation.id,
           },
-          policy,
           fallback,
-          ...(request.requesterId === undefined
-            ? {}
-            : { requesterId: request.requesterId }),
         });
 
-  // Rule 2: unattended work never borrows a person's link.
-  if (unattended) {
+  if (request.runAs === "app") {
+    // Rule 2: unattended work never borrows a person's link, and user_only
+    // offers nothing else.
     if (policy === "user_only") {
       return Either.left(
-        bondError(
-          "unattended_unsupported",
-          `${config.id} uses user_only, so unattended work is unsupported`,
-        ),
+        unattended
+          ? bondError(
+              "unattended_unsupported",
+              `${config.id} uses user_only, so unattended work is unsupported`,
+            )
+          : bondError(
+              "app_disallowed",
+              `${config.id} uses user_only and does not act as the app`,
+            ),
       );
     }
     return app(false);
   }
 
-  if (request.runAs === "app" || policy === "app") {
-    if (policy === "user_only") {
-      return Either.left(
-        bondError(
-          "app_not_configured",
-          `${config.id} uses user_only and has no app principal`,
-        ),
-      );
-    }
-    return app(false);
-  }
+  // runAs requester: attended and with a requester, checked above.
+  if (policy === "app") return app({ reason: "policy_app" });
 
-  // Rule 6: another participant needs the explicit opt-in.
+  // Rule 6: another participant needs the explicit opt-in. An unknown
+  // creator counts as another participant.
   if (
-    inputs.sessionCreatorId !== undefined &&
     inputs.sessionCreatorId !== request.requesterId &&
     config.participantsAsPrincipal !== true
   ) {
@@ -110,6 +143,7 @@ export const selectPrincipal = (
   }
 
   if (link.usable) {
+    // Rule 3: no silent switch to the app when the opt-in is missing.
     if (
       inputs.access === "write" &&
       !inputs.delegationMarker &&
@@ -123,6 +157,7 @@ export const selectPrincipal = (
       );
     }
     return Either.right({
+      ...base,
       principal: {
         kind: "user",
         providerAppId: config.id,
@@ -131,13 +166,12 @@ export const selectPrincipal = (
           ? {}
           : { installationId: installation.id }),
       },
-      policy,
       fallback: false,
-      requesterId: request.requesterId,
     });
   }
 
-  // Rule 1: fallback only when the policy names it.
+  // Rule 1: fall back only where the policy names it. Without an
+  // Installation the link's own failure is the useful answer.
   if (policy === "user" && installation !== undefined) {
     return app({ reason: link.reason });
   }

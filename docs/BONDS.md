@@ -360,7 +360,8 @@ interface ProviderAppConfig {
 interface ProviderAppSource {
   // implemented by the application: OMA reads its database,
   // Backchat reads local settings, a self-hosted host reads its config
-  get(ref: ProviderAppRef): Effect<ProviderAppConfig, ConfigError>;
+  // returns the effective configuration for one (tenant, ProviderApp) pair
+  get(q: { tenantId; providerAppId }): Effect<ProviderAppConfig, ConfigError>;
 }
 
 interface BondStore {
@@ -374,6 +375,12 @@ interface BondStore {
   claimInstallation(
     value: Installation,
   ): Effect<"claimed" | "already_owned" | "owned_elsewhere", StoreError>; // unique by (provider app, provider installation id)
+  updateInstallationCredential(q: {
+    tenantId;
+    installationId;
+    credential: Sealed;
+    credentialExpiresAt?;
+  }): Effect<"updated" | "not_found", StoreError>; // owning tenant, active only
   releaseInstallation(
     ref: InstallationRef,
     actor: string,
@@ -482,12 +489,17 @@ Invariants every application adapter must satisfy:
 `@openmatter/bond` exports `bondStoreConformanceCases({ makeStore })`. It
 returns framework-neutral cases that throw on failure, so each application
 runs them in its own test runner, against its real adapter and database. The
-suite covers idempotent upserts, tenant isolation, lease races with parallel
-callers, stale-lease commits, revoke-then-refresh, key rotation reads, expiry
-boundaries, relinking with the other method, policy narrowing to
-`method_disallowed`, `pat` links that never take a refresh lease, a second
-tenant claiming an owned Installation, release then claim, and one link
-serving two Installations of the same ProviderApp.
+suite covers idempotent upserts, ciphertext stored with its key id, tenant
+isolation, a provider user held by another application user, lease races
+with parallel callers (run concurrently, so a real adapter must serialize
+them), expired-lease takeover and stale-lease commits, revoke-then-refresh,
+status changes such as `method_disallowed`, one owning tenant per
+Installation with release then claim, one link serving two Installations of
+the same ProviderApp, `pat` links without refresh material, relinking the
+same provider user with the other method in place, the newest active link
+winning during a relink, and tenant-scoped replacement of an Installation
+credential. Expiry and policy decisions are kernel logic and are covered by
+the kernel tests, not by the store suite.
 
 The memory adapter passes the same suite and is labelled test-only.
 

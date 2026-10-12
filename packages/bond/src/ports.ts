@@ -29,8 +29,12 @@ export class CipherError extends Data.TaggedError("BondCipherError")<{
 
 /**
  * A provider call failed. `rejected` means the provider refused the grant
- * itself (for example `invalid_grant`), which ends the link. Otherwise the
- * failure is transport-level and retryable.
+ * itself (for example `invalid_grant`), which ends the link. Use it for
+ * nothing else: configuration problems such as `invalid_client` and
+ * transport failures are not rejections, and are retryable.
+ *
+ * Bond never persists `message`, but applications may log it, so it must not
+ * contain tokens, secrets, or provider response bodies.
  */
 export class ProviderError extends Data.TaggedError("BondProviderError")<{
   readonly message: string;
@@ -39,11 +43,17 @@ export class ProviderError extends Data.TaggedError("BondProviderError")<{
   readonly cause?: unknown;
 }> {}
 
-/** Implemented by the application. Read on every operation; never cached by Bond. */
+/**
+ * Implemented by the application. Returns the effective configuration of one
+ * ProviderApp for one tenant, so policy can be a workspace setting even when
+ * the ProviderApp (a GitHub App) is shared. Read on every operation; never
+ * cached by Bond.
+ */
 export interface ProviderAppSource {
-  readonly get: (
-    providerAppId: string,
-  ) => Effect.Effect<ProviderAppConfig, ConfigError>;
+  readonly get: (q: {
+    readonly tenantId: string;
+    readonly providerAppId: string;
+  }) => Effect.Effect<ProviderAppConfig, ConfigError>;
 }
 
 /** Implemented by the application, for example with a KMS or a purpose-bound cipher. */
@@ -62,6 +72,7 @@ export type ClaimResult = "claimed" | "already_owned" | "owned_elsewhere";
 export type LeaseResult = RefreshLease | "held" | "not_active";
 export type CommitResult = "committed" | "stale_lease" | "revoked";
 export type UpsertResult = UserLink | "provider_user_taken";
+export type CredentialUpdateResult = "updated" | "not_found";
 
 /**
  * Persistence port. Every read is tenant-scoped. Plaintext tokens never pass
@@ -82,6 +93,17 @@ export interface BondStore {
   readonly claimInstallation: (
     value: Installation,
   ) => Effect.Effect<ClaimResult, StoreError>;
+  /**
+   * Replaces the stored credential of an active Installation owned by the
+   * tenant, for example a rotated GitLab bot token. Never touches another
+   * tenant's Installation.
+   */
+  readonly updateInstallationCredential: (q: {
+    readonly tenantId: string;
+    readonly installationId: string;
+    readonly credential: Sealed;
+    readonly credentialExpiresAt?: string;
+  }) => Effect.Effect<CredentialUpdateResult, StoreError>;
   readonly releaseInstallation: (q: {
     readonly tenantId: string;
     readonly installationId: string;
@@ -92,7 +114,11 @@ export interface BondStore {
     readonly tenantId: string;
     readonly linkId: string;
   }) => Effect.Effect<UserLink | undefined, StoreError>;
-  /** The active link of one application user, if any. */
+  /**
+   * The active link of one application user, if any. Two can be active only
+   * between persisting a relink to a different provider account and retiring
+   * the previous link; return the most recently created one.
+   */
   readonly findUserLink: (q: {
     readonly tenantId: string;
     readonly appUserId: string;
@@ -156,6 +182,11 @@ export interface TokenGrant {
   readonly accessToken: string;
   readonly refreshToken?: string;
   readonly accessExpiresAt?: string;
+  /**
+   * The scopes the provider reports for the token. Linking refuses a grant
+   * without them. A provider whose tokens carry no scopes (GitHub App user
+   * tokens) reports an empty list explicitly.
+   */
   readonly scopes?: readonly string[];
 }
 
@@ -172,6 +203,12 @@ export interface BondProvider {
     config: ProviderAppConfig,
     refreshToken: string,
   ) => Effect.Effect<TokenGrant, ProviderError>;
+  /**
+   * Revokes exactly the given token (and its refresh token). It must not
+   * revoke other tokens of the same user and application, such as by deleting
+   * a GitHub OAuth grant, because a relink revokes the previous token after
+   * the new one is stored.
+   */
   readonly revokeUserToken: (
     config: ProviderAppConfig,
     tokens: {

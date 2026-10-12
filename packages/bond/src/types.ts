@@ -24,8 +24,10 @@ export interface SecretRef {
 }
 
 /**
- * Configuration for one ProviderApp, supplied by the application through
- * ProviderAppSource and read again on every operation.
+ * The effective configuration of one ProviderApp for one tenant, supplied by
+ * the application through ProviderAppSource and read again on every
+ * operation. Provider identity (provider, origin, OAuth client, GitHub App)
+ * is shared by every tenant; the policy fields may differ per tenant.
  */
 export interface ProviderAppConfig {
   readonly id: string;
@@ -150,14 +152,24 @@ export type ExecutionPrincipal =
       readonly installationId?: string;
     };
 
+/**
+ * Why the resolved principal differs from the requested one. `policy_app`
+ * means the requester asked to act as themselves and the policy is `app`.
+ */
 export type FallbackReason =
-  "no_link" | "refresh_failed" | "expired" | "method_disallowed" | "revoked";
+  | "no_link"
+  | "refresh_failed"
+  | "expired"
+  | "method_disallowed"
+  | "revoked"
+  | "policy_app";
 
 export interface PrincipalResolution {
   readonly principal: ExecutionPrincipal;
   readonly policy: PrincipalPolicy;
   readonly fallback: false | { readonly reason: FallbackReason };
-  /** The application user the principal was chosen for, when attended. */
+  readonly trigger: "attended" | "unattended";
+  /** The application user who caused the work, when known. */
   readonly requesterId?: string;
 }
 
@@ -169,18 +181,30 @@ export interface BondCredential {
   readonly expiresAt?: string;
 }
 
-/** One immutable fact per resolution. Identifiers only, never tokens. */
+/**
+ * One immutable fact per credential resolution, granted or denied.
+ * Identifiers only, never tokens. The visible author on the work surface is
+ * recorded by the integration that writes the output.
+ */
 export interface AuditFact {
   readonly at: string;
+  readonly outcome: "granted" | "denied";
+  /** The failure reason, when denied. */
+  readonly denial?: string;
   readonly tenantId: string;
   readonly providerAppId: string;
   readonly requestingActor?: string;
-  readonly executionPrincipal: ExecutionPrincipal;
+  readonly trigger: "attended" | "unattended";
+  /** Present when granted. */
+  readonly executionPrincipal?: ExecutionPrincipal;
   readonly method?: LinkMethod;
-  readonly policy: PrincipalPolicy;
+  /** Absent only when the configuration could not be read. */
+  readonly policy?: PrincipalPolicy;
   readonly fallback: false | { readonly reason: FallbackReason };
   readonly access: "read" | "write";
   readonly operation?: string;
+  /** Resource address, such as a project path. */
+  readonly resource?: string;
 }
 
 export type LinkHealth = "ok" | "expiring" | "expired" | "inactive";

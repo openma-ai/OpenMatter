@@ -1,5 +1,10 @@
 import { Effect } from "effect";
-import type { BondStore, ClaimResult, LeaseResult } from "./ports.js";
+import type {
+  BondStore,
+  ClaimResult,
+  CredentialUpdateResult,
+  LeaseResult,
+} from "./ports.js";
 import type { Installation, RefreshLease, UserLink } from "./types.js";
 
 /**
@@ -21,8 +26,9 @@ export const makeMemoryBondStore = (
     tenantId: string,
   ) => (value !== undefined && value.tenantId === tenantId ? value : undefined);
 
+  // Insertion order is creation order, so the last match is the newest.
   const activeLink = (pred: (l: UserLink) => boolean) =>
-    [...links.values()].find((l) => l.status === "active" && pred(l));
+    [...links.values()].filter((l) => l.status === "active" && pred(l)).at(-1);
 
   return {
     getInstallation: ({ tenantId, installationId }) =>
@@ -50,6 +56,25 @@ export const makeMemoryBondStore = (
         return owner.tenantId === value.tenantId
           ? "already_owned"
           : "owned_elsewhere";
+      }),
+    updateInstallationCredential: ({
+      tenantId,
+      installationId,
+      credential,
+      credentialExpiresAt,
+    }) =>
+      Effect.sync((): CredentialUpdateResult => {
+        const found = sameTenant(installations.get(installationId), tenantId);
+        if (found === undefined || found.status !== "active") {
+          return "not_found";
+        }
+        const { credentialExpiresAt: _e, ...rest } = found;
+        installations.set(installationId, {
+          ...rest,
+          credential,
+          ...(credentialExpiresAt === undefined ? {} : { credentialExpiresAt }),
+        });
+        return "updated";
       }),
     releaseInstallation: ({ tenantId, installationId }) =>
       Effect.sync(() => {

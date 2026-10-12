@@ -422,5 +422,93 @@ export const bondStoreConformanceCases = (
         assert(a.refresh === undefined, "no refresh token stored");
       },
     },
+    {
+      name: "relinking the same provider user with the other method updates the link in place",
+      run: async () => {
+        const store = await fresh();
+        const a = await linkOf(store, write());
+        const { refresh: _r, accessExpiresAt: _e, ...base } = write();
+        const b = await linkOf(store, {
+          ...base,
+          method: "pat",
+          access: sealed("pat-1"),
+          accessExpiresAt: "2030-06-01T00:00:00.000Z",
+        });
+        assert(b.id === a.id, "same link id");
+        assert(b.method === "pat", "method replaced");
+        assert(b.refresh === undefined, "refresh material dropped");
+        assert(b.access.ciphertext === "pat-1", "token replaced");
+        assert(b.revision > a.revision, "revision increases");
+      },
+    },
+    {
+      name: "findUserLink returns the newest active link while a relink is in flight",
+      run: async () => {
+        const store = await fresh();
+        await linkOf(store, write());
+        await sleep(2);
+        const b = await linkOf(store, write({ providerUserId: "p2" }));
+        const found = await run(
+          store.findUserLink({
+            tenantId: "t1",
+            appUserId: "u1",
+            providerAppId: "app1",
+          }),
+        );
+        assert(found?.id === b.id, "the newest link wins");
+      },
+    },
+    {
+      name: "an installation credential is replaced only by its owning tenant",
+      run: async () => {
+        const store = await fresh();
+        const owned = installation({ credential: sealed("bot-1") });
+        await run(store.claimInstallation(owned));
+        const foreign = await run(
+          store.updateInstallationCredential({
+            tenantId: "t2",
+            installationId: owned.id,
+            credential: sealed("intruder"),
+          }),
+        );
+        assert(foreign === "not_found", "another tenant cannot replace it");
+        const updated = await run(
+          store.updateInstallationCredential({
+            tenantId: "t1",
+            installationId: owned.id,
+            credential: sealed("bot-2", "k2"),
+            credentialExpiresAt: "2030-01-01T00:00:00.000Z",
+          }),
+        );
+        assert(updated === "updated", "the owner replaces it");
+        const read = await run(
+          store.getInstallation({ tenantId: "t1", installationId: owned.id }),
+        );
+        assert(read?.credential?.ciphertext === "bot-2", "new ciphertext");
+        assert(read?.credential?.keyId === "k2", "new key id");
+        assert(
+          read?.credentialExpiresAt === "2030-01-01T00:00:00.000Z",
+          "new expiry",
+        );
+        await run(
+          store.releaseInstallation({
+            tenantId: "t1",
+            installationId: owned.id,
+            actor: "admin",
+          }),
+        );
+        const released = await run(
+          store.updateInstallationCredential({
+            tenantId: "t1",
+            installationId: owned.id,
+            credential: sealed("bot-3"),
+          }),
+        );
+        assert(
+          released === "not_found",
+          "a released installation is not updated",
+        );
+      },
+    },
   ];
 };

@@ -7,6 +7,7 @@ export {
   type ClaimInstallationInput,
   type CredentialInput,
   type LinkInput,
+  type ReplaceInstallationCredentialInput,
 } from "./bond.js";
 export { BondError, bondError, type BondFailureReason } from "./errors.js";
 export {
@@ -18,6 +19,7 @@ export {
   type BondStore,
   type ClaimResult,
   type CommitResult,
+  type CredentialUpdateResult,
   type LeaseResult,
   type ProviderAppSource,
   type SecretCipher,
