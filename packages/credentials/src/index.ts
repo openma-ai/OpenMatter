@@ -1,9 +1,27 @@
 import { Data, Effect } from "effect";
 
+/**
+ * Who an operation should run as. Set by the Loop from its declaration and the
+ * triggering Event, never by agent output. See docs/BONDS.md.
+ */
+export interface ExecutionPrincipalRequest {
+  /** Application tenant that owns the work. */
+  readonly tenantId: string;
+  /**
+   * `app` uses the installation principal. `requester` asks for the user who
+   * caused the work, subject to the provider's principal policy.
+   */
+  readonly runAs: "app" | "requester";
+  /** Application user who caused the work. Absent for unattended work. */
+  readonly requesterId?: string;
+}
+
 /** Public identifiers only. Credential material never belongs in this request. */
 export interface CredentialRequest {
   readonly integrationId: string;
   readonly authority: string;
+  /** Optional. When absent, the request means the installation credential for `authority`. */
+  readonly principal?: ExecutionPrincipalRequest;
 }
 
 export class CredentialError extends Data.TaggedError("CredentialError")<{

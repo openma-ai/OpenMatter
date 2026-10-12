@@ -60,4 +60,41 @@ describe("CredentialResolver", () => {
       ),
     ).rejects.toThrow("No credential is bound");
   });
+
+  it("passes an optional execution principal through to the source unchanged", async () => {
+    const { makeCredentialResolver, staticCredentialResolver } =
+      await import("../packages/credentials/src/index.js");
+    const seen: unknown[] = [];
+    const resolver = makeCredentialResolver((request) => {
+      seen.push(request.principal);
+      return { token: "t" };
+    });
+    const principal = {
+      tenantId: "w1",
+      runAs: "requester",
+      requesterId: "u1",
+    } as const;
+
+    await Effect.runPromise(
+      resolver.resolve({ integrationId: "gitlab", authority: "a", principal }),
+    );
+    await Effect.runPromise(
+      resolver.resolve({ integrationId: "gitlab", authority: "a" }),
+    );
+    expect(seen).toEqual([principal, undefined]);
+
+    const fixed = staticCredentialResolver(
+      { token: "fixed" },
+      { integrationId: "slack", authority: "TWORK" },
+    );
+    await expect(
+      Effect.runPromise(
+        fixed.resolve({
+          integrationId: "slack",
+          authority: "TWORK",
+          principal,
+        }),
+      ),
+    ).resolves.toEqual({ token: "fixed" });
+  });
 });
