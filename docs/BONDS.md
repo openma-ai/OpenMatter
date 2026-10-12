@@ -653,24 +653,37 @@ Linking follows the ProviderApp's `LinkMethodPolicy`:
 
 The binding exports pure helpers. Applications build their proxies on them:
 
-- `validatePersonalAccessToken(info, policy)` checks token metadata against
-  the allowed scopes and maximum lifetime.
-- `discoverInstance(origin)` reads OIDC discovery, requires PKCE `S256` and
-  `refresh_token`, and records whether device flow exists.
+- `discoverInstance(origin)` reads OIDC discovery, requires PKCE `S256`,
+  `refresh_token`, and an issuer equal to the origin, and records whether
+  device flow exists.
+- `createPkce`, `authorizationUrl`, `exchangeCode`, `refreshAccessToken`, and
+  `revokeToken` implement authorization code with PKCE. They never follow
+  redirects.
+- `readUser` and `readTokenInfo` read `GET /user` and
+  `GET /personal_access_tokens/self`. `validatePersonalAccessToken(info, user,
+policy)` and `validateBotCredential(info, user, policy)` return every
+  problem: inactive, revoked, no expiry, expired, lifetime exceeded, scope
+  outside the allowed set, and a bot or human owner where the other is
+  required.
 - `classifyGitLabRequest(method, url)` returns
-  `{ projectRef, operation } | { deny, reason }` for git smart HTTP and REST.
-  Project references are normalized: case is folded, `.git` handling is
-  unified, and numeric IDs and paths are treated as one reference. The
-  application must resolve each reference to a numeric project ID before it
-  authorizes the request. GraphQL, redirects, LFS, and unknown routes are
-  denied.
-- `parseReceivePackCommands(stream)` reads the pkt-line command list and push
-  options without buffering the pack. It lets a proxy enforce ref and
-  push-option policy.
+  `{ allow: true, projectRef, operation, surface } | { allow: false, reason }`
+  for git smart HTTP and REST. Project references are normalized: case is
+  folded, `.git` handling is unified, and numeric IDs and paths are treated as
+  one reference. The application must resolve each reference to a numeric
+  project ID before it authorizes the request. GraphQL, LFS, archives, and
+  unknown routes are denied.
+- `parseReceivePackHead(bytes)` reads the pkt-line command list and push
+  options from a buffered prefix of the request body, without reading the
+  pack. `evaluatePush(head, policy)` denies tags, deletions, the default
+  branch, push options outside the merge request allow-list, and merge
+  requests without the required label.
 - Attribution helpers are pure functions. The commit author is the user's
   GitLab name and `commit_email`. Commits get an `Assisted-by: <app name>
 <Session URL>` trailer. Merge requests get a label and a description footer
-  that name the application.
+  that name the application, and "Requested by @user" with the app principal.
+- `makeGitLabBondProvider` plugs the binding into the kernel: OAuth refresh
+  and revocation, `DELETE /personal_access_tokens/self` for personal access
+  tokens, and the stored bot credential as the app principal.
 
 Delegated user output without a provider-native marker is allowed only under
 the conditions in [IDENTITY_MODEL.md](IDENTITY_MODEL.md#executionidentity).
