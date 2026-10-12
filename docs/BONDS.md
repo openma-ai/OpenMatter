@@ -1,7 +1,8 @@
 # Bond: linked provider accounts and execution principals
 
-**Status:** proposed (2026-10-12). The kernel `@openmatter/bond` is
-implemented; provider bindings are not.
+**Status:** proposed (2026-10-12). The kernel `@openmatter/bond` and the
+GitLab binding `@openmatter/bond-gitlab` are implemented; the GitHub binding
+is not.
 **Decision:** OpenMatter provides Bond, an optional, storage-free kernel that
 links work-platform accounts, selects an explicit `ExecutionPrincipal`, and
 produces a `CredentialResolver`. Applications own persistence, encryption
@@ -655,7 +656,8 @@ The binding exports pure helpers. Applications build their proxies on them:
 
 - `discoverInstance(origin)` reads OIDC discovery, requires PKCE `S256`,
   `refresh_token`, and an issuer equal to the origin, and records whether
-  device flow exists.
+  device flow exists. It returns no endpoints: OAuth calls always use the
+  fixed `/oauth/*` paths under the canonical origin.
 - `createPkce`, `authorizationUrl`, `exchangeCode`, `refreshAccessToken`, and
   `revokeToken` implement authorization code with PKCE. They never follow
   redirects.
@@ -663,18 +665,26 @@ The binding exports pure helpers. Applications build their proxies on them:
   `GET /personal_access_tokens/self`. `validatePersonalAccessToken(info, user,
 policy)` and `validateBotCredential(info, user, policy)` return every
   problem: inactive, revoked, no expiry, expired, lifetime exceeded, scope
-  outside the allowed set, and a bot or human owner where the other is
-  required.
+  outside the allowed set, token metadata and user that belong to different
+  accounts, and a bot or human owner where the other is required.
 - `classifyGitLabRequest(method, url)` returns
   `{ allow: true, projectRef, operation, surface } | { allow: false, reason }`
   for git smart HTTP and REST. Project references are normalized: case is
   folded, `.git` handling is unified, and numeric IDs and paths are treated as
   one reference. The application must resolve each reference to a numeric
-  project ID before it authorizes the request. GraphQL, LFS, archives, and
-  unknown routes are denied.
-- `parseReceivePackHead(bytes)` reads the pkt-line command list and push
-  options from a buffered prefix of the request body, without reading the
-  pack. `evaluatePush(head, policy)` denies tags, deletions, the default
+  project ID before it authorizes the request, and forward a URL rebuilt from
+  that ID and the returned `restTail`, never the raw path. REST reads are
+  matched by exact shape, and encoded dots or backslashes are denied.
+  GraphQL, LFS, archives, and unknown routes are denied. GitLab lets a merge
+  request body name another project in `target_project_id`, so for `open_mr`
+  the proxy also calls `mergeRequestBodyProblem(body, projectId)`.
+- `makeReceivePackHeadParser(limits)` reads the pkt-line command list and
+  push options incrementally from the request body, without reading the
+  pack, in linear time. Capabilities are the union over every command line,
+  as in git's `read_head`, so `push-options` cannot be hidden behind a later
+  line. Decoding is strict UTF-8, ref names follow a strict subset of
+  `git check-ref-format`, and the head size, command count, and option count
+  are bounded. `parseReceivePackHead(bytes)` is the one-shot form. `evaluatePush(head, policy)` denies tags, deletions, the default
   branch, push options outside the merge request allow-list, and merge
   requests without the required label.
 - Attribution helpers are pure functions. The commit author is the user's
@@ -683,7 +693,10 @@ policy)` and `validateBotCredential(info, user, policy)` return every
   that name the application, and "Requested by @user" with the app principal.
 - `makeGitLabBondProvider` plugs the binding into the kernel: OAuth refresh
   and revocation, `DELETE /personal_access_tokens/self` for personal access
-  tokens, and the stored bot credential as the app principal.
+  tokens, and the stored bot credential as the app principal. Only OAuth
+  `invalid_grant` ends a link. `invalid_client`, a missing OAuth
+  application, and a client secret without `resolveSecret` are configuration
+  errors that never mark links `refresh_failed`.
 
 Delegated user output without a provider-native marker is allowed only under
 the conditions in [IDENTITY_MODEL.md](IDENTITY_MODEL.md#executionidentity).

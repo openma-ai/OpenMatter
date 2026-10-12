@@ -1,6 +1,10 @@
 // Request classification for application-side GitLab proxies. The
 // application resolves every project reference to a numeric project ID and
 // checks the Session's grant before forwarding anything.
+//
+// Forward a rebuilt URL, never the raw request path: `/api/v4/projects/<id>`
+// plus `restTail` for REST, and the resolved `path_with_namespace` plus the
+// git endpoint for smart HTTP. Then GitLab sees exactly what was classified.
 
 export type GitLabOperation =
   "fetch" | "push" | "read" | "open_mr" | "comment_mr";
@@ -21,6 +25,12 @@ export type GitLabRequestClass =
       readonly operation: GitLabOperation;
       /** `git` for smart HTTP, `rest` for `/api/v4`. */
       readonly surface: "git" | "rest";
+      /**
+       * For `rest`: the validated path after `/api/v4/projects/<ref>`, to
+       * append to the resolved numeric project ID. For `open_mr`, the proxy
+       * must also check the body with `mergeRequestBodyProblem`.
+       */
+      readonly restTail?: string;
     }
   | { readonly allow: false; readonly reason: string };
 
@@ -57,6 +67,20 @@ const projectRefOf = (raw: string): ProjectRef | undefined =>
         return path === undefined ? undefined : { kind: "path", path };
       })();
 
+/**
+ * REST reads, by exact shape. A branch name may carry encoded slashes
+ * (`feature%2Fx`), and nothing else is percent-encoded.
+ */
+const READ_TAILS = [
+  /^$/,
+  /^\/merge_requests$/,
+  /^\/merge_requests\/\d+(\/(notes|commits|changes|diffs|approvals))?$/,
+  /^\/repository\/branches$/,
+  /^\/repository\/branches\/([\w.-]|%2[fF])+$/,
+  /^\/repository\/commits$/,
+  /^\/repository\/commits\/[0-9a-f]{7,64}$/,
+];
+
 const GIT_ROUTE =
   /^\/(.+?)(?:\.git)?\/(info\/refs|git-upload-pack|git-receive-pack)$/i;
 
@@ -76,12 +100,14 @@ export const classifyGitLabRequest = (
   const path = u.pathname;
   if (path.includes("/../") || path.endsWith("/.."))
     return deny("path traversal");
+  // Encoded dots and backslashes have no legitimate use in allowed routes.
+  if (/%2e|%5c/i.test(path)) return deny("encoded traversal characters");
 
   if (/^\/api\/graphql\/?$/i.test(path)) return deny("GraphQL is not proxied");
   if (/\/info\/lfs(\/|$)/i.test(path)) return deny("LFS is not proxied");
 
   const git = path.match(GIT_ROUTE);
-  if (git !== null && !path.startsWith("/api/")) {
+  if (git !== null && !/^\/api\//i.test(path)) {
     const [, rawProject, endpoint] = git;
     const ref =
       rawProject === undefined ? undefined : normalizePath(rawProject);
@@ -107,33 +133,62 @@ export const classifyGitLabRequest = (
     };
   }
 
-  const rest = path.match(/^\/api\/v4\/projects\/([^/]+)(\/.*)?$/);
+  const rest = path.match(/^\/api\/v4\/projects\/([^/]+)(\/.*)?$/i);
   if (rest !== null) {
     const [, rawProject, rest2] = rest;
     const projectRef =
       rawProject === undefined ? undefined : projectRefOf(rawProject);
     if (projectRef === undefined) return deny("invalid project reference");
-    const tail = rest2 ?? "";
-    if (
-      verb === "GET" &&
-      /^(\/(merge_requests|repository\/branches|repository\/commits)(\/[\w.%-]+)*)?\/?$/.test(
-        tail,
-      )
-    ) {
-      return { allow: true, projectRef, operation: "read", surface: "rest" };
+    const tail = (rest2 ?? "").replace(/\/$/, "");
+    if (tail.includes("..")) return deny("path traversal");
+    const allow = (operation: GitLabOperation): GitLabRequestClass => ({
+      allow: true,
+      projectRef,
+      operation,
+      surface: "rest",
+      restTail: tail,
+    });
+    if (verb === "GET" && READ_TAILS.some((re) => re.test(tail))) {
+      return allow("read");
     }
-    if (verb === "POST" && /^\/merge_requests\/?$/.test(tail)) {
-      return { allow: true, projectRef, operation: "open_mr", surface: "rest" };
-    }
-    if (verb === "POST" && /^\/merge_requests\/\d+\/notes\/?$/.test(tail)) {
-      return {
-        allow: true,
-        projectRef,
-        operation: "comment_mr",
-        surface: "rest",
-      };
+    if (verb === "POST" && tail === "/merge_requests") return allow("open_mr");
+    if (verb === "POST" && /^\/merge_requests\/\d+\/notes$/.test(tail)) {
+      return allow("comment_mr");
     }
     return deny("REST route not allowed");
   }
   return deny("route not allowed");
+};
+
+/**
+ * GitLab lets `POST /projects/:id/merge_requests` name another project in
+ * `target_project_id`, so the URL alone does not bound where the merge
+ * request opens. Returns the reason to deny, or undefined when the body
+ * targets the classified project. Pass the parsed JSON or form body and the
+ * numeric ID the URL's project reference resolved to.
+ */
+export const mergeRequestBodyProblem = (
+  body: unknown,
+  resolvedProjectId: number,
+): string | undefined => {
+  const target =
+    body instanceof URLSearchParams
+      ? (body.get("target_project_id") ?? undefined)
+      : typeof body === "object" && body !== null && !Array.isArray(body)
+        ? (body as Record<string, unknown>).target_project_id
+        : body === undefined || body === null
+          ? undefined
+          : null;
+  if (target === null) return "merge request body is not an object";
+  if (target === undefined || target === "") return undefined;
+  const id =
+    typeof target === "number"
+      ? target
+      : typeof target === "string" && /^\d+$/.test(target)
+        ? Number(target)
+        : Number.NaN;
+  if (!Number.isSafeInteger(id)) return "target_project_id is not a project ID";
+  return id === resolvedProjectId
+    ? undefined
+    : "target_project_id names another project";
 };

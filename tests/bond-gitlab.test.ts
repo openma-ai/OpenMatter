@@ -17,7 +17,10 @@ import {
   discoverInstance,
   evaluatePush,
   exchangeCode,
+  isValidRefName,
   makeGitLabBondProvider,
+  makeReceivePackHeadParser,
+  mergeRequestBodyProblem,
   mergeRequestFooter,
   mergeRequestPushOptions,
   parseReceivePackHead,
@@ -82,8 +85,7 @@ describe("GitLab instance and OAuth", () => {
   it("discovers an instance and records that device flow is absent", async () => {
     const { impl } = fakeFetch(() => ({ status: 200, body: discovery() }));
     const instance = await run(discoverInstance(ORIGIN, impl));
-    expect(instance.tokenEndpoint).toBe(`${ORIGIN}/oauth/token`);
-    expect(instance.deviceAuthorizationEndpoint).toBeUndefined();
+    expect(instance).toEqual({ origin: ORIGIN, deviceFlow: false });
   });
 
   it("rejects an instance without PKCE S256, refresh tokens, or a matching issuer", async () => {
@@ -290,13 +292,20 @@ describe("GitLab token and user validation", () => {
         policy,
       ),
     ).toEqual(["revoked", "inactive"]);
+    expect(
+      validatePersonalAccessToken(info({ userId: "2402" }), bot, policy),
+    ).toEqual(["is_a_bot"]);
+    // Token metadata and user from two different tokens prove nothing.
     expect(validatePersonalAccessToken(info(), bot, policy)).toEqual([
+      "user_mismatch",
       "is_a_bot",
     ]);
   });
 
   it("accepts only bot users as an app credential", () => {
-    expect(validateBotCredential(info(), bot, policy)).toEqual([]);
+    expect(
+      validateBotCredential(info({ userId: "2402" }), bot, policy),
+    ).toEqual([]);
     expect(validateBotCredential(info(), human, policy)).toEqual(["not_a_bot"]);
   });
 });
@@ -546,7 +555,7 @@ describe("GitLab BondProvider with the Bond kernel", () => {
     const clock = () => new Date(now).toISOString();
     const bond = makeBond({
       providerApps: {
-        get: (id) =>
+        get: ({ providerAppId: id }) =>
           id === "gl"
             ? Effect.succeed(config)
             : Effect.fail(new ConfigError({ message: "x", providerAppId: id })),
@@ -586,7 +595,13 @@ describe("GitLab BondProvider with the Bond kernel", () => {
       bond.credential({
         tenantId: "t1",
         providerAppId: "gl",
-        principal: { tenantId: "t1", runAs: "requester", requesterId: "u1" },
+        principal: {
+          tenantId: "t1",
+          trigger: "attended",
+          runAs: "requester",
+          requesterId: "u1",
+        },
+        sessionCreatorId: "u1",
         access: "write",
       }),
     );
@@ -621,7 +636,13 @@ describe("GitLab BondProvider with the Bond kernel", () => {
       bond.credential({
         tenantId: "t1",
         providerAppId: "gl",
-        principal: { tenantId: "t1", runAs: "requester", requesterId: "u1" },
+        principal: {
+          tenantId: "t1",
+          trigger: "attended",
+          runAs: "requester",
+          requesterId: "u1",
+        },
+        sessionCreatorId: "u1",
         access: "read",
       }),
     );
@@ -643,5 +664,234 @@ describe("GitLab BondProvider with the Bond kernel", () => {
     expect((del?.init.headers as Record<string, string>).authorization).toBe(
       "Bearer glpat-1",
     );
+  });
+});
+
+describe("receive-pack against hostile input", () => {
+  const policy: PushPolicy = {
+    defaultBranch: "main",
+    requiredMergeRequestLabel: "openma",
+    allowMergeRequestOptions: true,
+  };
+  const enc = (text: string) => new TextEncoder().encode(text);
+
+  it("unions capabilities across command lines, as git does", () => {
+    // Reported bypass: push-options on the first line only, then a later
+    // line with other capabilities. git still applies the options.
+    const bytes = enc(
+      pkt(`${OLD} ${NEW} refs/heads/feat\0report-status push-options\n`) +
+        pkt(`${OLD} ${NEW} refs/heads/feat2\0report-status\n`) +
+        "0000" +
+        pkt("merge_request.create\n") +
+        pkt("ci.skip\n") +
+        "0000",
+    );
+    const r = parseReceivePackHead(bytes);
+    expect(r._tag).toBe("Complete");
+    if (r._tag !== "Complete") return;
+    expect(r.head.options).toEqual(["merge_request.create", "ci.skip"]);
+    expect(evaluatePush(r.head, policy)).toBe(
+      "push option ci.skip is not allowed",
+    );
+  });
+
+  it("bounds commands, options, and head size", () => {
+    const many = (n: number) =>
+      enc(
+        pkt(`${OLD} ${NEW} refs/heads/b0\0report-status\n`) +
+          Array.from({ length: n }, (_, i) =>
+            pkt(`${OLD} ${NEW} refs/heads/b${i + 1}\n`),
+          ).join("") +
+          "0000",
+      );
+    expect(parseReceivePackHead(many(5), { maxCommands: 3 })).toEqual({
+      _tag: "Malformed",
+      reason: "too many receive-pack commands",
+    });
+    const opts = enc(
+      pkt(`${OLD} ${NEW} refs/heads/b\0push-options\n`) +
+        "0000" +
+        Array.from({ length: 4 }, () => pkt("merge_request.draft\n")).join(""),
+    );
+    expect(parseReceivePackHead(opts, { maxOptions: 3 })).toEqual({
+      _tag: "Malformed",
+      reason: "too many push options",
+    });
+    // A client that withholds the flush cannot grow the buffer without bound.
+    const endless = many(50).subarray(0, -4);
+    expect(parseReceivePackHead(endless, { maxHeadBytes: 1024 })).toEqual({
+      _tag: "Malformed",
+      reason: "receive-pack head is too large",
+    });
+  });
+
+  it("parses a head fed in small chunks in linear time", () => {
+    const commands = Array.from(
+      { length: 999 },
+      (_, i) => `${OLD} ${NEW} refs/heads/b${i}`,
+    );
+    const bytes = head(commands);
+    const parser = makeReceivePackHeadParser();
+    const started = performance.now();
+    let result: ReturnType<typeof parser.push> = { _tag: "Incomplete" };
+    // After Complete the proxy forwards remainder() and streams the rest.
+    for (let i = 0; i < bytes.length && result._tag === "Incomplete"; i += 7) {
+      result = parser.push(bytes.subarray(i, i + 7));
+    }
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(result._tag).toBe("Complete");
+    if (result._tag !== "Complete") return;
+    expect(result.head.commands).toHaveLength(999);
+    expect(result.head.headLength).toBe(bytes.length - "PACK...".length);
+    expect(
+      "PACK...".startsWith(new TextDecoder().decode(parser.remainder())),
+    ).toBe(true);
+  });
+
+  it("rejects invalid UTF-8 and ref names git would not accept", () => {
+    const nonUtf8Ref = new Uint8Array([
+      ...enc(
+        (OLD.length + NEW.length + 2 + 14 + 4).toString(16).padStart(4, "0"),
+      ),
+      ...enc(`${OLD} ${NEW} refs/heads/`),
+      0xc3,
+      0x28,
+      ...enc("x\n"),
+      ...enc("0000"),
+    ]);
+    expect(parseReceivePackHead(nonUtf8Ref)).toEqual({
+      _tag: "Malformed",
+      reason: "pkt-line is not valid UTF-8",
+    });
+    for (const ref of [
+      "refs/heads/a..b",
+      "refs/heads/x.lock",
+      "refs/heads/.hidden",
+      "refs/heads/a b",
+      "refs/heads/a\x01",
+      "refs/heads/a@{1}",
+      "refs/heads/a/",
+      "refs/heads/a.",
+      "refs/heads//a",
+      "heads/main",
+    ]) {
+      expect(isValidRefName(ref), ref).toBe(false);
+    }
+    expect(isValidRefName("refs/heads/feature/x-1.2")).toBe(true);
+    expect(
+      parseReceivePackHead(head([`${OLD} ${NEW} refs/heads/a..b`])),
+    ).toEqual({ _tag: "Malformed", reason: "invalid ref name" });
+  });
+});
+
+describe("classifyGitLabRequest hardening", () => {
+  const c = (method: string, path: string) =>
+    classifyGitLabRequest(method, `${ORIGIN}${path}`);
+
+  it("treats /api/ case-insensitively and denies encoded traversal", () => {
+    for (const [m, p] of [
+      ["POST", "/API/v4/projects/42/repository/files/x/git-receive-pack"],
+      ["GET", "/Api/v4/projects/42/repository/files/a"],
+      ["GET", "/api/v4/projects/42/repository/branches/a%2F..%2Fb"],
+      ["GET", "/api/v4/projects/42/repository/branches/%2e%2e"],
+      ["GET", "/api/v4/projects/42/merge_requests/3/%2e%2e/notes"],
+      ["GET", "/api/v4/projects/42/merge_requests/3/raw"],
+      ["GET", "/api/v4/projects/42/repository/commits/main"],
+    ] as const) {
+      expect(c(m, p), `${m} ${p}`).toMatchObject({ allow: false });
+    }
+  });
+
+  it("returns the validated REST tail to rebuild the upstream URL", () => {
+    expect(
+      c("GET", "/api/v4/projects/42/repository/branches/feature%2Fx"),
+    ).toEqual({
+      allow: true,
+      projectRef: { kind: "id", id: 42 },
+      operation: "read",
+      surface: "rest",
+      restTail: "/repository/branches/feature%2Fx",
+    });
+    expect(c("POST", "/api/v4/projects/42/merge_requests/")).toMatchObject({
+      allow: true,
+      operation: "open_mr",
+      restTail: "/merge_requests",
+    });
+  });
+
+  it("checks that a merge request body targets the classified project", () => {
+    expect(mergeRequestBodyProblem({ title: "x" }, 42)).toBeUndefined();
+    expect(
+      mergeRequestBodyProblem({ target_project_id: 42 }, 42),
+    ).toBeUndefined();
+    expect(
+      mergeRequestBodyProblem(
+        new URLSearchParams({ target_project_id: "42" }),
+        42,
+      ),
+    ).toBeUndefined();
+    expect(mergeRequestBodyProblem({ target_project_id: 7 }, 42)).toBe(
+      "target_project_id names another project",
+    );
+    expect(
+      mergeRequestBodyProblem(
+        new URLSearchParams({ target_project_id: "7" }),
+        42,
+      ),
+    ).toBe("target_project_id names another project");
+    expect(
+      mergeRequestBodyProblem({ target_project_id: "group/other" }, 42),
+    ).toBe("target_project_id is not a project ID");
+    expect(mergeRequestBodyProblem("raw", 42)).toBe(
+      "merge request body is not an object",
+    );
+  });
+});
+
+describe("GitLab provider configuration errors", () => {
+  const config = {
+    id: "gl",
+    provider: "gitlab",
+    baseUrl: ORIGIN,
+    linkMethodPolicy: "oauth_only",
+    principalPolicy: "user_only",
+    allowedScopes: ["read_user"],
+    identityBinding: { kind: "none" },
+    allowUserPrincipalOutput: true,
+    oauth: { clientId: "cid", clientSecret: { ref: "vault:gitlab" } },
+  } as const;
+
+  it("fails on a client secret without a resolver instead of acting as a public client", async () => {
+    const { impl, calls } = fakeFetch(() => ({ status: 200, body: {} }));
+    const provider = makeGitLabBondProvider({ fetch: impl });
+    const r = await run(
+      Effect.either(provider.refreshUserToken(config, "refresh")),
+    );
+    expect(Either.isLeft(r) && r.left.rejected).toBe(false);
+    expect(Either.isLeft(r) && r.left.message).toContain("resolveSecret");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("does not treat invalid_client or other 4xx as a rejected grant", async () => {
+    for (const [status, error] of [
+      [401, "invalid_client"],
+      [400, "invalid_request"],
+      [403, undefined],
+    ] as const) {
+      const { impl } = fakeFetch(() => ({
+        status,
+        ...(error === undefined ? {} : { body: { error } }),
+      }));
+      const provider = makeGitLabBondProvider({
+        fetch: impl,
+        resolveSecret: () => Effect.succeed("secret"),
+      });
+      const r = await run(
+        Effect.either(provider.refreshUserToken(config, "refresh")),
+      );
+      expect(Either.isLeft(r) && r.left.rejected, `${status} ${error}`).toBe(
+        false,
+      );
+    }
   });
 });

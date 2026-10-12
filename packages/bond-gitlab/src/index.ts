@@ -25,6 +25,7 @@ export {
 } from "./tokens.js";
 export {
   classifyGitLabRequest,
+  mergeRequestBodyProblem,
   type GitLabOperation,
   type GitLabRequestClass,
   type ProjectRef,
@@ -32,10 +33,14 @@ export {
 export {
   ZERO_OID,
   evaluatePush,
+  isValidRefName,
+  makeReceivePackHeadParser,
   parseReceivePackHead,
   type PushPolicy,
   type ReceivePackCommand,
   type ReceivePackHead,
+  type ReceivePackHeadParser,
+  type ReceivePackLimits,
   type ReceivePackParse,
 } from "./receive-pack.js";
 export {

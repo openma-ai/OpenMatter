@@ -8,13 +8,15 @@ import {
   type Fetch,
 } from "./http.js";
 
+/**
+ * What discovery verified. OAuth calls always use the instance's fixed
+ * `/oauth/authorize`, `/oauth/token`, and `/oauth/revoke` under `origin`, so
+ * discovery returns no endpoints that callers might follow elsewhere.
+ */
 export interface GitLabInstance {
   readonly origin: string;
-  readonly authorizationEndpoint: string;
-  readonly tokenEndpoint: string;
-  readonly revocationEndpoint: string;
-  /** Present only when the instance enables the device authorization grant. */
-  readonly deviceAuthorizationEndpoint?: string;
+  /** Whether the instance enables the device authorization grant. */
+  readonly deviceFlow: boolean;
 }
 
 const base64url = (bytes: Uint8Array): string => {
@@ -87,15 +89,7 @@ export const discoverInstance = (
     }
     return {
       origin: canonical,
-      authorizationEndpoint: d.authorization_endpoint as string,
-      tokenEndpoint: d.token_endpoint as string,
-      revocationEndpoint:
-        typeof d.revocation_endpoint === "string"
-          ? d.revocation_endpoint
-          : `${canonical}/oauth/revoke`,
-      ...(typeof d.device_authorization_endpoint === "string"
-        ? { deviceAuthorizationEndpoint: d.device_authorization_endpoint }
-        : {}),
+      deviceFlow: typeof d.device_authorization_endpoint === "string",
     };
   });
 

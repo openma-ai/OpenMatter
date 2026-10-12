@@ -66,7 +66,12 @@ export const requestJson = (
 
 export const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
 
-/** Maps a non-2xx GitLab response to a ProviderError without echoing bodies. */
+/**
+ * Maps a non-2xx GitLab response to a ProviderError without echoing bodies.
+ * Only OAuth `invalid_grant` is a rejection, the one answer that means the
+ * grant itself is gone. `invalid_client`, other 4xx, and 5xx are
+ * configuration or transport problems and must not end a link.
+ */
 export const statusError = (
   what: string,
   response: JsonResponse,
@@ -77,10 +82,7 @@ export const statusError = (
       : undefined;
   return new ProviderError({
     message: `${what} failed with HTTP ${response.status}${error === undefined ? "" : ` (${error})`}`,
-    rejected:
-      response.status === 400 ||
-      response.status === 401 ||
-      response.status === 403,
+    rejected: error === "invalid_grant",
     status: response.status,
   });
 };

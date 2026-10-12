@@ -113,7 +113,7 @@ check(
   "discovery: PKCE S256 and refresh_token supported, issuer matches",
   true,
   {
-    deviceFlow: instance.deviceAuthorizationEndpoint !== undefined,
+    deviceFlow: instance.deviceFlow,
   },
 );
 
@@ -133,7 +133,7 @@ const store = makeMemoryBondStore();
 const makeKernel = () =>
   makeBond({
     providerApps: {
-      get: (id) =>
+      get: ({ providerAppId: id }) =>
         id === config.id
           ? Effect.succeed(config)
           : Effect.fail(
@@ -242,6 +242,7 @@ check(
 
 const principal = {
   tenantId: "local",
+  trigger: "attended",
   runAs: "requester",
   requesterId: "me",
 } as const;
@@ -250,6 +251,7 @@ const first = await Effect.runPromise(
     tenantId: "local",
     providerAppId: config.id,
     principal,
+    sessionCreatorId: "me",
     access: "write",
     operation: "probe",
   }),
@@ -273,6 +275,7 @@ const parallel = await Promise.all(
         tenantId: "local",
         providerAppId: config.id,
         principal,
+        sessionCreatorId: "me",
         access: "read",
       }),
     ),
@@ -327,6 +330,7 @@ const gone = await Effect.runPromise(
       tenantId: "local",
       providerAppId: config.id,
       principal,
+      sessionCreatorId: "me",
       access: "read",
     }),
   ),

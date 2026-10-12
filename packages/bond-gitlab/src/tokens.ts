@@ -139,7 +139,8 @@ export type TokenProblem =
   | "lifetime_exceeded"
   | "scope_not_allowed"
   | "not_a_bot"
-  | "is_a_bot";
+  | "is_a_bot"
+  | "user_mismatch";
 
 /** End of the UTC expiry day, which is when GitLab stops accepting the token. */
 export const tokenExpiryInstant = (expiresAt: string): string =>
@@ -147,9 +148,12 @@ export const tokenExpiryInstant = (expiresAt: string): string =>
 
 const commonProblems = (
   info: GitLabTokenInfo,
+  user: GitLabUser,
   policy: TokenPolicy,
 ): TokenProblem[] => {
   const problems: TokenProblem[] = [];
+  // Both reads must describe the same token: a mixed pair proves nothing.
+  if (info.userId !== user.id) problems.push("user_mismatch");
   if (info.revoked) problems.push("revoked");
   if (!info.active) problems.push("inactive");
   if (info.scopes.some((s) => !policy.allowedScopes.includes(s))) {
@@ -177,7 +181,7 @@ export const validatePersonalAccessToken = (
   user: GitLabUser,
   policy: TokenPolicy,
 ): readonly TokenProblem[] => [
-  ...commonProblems(info, policy),
+  ...commonProblems(info, user, policy),
   ...(user.bot ? (["is_a_bot"] as const) : []),
 ];
 
@@ -191,6 +195,6 @@ export const validateBotCredential = (
   user: GitLabUser,
   policy: TokenPolicy,
 ): readonly TokenProblem[] => [
-  ...commonProblems(info, policy),
+  ...commonProblems(info, user, policy),
   ...(user.bot ? [] : (["not_a_bot"] as const)),
 ];

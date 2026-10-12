@@ -17,7 +17,8 @@ export interface GitLabBondProviderOptions {
 }
 
 /**
- * Bond's GitLab provider. GitLab has no delegation marker, so user-principal
+ * Bond's GitLab provider. A configured `oauth.clientSecret` requires
+ * `resolveSecret`; the provider never silently degrades to a public client. GitLab has no delegation marker, so user-principal
  * writes need the ProviderApp's `allowUserPrincipalOutput`. The app principal
  * is a registered bot credential stored on the Installation; GitLab 17.1
  * cannot rotate it from the bot itself, so an administrator replaces it.
@@ -27,15 +28,25 @@ export const makeGitLabBondProvider = (
 ): BondProvider => {
   const client = (config: ProviderAppConfig) =>
     Effect.gen(function* () {
+      // Configuration problems are not grant rejections: they must not end
+      // every link of the ProviderApp.
       if (config.oauth === undefined) {
         return yield* Effect.fail(
           new ProviderError({
             message: `${config.id} has no OAuth application`,
-            rejected: true,
+            rejected: false,
           }),
         );
       }
       const secretRef = config.oauth.clientSecret;
+      if (secretRef !== undefined && options.resolveSecret === undefined) {
+        return yield* Effect.fail(
+          new ProviderError({
+            message: `${config.id} has an OAuth client secret but the provider has no resolveSecret`,
+            rejected: false,
+          }),
+        );
+      }
       const clientSecret =
         secretRef === undefined || options.resolveSecret === undefined
           ? undefined
