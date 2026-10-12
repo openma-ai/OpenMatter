@@ -62,7 +62,7 @@ describe("CredentialResolver", () => {
   });
 
   it("passes an optional execution principal through to the source unchanged", async () => {
-    const { makeCredentialResolver, staticCredentialResolver } =
+    const { makeCredentialResolver } =
       await import("../packages/credentials/src/index.js");
     const seen: unknown[] = [];
     const resolver = makeCredentialResolver((request) => {
@@ -71,6 +71,7 @@ describe("CredentialResolver", () => {
     });
     const principal = {
       tenantId: "w1",
+      trigger: "attended",
       runAs: "requester",
       requesterId: "u1",
     } as const;
@@ -82,19 +83,68 @@ describe("CredentialResolver", () => {
       resolver.resolve({ integrationId: "gitlab", authority: "a" }),
     );
     expect(seen).toEqual([principal, undefined]);
+  });
 
+  it("refuses a requester principal from a static installation credential", async () => {
+    const { CredentialError, staticCredentialResolver } =
+      await import("../packages/credentials/src/index.js");
     const fixed = staticCredentialResolver(
       { token: "fixed" },
       { integrationId: "slack", authority: "TWORK" },
     );
-    await expect(
+    const resolve = (
+      principal: Parameters<typeof fixed.resolve>[0]["principal"],
+    ) =>
       Effect.runPromise(
-        fixed.resolve({
-          integrationId: "slack",
-          authority: "TWORK",
-          principal,
-        }),
-      ),
-    ).resolves.toEqual({ token: "fixed" });
+        Effect.either(
+          fixed.resolve({
+            integrationId: "slack",
+            authority: "TWORK",
+            ...(principal === undefined ? {} : { principal }),
+          }),
+        ),
+      );
+
+    const requester = await resolve({
+      tenantId: "w1",
+      trigger: "attended",
+      runAs: "requester",
+      requesterId: "u1",
+    });
+    expect(requester._tag).toBe("Left");
+    if (requester._tag === "Left") {
+      expect(requester.left).toBeInstanceOf(CredentialError);
+      expect(requester.left.retryable).toBe(false);
+    }
+
+    for (const principal of [
+      undefined,
+      { tenantId: "w1", trigger: "unattended", runAs: "app" },
+      { tenantId: "w1", trigger: "attended", runAs: "app", requesterId: "u1" },
+    ] as const) {
+      expect(await resolve(principal)).toMatchObject({
+        _tag: "Right",
+        right: { token: "fixed" },
+      });
+    }
+  });
+
+  it("rules out a requester principal without an attended trigger or requester at the type level", () => {
+    type Request =
+      import("../packages/credentials/src/index.js").ExecutionPrincipalRequest;
+    // @ts-expect-error runAs requester needs requesterId
+    const noRequester: Request = {
+      tenantId: "w1",
+      trigger: "attended",
+      runAs: "requester",
+    };
+    // @ts-expect-error runAs requester is attended only
+    const unattended: Request = {
+      tenantId: "w1",
+      trigger: "unattended",
+      runAs: "requester",
+      requesterId: "u1",
+    };
+    expect([noRequester, unattended]).toHaveLength(2);
   });
 });
