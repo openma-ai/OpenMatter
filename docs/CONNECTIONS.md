@@ -555,7 +555,10 @@ The OpenMA control plane follows ADR 0009 (GitHub) and ADR 0010
   have not been exercised against the OpenMA deployment's App yet.
 - Octokit strategy compatibility with the Cloudflare host has not been tested.
 - GitLab OAuth token lifetime, refresh rotation, loopback redirect matching,
-  `merge_request.*` push options, label auto-creation, token-page prefill,
-  and `DELETE /personal_access_tokens/self` with only the allowed scopes have
-  not been exercised on the test instance. They need a registered OAuth
-  application, a dedicated test token, and a write test.
+  token-page prefill, and `DELETE /personal_access_tokens/self` with only the
+  allowed scopes have not been exercised on the test instance. They need a
+  registered OAuth application or a dedicated narrow test token.
+- Verified on the test instance by a prototype proxy (ADR 0010 in
+  open-managed-agents, "Prototype results"): `merge_request.*` push options
+  create a merge request, the missing label is created automatically, and
+  receive-pack command parsing enforces ref and push-option policy.
