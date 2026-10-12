@@ -236,7 +236,10 @@ Resolution:
 
 The app principal needs an active Installation. Without one, resolution
 fails with `unattended_unsupported` for unattended work and
-`app_not_configured` otherwise, including where the table names a fallback.
+`app_not_configured` for `runAs: "app"` or the `app` policy. Where the `user`
+policy names a fallback and no Installation exists, the link's own failure is
+reported instead, such as `link_required`, because that is what the user can
+fix.
 
 Rules:
 
