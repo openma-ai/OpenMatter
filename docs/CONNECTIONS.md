@@ -554,11 +554,15 @@ The OpenMA control plane follows ADR 0009 (GitHub) and ADR 0010
 - The GitHub token lifetimes above follow current GitHub documentation. They
   have not been exercised against the OpenMA deployment's App yet.
 - Octokit strategy compatibility with the Cloudflare host has not been tested.
-- GitLab OAuth token lifetime, refresh rotation, loopback redirect matching,
-  token-page prefill, and `DELETE /personal_access_tokens/self` with only the
-  allowed scopes have not been exercised on the test instance. They need a
-  registered OAuth application or a dedicated narrow test token.
+- GitLab token-page prefill, `DELETE /personal_access_tokens/self` with only
+  the allowed scopes, and exact matching for HTTPS redirect URIs have not been
+  exercised on the test instance.
 - Verified on the test instance by a prototype proxy (ADR 0010 in
   open-managed-agents, "Prototype results"): `merge_request.*` push options
   create a merge request, the missing label is created automatically, and
   receive-pack command parsing enforces ref and push-option policy.
+- Also verified there, with OAuth: access tokens last 7200 s; a refresh
+  rotates the pair and invalidates the old access token; reusing a
+  rotated-out refresh token is refused but does not revoke the current pair,
+  so the refresh lease is the only concurrency guard; loopback redirect URIs
+  are matched without the port (RFC 8252).
