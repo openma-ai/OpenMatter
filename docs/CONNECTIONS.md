@@ -109,17 +109,19 @@ ProviderApp            configuration supplied by the application through
                        policy, client id, app id and slug (GitHub),
                        private key and client secret (secret references),
                        CA bundle reference
-  ├── Installation     provider installation in one account/org (GitHub)
-  │     │              (installation id, account login, repository
-  │     │               selection, status)
-  │     └── UserLink   one application user ↔ one provider user
-  └── UserLink         providers without installations (GitLab)
+  ├── Installation     the app principal in one provider account or org,
+  │                    owned by exactly one tenant
+  │                    (GitHub: App installation id, account login,
+  │                     repository selection, status;
+  │                     GitLab app mode: bot credential reference and the
+  │                     group or project it covers)
+  └── UserLink         one application user ↔ one provider user
                        (provider user id, login, method, sealed user
                         token, expiry, refresh lease, status)
 
 ExecutionPrincipal     who performs one external operation
   = { kind: "app",  providerAppId, installationId }
-  | { kind: "user", providerAppId, installationId?, userLinkId }
+  | { kind: "user", providerAppId, userLinkId, installationId? }
 ```
 
 - `Installation.status`: `pending` → `active` → `suspended` | `revoked`.
@@ -128,15 +130,31 @@ ExecutionPrincipal     who performs one external operation
 - `UserLink.status`: `active` → `refresh_failed` | `expired` |
   `method_disallowed` | `revoked`. Every non-active state keeps the reason
   and requires the user to re-link.
-- An application user may hold several UserLinks across installations. The
-  provider user id is the stable identity. A login is display data only.
+- A UserLink belongs to the ProviderApp, not to an Installation. A GitHub
+  user-to-server token is issued per App and reaches every installation of
+  that App the user can access. The kernel picks the Installation per
+  operation, to bound access and to supply the app principal. One user
+  therefore holds one link per ProviderApp, even when the tenant has several
+  installations.
+- The provider user id is the stable identity. A login is display data only.
+- An Installation belongs to exactly one tenant. Claiming one requires proof
+  that the claiming user can access it on the provider. For GitHub, that
+  proof is `GET /user/installations` with the user's own token. An
+  installation id seen in a callback, webhook, or log is never proof by
+  itself. Moving an Installation to another tenant requires an explicit
+  release by the owning tenant, or a provider-side uninstall followed by a
+  new install. Sharing one Installation across tenants needs an explicit
+  parent-to-child delegation layer, which is out of scope here.
 - A GitHub ProviderApp is one `BotResource` in the sense of
   [IDENTITY_MODEL.md](IDENTITY_MODEL.md). Connections never create one App per
   AgentProfile or persona.
 - A GitLab ProviderApp represents one instance. It holds an OAuth
-  application only when its link method policy enables OAuth. It has no bot
-  account and no app principal. Each GitLab instance, including
-  gitlab.com, is a separate ProviderApp identified by its canonical origin.
+  application only when its link method policy enables OAuth. By default it
+  has no Installation and no app principal. An administrator may register a
+  bot credential (group access token, project access token, or service
+  account token) as its Installation; that enables the app principal. Each
+  GitLab instance, including gitlab.com, is a separate ProviderApp
+  identified by its canonical origin.
 
 ## Principal selection
 
@@ -165,9 +183,15 @@ Rules:
 4. Repository access for a user principal is the intersection of the
    installation's repositories and the user's own access. Selecting a
    principal never widens access.
-5. A provider without an app principal (GitLab) accepts only `user_only`.
-   Unattended work has no principal there and fails with
-   `unattended_unsupported`.
+5. A ProviderApp without an Installation (GitLab by default) accepts only
+   `user_only`. Unattended work has no principal there and fails with
+   `unattended_unsupported`. Registering a bot credential as an
+   Installation makes `app` and `user` available.
+6. By default the user principal is the Session creator. An application may
+   enable `participants_as_principal`: an operation may then run as another
+   user who sent input to the same Session, if that user holds a valid link.
+   The chosen participant is recorded in the audit fact. The setting is off
+   by default.
 
 ## Link method policy
 
@@ -190,8 +214,8 @@ Rules:
 2. A failed refresh never becomes a request for a token on its own. The link
    moves to `refresh_failed`, and the user re-links with an allowed method.
 3. At most one active link exists per (tenant, application user,
-   ProviderApp, installation). A new link, by either method, revokes the
-   previous one first.
+   ProviderApp). A new link, by either method, revokes the previous one
+   first.
 4. Narrowing the policy marks links of the removed method
    `method_disallowed` and revokes their tokens.
 5. Both methods pass the same validation: an allowed-scope set, the provider
@@ -254,15 +278,21 @@ interface ConnectionStore {
   getInstallation(
     ref: InstallationRef,
   ): Effect<Installation | undefined, StoreError>;
-  putInstallation(value: Installation): Effect<void, StoreError>; // idempotent by provider installation id
+  claimInstallation(
+    value: Installation,
+  ): Effect<"claimed" | "already_owned" | "owned_elsewhere", StoreError>; // unique by (provider app, provider installation id)
+  releaseInstallation(
+    ref: InstallationRef,
+    actor: string,
+  ): Effect<void, StoreError>;
 
   getUserLink(ref: UserLinkRef): Effect<UserLink | undefined, StoreError>;
   findUserLink(q: {
     tenantId;
     appUserId;
-    installationId;
+    providerAppId;
   }): Effect<UserLink | undefined, StoreError>;
-  upsertUserLink(value: UserLinkWrite): Effect<UserLink, StoreError>; // idempotent by (tenant, provider user id, installation)
+  upsertUserLink(value: UserLinkWrite): Effect<UserLink, StoreError>; // idempotent by (tenant, provider user id, provider app)
 
   acquireRefreshLease(
     id: string,
@@ -325,6 +355,8 @@ Invariants every application adapter must satisfy:
 4. A revoked link stays revoked. Any later `upsertUserLink` for the same
    provider user creates a new link id.
 5. Reads are tenant-scoped. A lookup can never return another tenant's row.
+   An Installation has exactly one owning tenant. `claimInstallation`
+   returns `owned_elsewhere` and changes nothing when another tenant owns it.
 6. Plaintext tokens never pass through the store. It receives sealed values
    only.
 
@@ -336,7 +368,9 @@ it against its real adapter in its own CI, against its real database. The
 suite covers idempotent upserts, tenant isolation, lease races with parallel
 callers, stale-lease commits, revoke-then-refresh, key rotation reads, expiry
 boundaries, relinking with the other method, policy narrowing to
-`method_disallowed`, and `pat` links that never take a refresh lease.
+`method_disallowed`, `pat` links that never take a refresh lease, a second
+tenant claiming an owned Installation, release then claim, and one link
+serving two Installations of the same ProviderApp.
 
 The memory adapter passes the same suite and is labelled test-only.
 
@@ -407,9 +441,12 @@ granted per Turn like any other.
 ## GitLab binding
 
 `@openmatter/connection-gitlab` covers gitlab.com and self-managed GitLab.
-By requirement it uses no bot: no project or group access token and no
-service account, because each of those creates a bot user. Every operation
-runs as the linking user.
+By default it uses no bot, and every operation runs as the linking user.
+Project access tokens, group access tokens, and service accounts each create
+a bot user. An administrator may still register one of them as the
+ProviderApp's Installation, which enables the `app` and `user` principal
+policies. A group access token is preferred because it covers the group's
+projects.
 
 GitLab facts that shape the binding. These were checked read-only against a
 self-managed GitLab 17.1.8 Enterprise (JiHu) instance on 2026-10-12:
@@ -443,7 +480,7 @@ So the GitHub control model is reproduced differently:
 | access check at Session creation                         | `GET /projects/:id`, highest of `project_access` and `group_access`                                                               |
 | installation and authorization webhooks                  | none; revocation surfaces as refresh or request failure                                                                           |
 | "with App" marker and `performed_via_github_app`         | content marker plus audit fact (see below)                                                                                        |
-| app principal for unattended work                        | none; unattended GitLab work is unsupported                                                                                       |
+| app principal for unattended work                        | none by default; a registered bot credential (Installation) when the administrator enables app mode                               |
 
 Linking follows the ProviderApp's `LinkMethodPolicy`:
 
@@ -548,6 +585,12 @@ The OpenMA control plane follows ADR 0009 (GitHub) and ADR 0010
   `connections-github` package until a second provider exists.
 - Which GitLab version is the minimum. Device flow can be disabled per
   instance, so the binding assumes only authorization code with PKCE.
+- Whether shared Slack or Linear user linking should reuse UserLink, or stay
+  installation-only until a concrete need appears. Both fit the same model:
+  - Linear OAuth with `actor=app` installs the app in a workspace, and its
+    token acts as the app. The default actor acts as the user.
+    `createAsUser` renders app actions as "user (via application)";
+  - Slack separates the workspace bot token from per-user tokens.
 
 ## Unverified
 
