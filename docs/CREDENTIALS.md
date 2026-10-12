@@ -42,8 +42,8 @@ can expose its current installation token through the same resolver, so a
 self-hosted service and a managed service remain interchangeable without
 changing the Work Integration.
 
-The proposed optional `@openmatter/connections` packages
-([Connections](CONNECTIONS.md)) implement account linking and explicit
+The proposed optional `@openmatter/bond` packages
+([Bond](BONDS.md)) implement account linking and explicit
 execution principals on top of this port. They are storage-free: the
 application still owns persistence, key custody, and routes. The proposal adds
 one optional `principal` field to `CredentialRequest`. When it is absent, the

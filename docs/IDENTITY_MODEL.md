@@ -92,7 +92,7 @@ principal may author output only when all of these hold:
 5. each operation emits an audit fact with the principal, link, target, and
    Session.
 
-See [Connections](CONNECTIONS.md#gitlab-binding).
+See [Bond](BONDS.md#gitlab-binding).
 
 ### AgentProfile
 
@@ -214,4 +214,4 @@ boundaries. `BotResource`, versioned `AgentProfile`, `ScopeBinding`, explicit
 ExecutionPrincipal selection, and Agent Tool Binding are accepted direction
 and still require executable APIs and conformance tests. Explicit
 ExecutionPrincipal selection, delegated user links, and auditable fallback are
-specified in [Connections](CONNECTIONS.md) (proposed).
+specified in [Bond](BONDS.md) (proposed).

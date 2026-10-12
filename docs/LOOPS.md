@@ -98,3 +98,19 @@ const patrol = defineLoop(
 
 The host owns timer registration, wake-up, overlap, and transport retries. The
 Loop owns what a tick means once it becomes a WorkEvent.
+
+## Execution principal
+
+A Loop that writes to a provider acts as some principal. The principal comes
+from [Bond](BONDS.md), not from the Loop:
+
+- `app`, the Installation principal, is the default. It is the only choice
+  for timers, webhooks, pollers, and other unattended sources.
+- `requester` runs an operation as the user who sent the triggering Event,
+  when that user holds a valid user link and the provider policy allows it.
+
+Owning or configuring a Loop never lends the owner's account to unattended
+runs. When no app principal exists, as on a GitLab instance without a
+registered bot credential, an unattended write fails explicitly instead of
+borrowing a person's link. This field is proposed and not yet part of the
+executable v0 API.

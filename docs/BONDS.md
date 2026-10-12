@@ -1,10 +1,45 @@
-# Connections: linked provider accounts and execution principals
+# Bond: linked provider accounts and execution principals
 
 **Status:** proposed (2026-10-12). Not implemented.
-**Decision:** OpenMatter provides an optional, storage-free connection kernel
-that links work-platform accounts, selects an explicit `ExecutionPrincipal`,
-and produces a `CredentialResolver`. Applications own persistence, encryption
+**Decision:** OpenMatter provides Bond, an optional, storage-free kernel that
+links work-platform accounts, selects an explicit `ExecutionPrincipal`, and
+produces a `CredentialResolver`. Applications own persistence, encryption
 keys, HTTP routes, and membership-driven revocation.
+
+## Bond and Loop
+
+Work agents need two things from OpenMatter:
+
+| Module | Answers                                                                                                      | Packages                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Bond   | who acts, and with which credential: installations, user links, link methods, principal selection, freshness | `@openmatter/bond`, `@openmatter/bond-github`, `@openmatter/bond-gitlab` |
+| Loop   | when the agent acts, and what it does: event and schedule sources, continuity, context, Reactions            | [Loops](LOOPS.md) and `@openmatter/integration-*`                        |
+
+Comparable products split the same way. Devin separates Integrations (an
+organization connection plus personal account links) from Automations
+(recurring and event-driven workflows). In OpenMatter an Automation is a
+Loop: timers, webhooks, and pollers are already Event sources, so no second
+automation concept is introduced.
+
+Bond comes first. A Loop that writes to a provider needs a principal, and
+Bond is where that principal comes from. The two meet at one seam: an
+operation asks a `CredentialResolver` for the principal it requires, and Bond
+resolves it. Loops and integrations never read links or tokens directly.
+
+A Loop states the principal its operations use:
+
+- `app`, the Installation principal. This is the default, and the only choice
+  for schedules, webhooks, and other unattended sources.
+- `requester`, the user who sent the triggering Event, when that user holds a
+  valid UserLink and the ProviderApp's `PrincipalPolicy` allows it.
+
+Who created or owns a Loop is management metadata. It never lends the owner's
+UserLink to unattended runs.
+
+"Bond" names the durable relationship: an Installation is an app bond, and a
+UserLink is a user bond. It is unrelated to the Work Binding and custom
+binding terms in [Work Profiles](INTEGRATIONS.md), which name executable
+adapter code.
 
 ## Why this exists
 
@@ -48,7 +83,7 @@ In scope:
   and token freshness;
 - explicit `ExecutionPrincipal` selection with auditable, never implicit,
   fallback;
-- a `ConnectionStore` port with written invariants, a conformance suite, and
+- a `BondStore` port with written invariants, a conformance suite, and
   an in-memory adapter for tests;
 - a GitHub binding built on Octokit's maintained authentication strategies;
 - a GitLab binding for gitlab.com and self-managed instances that uses only
@@ -76,11 +111,11 @@ packages are that kind of binding.
 @octokit/auth-app, @octokit/auth-oauth-user, @octokit/auth-oauth-device
         provider protocol: App JWT, installation tokens, web and device flow
                 │
-@openmatter/connection-github
+@openmatter/bond-github
         GitHub binding: install-and-authorize, repository intersection,
         repository-scoped installation tokens, attribution helpers
                 │
-@openmatter/connections
+@openmatter/bond
         kernel: link state machine, token freshness, principal selection,
         audit facts, ports, conformance suite, memory adapter (tests only)
                 │  produces
@@ -91,7 +126,7 @@ Backchat              SQLite metadata + OS keychain, device flow UI
 self-hosted hosts     their own store, routes, and key custody
 ```
 
-The connection packages depend only on `effect`, `@openmatter/credentials`,
+The Bond packages depend only on `effect`, `@openmatter/credentials`,
 and Octokit. They do not depend on `@openmatter/core` or the runtime, so a
 control plane can adopt them without adopting the Loop.
 
@@ -146,7 +181,7 @@ ExecutionPrincipal     who performs one external operation
   new install. Sharing one Installation across tenants needs an explicit
   parent-to-child delegation layer, which is out of scope here.
 - A GitHub ProviderApp is one `BotResource` in the sense of
-  [IDENTITY_MODEL.md](IDENTITY_MODEL.md). Connections never create one App per
+  [IDENTITY_MODEL.md](IDENTITY_MODEL.md). Bond never creates one App per
   AgentProfile or persona.
 - A GitLab ProviderApp represents one instance. It holds an OAuth
   application only when its link method policy enables OAuth. By default it
@@ -274,7 +309,7 @@ interface ProviderAppSource {
   get(ref: ProviderAppRef): Effect<ProviderAppConfig, ConfigError>;
 }
 
-interface ConnectionStore {
+interface BondStore {
   getInstallation(
     ref: InstallationRef,
   ): Effect<Installation | undefined, StoreError>;
@@ -331,9 +366,9 @@ and transport.
 The application passes its implementations in when it builds the kernel:
 
 ```ts
-const connections = makeConnections({
+const bond = makeBond({
   providerApps, // ProviderAppSource
-  store, // ConnectionStore
+  store, // BondStore
   cipher, // SecretCipher
   state, // StateSigner
 });
@@ -362,8 +397,8 @@ Invariants every application adapter must satisfy:
 
 ## Conformance suite
 
-`@openmatter/connections/conformance` exports
-`runConnectionStoreConformance(makeStore, makeCipher)`. Each application runs
+`@openmatter/bond/conformance` exports
+`runBondStoreConformance(makeStore, makeCipher)`. Each application runs
 it against its real adapter in its own CI, against its real database. The
 suite covers idempotent upserts, tenant isolation, lease races with parallel
 callers, stale-lease commits, revoke-then-refresh, key rotation reads, expiry
@@ -408,7 +443,7 @@ author, execution principal, requesting actor, and provider receipt.
 
 ## GitHub binding
 
-`@openmatter/connection-github` provides:
+`@openmatter/bond-github` provides:
 
 - **Install and authorize in one redirect.** The App enables "Request user
   authorization (OAuth) during installation", so the first administrator gets
@@ -440,7 +475,7 @@ granted per Turn like any other.
 
 ## GitLab binding
 
-`@openmatter/connection-gitlab` covers gitlab.com and self-managed GitLab.
+`@openmatter/bond-gitlab` covers gitlab.com and self-managed GitLab.
 By default it uses no bot, and every operation runs as the linking user.
 Project access tokens, group access tokens, and service accounts each create
 a bot user. An administrator may still register one of them as the
@@ -535,10 +570,10 @@ commit SHA, matching how Backchat consumes OpenMatter and how OMA consumes
 openma-common:
 
 ```jsonc
-"@openmatter/connections":
-  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/connections",
-"@openmatter/connection-gitlab":
-  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/connection-gitlab"
+"@openmatter/bond":
+  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/bond",
+"@openmatter/bond-gitlab":
+  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/bond-gitlab"
 ```
 
 All `@openmatter/*` packages in one consumer use the same tag or SHA,
@@ -548,7 +583,7 @@ the consumer.
 ## Security notes
 
 - The private key and client secret are bootstrap secrets. They are
-  referenced, never stored by connections, and never logged.
+  referenced, never stored by Bond, and never logged.
 - User tokens never enter agent input, Context, WorkEvents, receipts, or
   sandboxes. For GitHub, sandboxes receive at most a short-lived,
   repository-scoped installation token through the application's delivery
@@ -566,14 +601,16 @@ the consumer.
 Each step is one small PR under the org contribution guide: conventional
 title, squash merge, and an evidence report for the current head SHA.
 
-1. `docs: specify connections and execution principals`. This document, plus
-   status updates in CREDENTIALS.md and IDENTITY_MODEL.md.
+1. `docs: specify bond and execution principals`. This document, plus
+   status updates in CREDENTIALS.md, IDENTITY_MODEL.md, and LOOPS.md.
 2. `feat(credentials): add optional principal to CredentialRequest`.
-3. `feat(connections): add kernel, ports, memory adapter, and conformance suite`.
-4. `feat(connection-github): add GitHub App binding on Octokit strategies`.
-5. `feat(connection-gitlab): add GitLab binding, request classifier, and
-receive-pack parser`.
-6. `feat(project-worker): reference an OpenMA connection instead of a PAT`.
+3. `feat(bond): add kernel, ports, memory adapter, and conformance suite`.
+4. `feat(bond-gitlab): add GitLab binding, request classifier, and
+receive-pack parser`, with an opt-in live lane against a self-managed
+   instance.
+5. `feat(bond-github): add GitHub App binding on Octokit strategies`.
+6. `feat(runtime): declare the execution principal of a Loop`.
+7. `feat(project-worker): reference an OpenMA connection instead of a PAT`.
    This lands after OpenMA ships connection references.
 
 The OpenMA control plane follows ADR 0009 (GitHub) and ADR 0010
@@ -581,8 +618,6 @@ The OpenMA control plane follows ADR 0009 (GitHub) and ADR 0010
 
 ## Open questions
 
-- Package names: `connections` and `connection-github`, or one
-  `connections-github` package until a second provider exists.
 - Which GitLab version is the minimum. Device flow can be disabled per
   instance, so the binding assumes only authorization code with PKCE.
 - Whether shared Slack or Linear user linking should reuse UserLink, or stay
