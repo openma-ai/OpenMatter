@@ -102,12 +102,26 @@ Loop owns what a tick means once it becomes a WorkEvent.
 ## Execution principal
 
 A Loop that writes to a provider acts as some principal. The principal comes
-from [Bond](BONDS.md), not from the Loop:
+from [Bond](BONDS.md), not from the Loop. The Loop declares `runAs`, and the
+host marks each WorkEvent `attended` or `unattended` from its source:
 
 - `app`, the Installation principal, is the default. It is the only choice
   for timers, webhooks, pollers, and other unattended sources.
-- `requester` runs an operation as the user who sent the triggering Event,
-  when that user holds a valid user link and the provider policy allows it.
+- `requester` runs an operation as the user who sent the triggering Event.
+  It applies only to attended Events, such as a Session message or a chat
+  mention addressed to the agent. A webhook whose actor maps to an
+  application user is still unattended.
+
+The tenant's principal policy for the provider then decides the outcome:
+
+| `runAs`     | `app` policy                       | `user` policy                                            | `user_only` policy                                                       |
+| ----------- | ---------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `requester` | app principal, reason `policy_app` | the requester's link; app principal as recorded fallback | the requester's link, or `link_required`                                 |
+| `app`       | app principal                      | app principal                                            | `unattended_unsupported` when unattended, `app_disallowed` when attended |
+
+The requester acts as principal when they are the Session creator. Another
+participant needs the application's `participantsAsPrincipal` opt-in. A Loop
+that starts a Session for an Event records the sender as its creator.
 
 Owning or configuring a Loop never lends the owner's account to unattended
 runs. When no app principal exists, as on a GitLab instance without a

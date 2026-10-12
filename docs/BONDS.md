@@ -31,7 +31,9 @@ A Loop states the principal its operations use:
 - `app`, the Installation principal. This is the default, and the only choice
   for schedules, webhooks, and other unattended sources.
 - `requester`, the user who sent the triggering Event, when that user holds a
-  valid UserLink and the ProviderApp's `PrincipalPolicy` allows it.
+  valid UserLink and the tenant's `PrincipalPolicy` for the ProviderApp
+  allows it. See [Principal selection](#principal-selection) for every
+  combination.
 
 Who created or owns a Loop is management metadata. It never lends the owner's
 UserLink to unattended runs.
@@ -193,44 +195,91 @@ ExecutionPrincipal     who performs one external operation
 
 ## Principal selection
 
-Each operation states the principal it requires. The kernel resolves it
-against a `PrincipalPolicy` configured by the application:
+Each operation states the principal it requires and whether a person asked
+for it. The kernel resolves the request against the `PrincipalPolicy` that the
+application configures for the (tenant, ProviderApp) pair. A GitHub
+ProviderApp is shared by many tenants, so the policy is a tenant setting, not
+an App setting. Bond has no built-in default. OMA defaults GitHub to `user`
+(ADR 0009) and GitLab to `user_only` (ADR 0010).
 
-| Policy      | User link present | User link absent or invalid         |
-| ----------- | ----------------- | ----------------------------------- |
-| `app`       | app principal     | app principal                       |
-| `user`      | user principal    | app principal, recorded as fallback |
-| `user_only` | user principal    | fails with `link_required`          |
+`ProviderAppSource` therefore returns the effective configuration for one
+(tenant, ProviderApp) pair. The application may keep these fields per
+workspace: `principalPolicy`, `participantsAsPrincipal`,
+`allowUserPrincipalOutput`, `linkMethodPolicy`, `allowedScopes`,
+`maxPatLifetimeDays`, and `identityBinding`. Provider identity (provider,
+origin, OAuth client, GitHub App) is the same for every tenant.
+
+The request (`ExecutionPrincipalRequest`) carries:
+
+- `trigger`: `attended` when a person directly asked for the work in an
+  interactive surface, such as a Session message or a chat mention addressed
+  to the agent. `unattended` for schedules, webhooks, pollers, and service
+  accounts. The host sets it from the Event source. It is never inferred from
+  the presence of a user id: a webhook whose actor maps to an application
+  user is still unattended.
+- `runAs`: `app` or `requester`. `requester` requires `trigger: "attended"`
+  and a `requesterId`. A request that breaks this fails with
+  `invalid_principal_request`.
+- `requesterId`: the application user who sent the triggering Event. With
+  `runAs: "app"` it is used for attribution and audit only.
+
+Resolution:
+
+| `runAs`     | Policy      | Result                                                                                                                |
+| ----------- | ----------- | --------------------------------------------------------------------------------------------------------------------- |
+| `requester` | `app`       | app principal, with fallback reason `policy_app`                                                                      |
+| `requester` | `user`      | user principal when the requester's link is usable; otherwise app principal, with the link's state as fallback reason |
+| `requester` | `user_only` | user principal when the link is usable; otherwise fails with `link_required` or the link's state                      |
+| `app`       | `app`       | app principal                                                                                                         |
+| `app`       | `user`      | app principal                                                                                                         |
+| `app`       | `user_only` | fails with `unattended_unsupported` when unattended, `app_disallowed` when attended                                   |
+
+The app principal needs an active Installation. Without one, resolution
+fails with `unattended_unsupported` for unattended work and
+`app_not_configured` otherwise, including where the table names a fallback.
 
 Rules:
 
-1. Fallback happens only when the configured policy names it. The result
-   carries `fallback: true` and the reason, and the audit fact records both.
-   This satisfies "fallback from bot to user, or user to bot, is never
-   implicit".
-2. Unattended work (schedules, webhooks, shared channels, service accounts)
-   always resolves to the app principal. It never borrows a person's link.
-3. A user principal is only usable through a provider mechanism that marks
-   the delegation, such as a GitHub App user-to-server token, which shows
-   "with `<app>`" and sets `performed_via_github_app`. A plain OAuth token that
-   makes output look human-authored is rejected, as IDENTITY_MODEL.md already
-   requires.
+1. Fallback happens only where the table names it. Whenever the resolved
+   principal differs from the requested one, the resolution carries the
+   reason and the audit fact records it. This satisfies "fallback from bot to
+   user, or user to bot, is never implicit". A refresh that the provider
+   rejects during the same call counts: under `user` the call falls back to
+   the app principal with reason `refresh_failed`. A transport failure never
+   changes the principal. It fails as retryable.
+2. Unattended work never uses a person's link, under any policy and whether
+   or not an Installation exists. Under `user_only`, unattended work fails
+   with `unattended_unsupported` even when an Installation is registered.
+3. A user principal is only usable for writes through a provider mechanism
+   that marks the delegation, such as a GitHub App user-to-server token,
+   which shows "with `<app>`" and sets `performed_via_github_app`. A provider
+   without a marker, such as GitLab, needs the administrator opt-in
+   `allowUserPrincipalOutput` from IDENTITY_MODEL.md. Without it, a
+   user-principal write fails with `user_output_disabled`. It does not fall
+   back to the app principal, because a silent switch would hide an
+   administrator decision. Reads are unaffected.
 4. Repository access for a user principal is the intersection of the
    installation's repositories and the user's own access. Selecting a
    principal never widens access.
-5. A ProviderApp without an Installation (GitLab by default) accepts only
-   `user_only`. Unattended work has no principal there and fails with
-   `unattended_unsupported`. Registering a bot credential as an
-   Installation makes `app` and `user` available.
-6. By default the user principal is the Session creator. An application may
-   enable `participants_as_principal`: an operation may then run as another
-   user who sent input to the same Session, if that user holds a valid link.
-   The chosen participant is recorded in the audit fact. The setting is off
-   by default.
+5. A ProviderApp without an Installation (GitLab by default) offers only the
+   user principal. Registering a bot credential as an Installation makes the
+   app principal available.
+6. The requester is the user who sent the triggering Event. They act as the
+   user principal when they are the Session creator. A host that starts a
+   Session for an Event records the sender as its creator. Another
+   participant, a user who sent input into a Session someone else created,
+   acts as principal only when the application enables
+   `participantsAsPrincipal`. Otherwise the operation fails with
+   `participant_not_allowed`. When the host does not supply the Session
+   creator, the requester is treated as another participant. The chosen user
+   is recorded in the audit fact.
+7. When the tenant owns several active Installations of the ProviderApp, the
+   operation must name one. Otherwise it fails with `installation_required`.
 
 ## Link method policy
 
-`LinkMethodPolicy` is configured per ProviderApp. It says how users may link.
+`LinkMethodPolicy` is configured per (tenant, ProviderApp). It says how users
+may link.
 
 | Policy            | Allowed methods                                | Requires             |
 | ----------------- | ---------------------------------------------- | -------------------- |
@@ -277,8 +326,9 @@ refresher cannot block the link.
 
 A `pat` link has no refresh token and takes no lease. Its expiry comes from
 the provider's token metadata. The kernel reports `expiring` inside a
-configurable warning window, and moves the link to `expired` at expiry or on
-the first authentication failure.
+configurable warning window, and moves the link to `expired` at expiry or
+when the application reports that the provider rejected the token. For an
+OAuth link, such a report forces a refresh under the lease instead.
 
 Revocation deletes nothing silently. It writes a tombstone (`revoked`, time,
 actor, reason) and asks the provider to revoke the grant where supported. A
@@ -412,6 +462,20 @@ The memory adapter passes the same suite and is labelled test-only.
 ## CredentialRequest extension
 
 ```ts
+type ExecutionPrincipalRequest =
+  | {
+      tenantId: string;
+      trigger: "attended" | "unattended";
+      runAs: "app";
+      requesterId?: string; // attribution and audit only
+    }
+  | {
+      tenantId: string;
+      trigger: "attended";
+      runAs: "requester";
+      requesterId: string;
+    };
+
 interface CredentialRequest {
   readonly integrationId: string;
   readonly authority: string;
@@ -419,27 +483,40 @@ interface CredentialRequest {
 }
 ```
 
-An absent `principal` keeps today's meaning: the installation credential for
-`authority`. Existing resolvers and integrations therefore continue to work.
-The Loop sets `principal` from the ScopeBinding and grants. Agent output
-cannot set it.
+An absent `principal` keeps today's meaning for existing resolvers: the
+installation credential for `authority`. Existing resolvers and integrations
+therefore continue to work. A Bond-backed resolver requires `principal` and
+fails closed without it. `staticCredentialResolver` holds one installation
+credential, so it rejects `runAs: "requester"` instead of answering with the
+installation credential. The Loop sets `principal` from the ScopeBinding,
+the grants, and the Event source. Agent output cannot set it.
 
 ## Audit facts
 
-Every resolution emits one immutable fact. Values are identifiers, never
-tokens:
+Every credential resolution emits one immutable fact, whether it is granted
+or denied. Values are identifiers, never tokens:
 
 ```text
+outcome              granted | denied
+denial               failure reason, when denied
 requestingActor      application user or event actor that caused the work
-executionPrincipal   app | user, installation id, user link id
+trigger              attended | unattended
+executionPrincipal   app | user, installation id, user link id; when granted
+method               oauth | pat, for a user principal
 policy               app | user | user_only
 fallback             false | { reason }
-surfaceIdentity      the BotResource that appears on the work surface
-operation            provider operation name and resource address
+access               read | write
+operation            provider operation name
+resource             resource address, such as a project path
 ```
 
-This matches the audit separation required by IDENTITY_MODEL.md: visible
-author, execution principal, requesting actor, and provider receipt.
+Denials such as `link_required`, `unattended_unsupported`,
+`participant_not_allowed`, and `user_output_disabled` are audited like
+grants. Bond records who executed and why. It does not know which identity
+appears on the work surface: the integration that writes the output records
+the visible author and the provider receipt, keyed by the same operation.
+Together they give the audit separation required by IDENTITY_MODEL.md:
+visible author, execution principal, requesting actor, and provider receipt.
 
 ## GitHub binding
 
