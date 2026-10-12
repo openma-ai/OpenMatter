@@ -77,6 +77,23 @@ ExecutionIdentity is separate from SurfaceIdentity:
   policy rather than by persona;
 - fallback from bot to user, or user to bot, is never implicit.
 
+Some providers, such as GitLab, have no provider-native delegation marker
+like a GitHub App user-to-server token. On those providers a delegated user
+principal may author output only when all of these hold:
+
+1. the provider offers no native delegation marker;
+2. an administrator enabled user-principal output for that provider
+   instance;
+3. the user consented at link time to output appearing under their own
+   account;
+4. every artifact carries a content marker that names the application, such
+   as an `Assisted-by` commit trailer, a merge request label, or a description
+   footer;
+5. each operation emits an audit fact with the principal, link, target, and
+   Session.
+
+See [Connections](CONNECTIONS.md#gitlab-binding).
+
 ### AgentProfile
 
 A versioned work configuration that may contain:
@@ -184,7 +201,8 @@ the message.
 - one channel automatically creates one visible bot persona;
 - prompt/persona text selects credentials;
 - delegated user credentials make output appear human-authored without an
-  explicit provider feature and audit trail;
+  explicit provider feature, or the content-marker conditions under
+  ExecutionIdentity, and an audit trail;
 - a BotResource is the durable source of work continuity;
 - every behavioral difference is modeled as a separate “person.”
 
@@ -194,4 +212,6 @@ the message.
 credential resolution already exist as architectural or executable
 boundaries. `BotResource`, versioned `AgentProfile`, `ScopeBinding`, explicit
 ExecutionPrincipal selection, and Agent Tool Binding are accepted direction
-and still require executable APIs and conformance tests.
+and still require executable APIs and conformance tests. Explicit
+ExecutionPrincipal selection, delegated user links, and auditable fallback are
+specified in [Connections](CONNECTIONS.md) (proposed).
