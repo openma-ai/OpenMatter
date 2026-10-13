@@ -1,9 +1,39 @@
 import { Data, Effect } from "effect";
 
+/**
+ * Who an operation should run as. Set by the Loop from its declaration and the
+ * triggering Event source, never by agent output. See docs/BONDS.md.
+ *
+ * `trigger` is explicit: whether a person directly asked for the work is a
+ * property of the Event source, not of whether a user id is known. A webhook
+ * whose actor maps to an application user is still `unattended`.
+ */
+export type ExecutionPrincipalRequest =
+  | {
+      /** Application tenant that owns the work. */
+      readonly tenantId: string;
+      readonly trigger: "attended" | "unattended";
+      /** The installation (app) principal. */
+      readonly runAs: "app";
+      /** Application user who caused the work. Attribution and audit only. */
+      readonly requesterId?: string;
+    }
+  | {
+      readonly tenantId: string;
+      /** Only a person who directly asked for the work can lend their link. */
+      readonly trigger: "attended";
+      /** The requester's own link, subject to the provider's principal policy. */
+      readonly runAs: "requester";
+      /** Application user who sent the triggering Event. */
+      readonly requesterId: string;
+    };
+
 /** Public identifiers only. Credential material never belongs in this request. */
 export interface CredentialRequest {
   readonly integrationId: string;
   readonly authority: string;
+  /** Optional. When absent, the request means the installation credential for `authority`. */
+  readonly principal?: ExecutionPrincipalRequest;
 }
 
 export class CredentialError extends Data.TaggedError("CredentialError")<{
@@ -78,7 +108,11 @@ export const makeCredentialResolver = <Credential>(
     }),
 });
 
-/** A deployment convenience for one explicitly bound installation. */
+/**
+ * A deployment convenience for one explicitly bound installation. It holds an
+ * installation credential only, so it refuses `runAs: "requester"` instead of
+ * answering with the installation credential as an unrecorded fallback.
+ */
 export const staticCredentialResolver = <Credential>(
   credential: Credential,
   binding: CredentialRequest,
@@ -90,6 +124,14 @@ export const staticCredentialResolver = <Credential>(
     ) {
       throw new CredentialError({
         message: `No credential is bound for ${request.integrationId}:${request.authority}`,
+        integrationId: request.integrationId,
+        authority: request.authority,
+        retryable: false,
+      });
+    }
+    if (request.principal?.runAs === "requester") {
+      throw new CredentialError({
+        message: `${request.integrationId}:${request.authority} has only an installation credential; it cannot run as the requester`,
         integrationId: request.integrationId,
         authority: request.authority,
         retryable: false,
