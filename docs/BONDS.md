@@ -606,7 +606,7 @@ policies. A group access token is preferred because it covers the group's
 projects.
 
 GitLab facts that shape the binding. These were checked read-only against a
-self-managed GitLab 17.1.8 Enterprise (JiHu) instance on 2026-10-12:
+self-managed GitLab 17.1.8 instance on 2026-10-12:
 
 - There is no App or installation. OAuth applications are owned by the
   instance, a group, or a single user.
@@ -617,7 +617,7 @@ self-managed GitLab 17.1.8 Enterprise (JiHu) instance on 2026-10-12:
   authorization code with PKCE and a loopback redirect, and use device flow
   only where discovery advertises it.
 - Scopes apply to the whole account. No scope narrows a user token to one
-  project. The test account had Developer access or higher on 825 projects,
+  project. The test account had Developer access or higher on hundreds of projects,
   and a `write_repository` token reaches all of them.
 - Git over HTTPS accepts the token as the password with any username.
 - Path forms vary. Git paths are case-insensitive. A path without `.git`
