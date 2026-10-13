@@ -50,6 +50,18 @@ importers:
         specifier: 3.22.1
         version: 3.22.1
 
+  examples/gitlab-bond-local:
+    dependencies:
+      "@openmatter/bond":
+        specifier: workspace:*
+        version: link:../../packages/bond
+      "@openmatter/bond-gitlab":
+        specifier: workspace:*
+        version: link:../../packages/bond-gitlab
+      effect:
+        specifier: 3.22.1
+        version: 3.22.1
+
   examples/slack-cloudflare:
     dependencies:
       "@openmatter/agent":
@@ -127,6 +139,12 @@ importers:
       "@openmatter/credentials":
         specifier: workspace:*
         version: link:../credentials
+
+  packages/bond-gitlab:
+    dependencies:
+      "@openmatter/bond":
+        specifier: workspace:*
+        version: link:../bond
 
   packages/core: {}
 

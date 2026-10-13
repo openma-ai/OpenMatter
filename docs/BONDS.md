@@ -1,7 +1,8 @@
 # Bond: linked provider accounts and execution principals
 
-**Status:** proposed (2026-10-12). The kernel `@openmatter/bond` is
-implemented; provider bindings are not.
+**Status:** proposed (2026-10-12). The kernel `@openmatter/bond` and the
+GitLab binding `@openmatter/bond-gitlab` are implemented; the GitHub binding
+is not.
 **Decision:** OpenMatter provides Bond, an optional, storage-free kernel that
 links work-platform accounts, selects an explicit `ExecutionPrincipal`, and
 produces a `CredentialResolver`. Applications own persistence, encryption
@@ -605,7 +606,7 @@ policies. A group access token is preferred because it covers the group's
 projects.
 
 GitLab facts that shape the binding. These were checked read-only against a
-self-managed GitLab 17.1.8 Enterprise (JiHu) instance on 2026-10-12:
+self-managed GitLab 17.1.8 instance on 2026-10-12:
 
 - There is no App or installation. OAuth applications are owned by the
   instance, a group, or a single user.
@@ -616,7 +617,7 @@ self-managed GitLab 17.1.8 Enterprise (JiHu) instance on 2026-10-12:
   authorization code with PKCE and a loopback redirect, and use device flow
   only where discovery advertises it.
 - Scopes apply to the whole account. No scope narrows a user token to one
-  project. The test account had Developer access or higher on 825 projects,
+  project. The test account had Developer access or higher on hundreds of projects,
   and a `write_repository` token reaches all of them.
 - Git over HTTPS accepts the token as the password with any username.
 - Path forms vary. Git paths are case-insensitive. A path without `.git`
@@ -653,27 +654,100 @@ Linking follows the ProviderApp's `LinkMethodPolicy`:
 
 The binding exports pure helpers. Applications build their proxies on them:
 
-- `validatePersonalAccessToken(info, policy)` checks token metadata against
-  the allowed scopes and maximum lifetime.
-- `discoverInstance(origin)` reads OIDC discovery, requires PKCE `S256` and
-  `refresh_token`, and records whether device flow exists.
+- `discoverInstance(origin)` reads OIDC discovery, requires PKCE `S256`,
+  `refresh_token`, and an issuer equal to the origin, and records whether
+  device flow exists. It returns no endpoints: OAuth calls always use the
+  fixed `/oauth/*` paths under the canonical origin.
+- `createPkce`, `authorizationUrl`, `exchangeCode`, `refreshAccessToken`, and
+  `revokeToken` implement authorization code with PKCE. They never follow
+  redirects.
+- `readUser` and `readTokenInfo` read `GET /user` and
+  `GET /personal_access_tokens/self`. `validatePersonalAccessToken(info, user,
+policy)` and `validateBotCredential(info, user, policy)` return every
+  problem: inactive, revoked, no expiry, expired, lifetime exceeded, scope
+  outside the allowed set, token metadata and user that belong to different
+  accounts, and a bot or human owner where the other is required.
 - `classifyGitLabRequest(method, url)` returns
-  `{ projectRef, operation } | { deny, reason }` for git smart HTTP and REST.
-  Project references are normalized: case is folded, `.git` handling is
-  unified, and numeric IDs and paths are treated as one reference. The
-  application must resolve each reference to a numeric project ID before it
-  authorizes the request. GraphQL, redirects, LFS, and unknown routes are
-  denied.
-- `parseReceivePackCommands(stream)` reads the pkt-line command list and push
-  options without buffering the pack. It lets a proxy enforce ref and
-  push-option policy.
+  `{ allow: true, projectRef, operation, surface } | { allow: false, reason }`
+  for git smart HTTP and REST. Project references are normalized: case is
+  folded, `.git` handling is unified, and numeric IDs and paths are treated as
+  one reference. The application must resolve each reference to a numeric
+  project ID before it authorizes the request, and forward a URL rebuilt from
+  that ID and the returned `restTail`, never the raw path. REST reads are
+  matched by exact shape, and encoded dots or backslashes are denied.
+  GraphQL, LFS, archives, and unknown routes are denied. GitLab lets a merge
+  request body name another project in `target_project_id`, so for `open_mr`
+  the proxy also calls `mergeRequestBodyProblem(body, projectId)`.
+- `makeReceivePackHeadParser(limits)` reads the pkt-line command list and
+  push options incrementally from the request body, without reading the
+  pack, in linear time. Capabilities are the union over every command line,
+  as in git's `read_head`, so `push-options` cannot be hidden behind a later
+  line. Decoding is strict UTF-8, ref names follow a strict subset of
+  `git check-ref-format`, and the head size, command count, and option count
+  are bounded. `parseReceivePackHead(bytes)` is the one-shot form. `evaluatePush(head, policy)` denies tags, deletions, the default
+  branch, push options outside the merge request allow-list, and merge
+  requests without the required label.
 - Attribution helpers are pure functions. The commit author is the user's
   GitLab name and `commit_email`. Commits get an `Assisted-by: <app name>
 <Session URL>` trailer. Merge requests get a label and a description footer
-  that name the application.
+  that name the application, and "Requested by @user" with the app principal.
+- `makeGitLabBondProvider` plugs the binding into the kernel: OAuth refresh
+  and revocation, `DELETE /personal_access_tokens/self` for personal access
+  tokens, and the stored bot credential as the app principal. Only OAuth
+  `invalid_grant` ends a link. `invalid_client`, a missing OAuth
+  application, and a client secret without `resolveSecret` are configuration
+  errors that never mark links `refresh_failed`.
 
 Delegated user output without a provider-native marker is allowed only under
 the conditions in [IDENTITY_MODEL.md](IDENTITY_MODEL.md#executionidentity).
+
+### GitLab bot accounts
+
+A GitLab Installation is a bot credential that an administrator creates and
+registers. Bond never creates one. These steps were checked on the
+self-managed 17.1.8 instance:
+
+1. Create the token. As a Maintainer of the project (Owner of the group),
+   open Settings > Access tokens > Add new token. Choose the Developer role,
+   the scopes `read_api` and `write_repository`, and an expiry date. These
+   cover fetch, push, and merge requests opened by push options. By default
+   Developer cannot push to protected branches. REST writes such as `comment_mr` need
+   `api`, which grants every API write, so add it only when needed. GitLab
+   shows the token once; put it in the host's secret store.
+2. Validate it. `readTokenInfo` and `readUser` read the token and its bot
+   user. `validateBotCredential(info, user, policy)` must return no problems.
+3. Register it. Use the bot user's ID as `providerInstallationId`; it
+   survives rotation. `tokenExpiryInstant` converts GitLab's date to the
+   instant Bond stores.
+
+   ```ts
+   await bond.claimInstallation({
+     tenantId,
+     providerAppId,
+     providerInstallationId: user.id,
+     actor,
+     verified: true,
+     credential: { token, expiresAt: tokenExpiryInstant(info.expiresAt) },
+   });
+   ```
+
+4. Choose the ProviderApp's principal policy. `app` always uses the bot,
+   `user` uses the user's link and falls back to the bot, and `user_only`
+   never uses it. Unattended work needs `app` or `user`.
+5. Rotate before expiry. On 17.1.8 the bot cannot rotate its own token, so a
+   human Maintainer calls `POST /projects/:id/access_tokens/:token_id/rotate`
+   (or the `groups/` form) with `expires_at`. The bot user stays the same,
+   the new token gets a new token ID, and the old token stops working at
+   once. Register the new token by calling `claimInstallation` again with the
+   same `providerInstallationId`; it returns `already_owned` and replaces the
+   stored credential. `replaceInstallationCredential` does the same by
+   Installation ID. Both drop the cached token.
+6. Retire it. Revoking the token returns 401 for every later call, blocks the
+   bot user, and removes it from the project. Call `releaseInstallation` so
+   Bond stops selecting it.
+
+The live lane in `examples/gitlab-bond-local` runs steps 2 to 5 in bot mode,
+without a browser. Step 5 runs when it is given a Maintainer token.
 
 ## Consumers
 
@@ -765,3 +839,12 @@ The OpenMA control plane follows ADR 0009 (GitHub) and ADR 0010
   rotated-out refresh token is refused but does not revoke the current pair,
   so the refresh lease is the only concurrency guard; loopback redirect URIs
   are matched without the port (RFC 8252).
+- Verified there on 2026-10-13 with `examples/gitlab-bond-local` and the
+  packages in this repository. OAuth, 14 of 14 checks: PKCE exchange, sealed
+  storage, one refresh for six parallel callers, the old access token
+  rejected after refresh, a relink of the same account updated in place,
+  revoking the previous token left the new token valid (401 and 200), and
+  unlink revoked the token. Bot, 6 of 6 checks: `validateBotCredential`,
+  unattended work as the bot, fallback with `no_link` under `user`, and a
+  Maintainer rotation that kept the bot user, invalidated the old token, and
+  replaced the stored one.

@@ -12,6 +12,9 @@ export default defineConfig({
         "./packages/credentials/src/index.ts",
       ),
       "@openmatter/bond": fromRoot("./packages/bond/src/index.ts"),
+      "@openmatter/bond-gitlab": fromRoot(
+        "./packages/bond-gitlab/src/index.ts",
+      ),
       "@openmatter/store": fromRoot("./packages/store/src/index.ts"),
       "@openmatter/store-memory": fromRoot(
         "./packages/store-memory/src/index.ts",
