@@ -42,6 +42,13 @@ can expose its current installation token through the same resolver, so a
 self-hosted service and a managed service remain interchangeable without
 changing the Work Integration.
 
+The proposed optional `@openmatter/bond` packages
+([Bond](BONDS.md)) implement account linking and explicit
+execution principals on top of this port. They are storage-free: the
+application still owns persistence, key custody, and routes. The proposal adds
+one optional `principal` field to `CredentialRequest`. When it is absent, the
+request keeps its current meaning.
+
 Credential values are opaque live application data. OpenMatter does not place
 them in WorkEvents, Context, Agent input, receipts, profiles, or logs, and the
 resolver does not cache them. Rotation and refresh policy remain owned by the
