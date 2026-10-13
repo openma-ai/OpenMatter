@@ -151,9 +151,15 @@ export const classifyGitLabRequest = (
     if (verb === "GET" && READ_TAILS.some((re) => re.test(tail))) {
       return allow("read");
     }
-    if (verb === "POST" && tail === "/merge_requests") return allow("open_mr");
-    if (verb === "POST" && /^\/merge_requests\/\d+\/notes$/.test(tail)) {
-      return allow("comment_mr");
+    if (verb === "POST") {
+      // Grape merges query parameters into the request parameters, so a
+      // write could carry `target_project_id` (or anything else) past a body
+      // check. Writes take no query string.
+      if (u.search !== "") return deny("query parameters on a write");
+      if (tail === "/merge_requests") return allow("open_mr");
+      if (/^\/merge_requests\/\d+\/notes$/.test(tail)) {
+        return allow("comment_mr");
+      }
     }
     return deny("REST route not allowed");
   }
@@ -164,22 +170,47 @@ export const classifyGitLabRequest = (
  * GitLab lets `POST /projects/:id/merge_requests` name another project in
  * `target_project_id`, so the URL alone does not bound where the merge
  * request opens. Returns the reason to deny, or undefined when the body
- * targets the classified project. Pass the parsed JSON or form body and the
- * numeric ID the URL's project reference resolved to.
+ * targets the classified project.
+ *
+ * Pass the parsed JSON object or form body and the numeric ID the URL's
+ * project reference resolved to, then forward the body you checked
+ * (re-serialized), never the raw bytes: parsers disagree on repeated keys.
+ * For the same reason a form that repeats `target_project_id`, or uses a
+ * variant such as `target_project_id[]`, is denied.
  */
 export const mergeRequestBodyProblem = (
   body: unknown,
   resolvedProjectId: number,
 ): string | undefined => {
-  const target =
-    body instanceof URLSearchParams
-      ? (body.get("target_project_id") ?? undefined)
-      : typeof body === "object" && body !== null && !Array.isArray(body)
-        ? (body as Record<string, unknown>).target_project_id
-        : body === undefined || body === null
-          ? undefined
-          : null;
-  if (target === null) return "merge request body is not an object";
+  let target: unknown;
+  if (body instanceof URLSearchParams) {
+    const keys = [...body.keys()].filter((k) =>
+      k.startsWith("target_project_id"),
+    );
+    if (keys.some((k) => k !== "target_project_id")) {
+      return "target_project_id has an unsupported form";
+    }
+    if (keys.length > 1) return "target_project_id appears more than once";
+    target = body.get("target_project_id") ?? undefined;
+  } else if (
+    typeof body === "object" &&
+    body !== null &&
+    !Array.isArray(body)
+  ) {
+    const record = body as Record<string, unknown>;
+    if (
+      Object.keys(record).some(
+        (k) => k.startsWith("target_project_id") && k !== "target_project_id",
+      )
+    ) {
+      return "target_project_id has an unsupported form";
+    }
+    target = record.target_project_id;
+  } else if (body === undefined || body === null) {
+    target = undefined;
+  } else {
+    return "merge request body is not an object";
+  }
   if (target === undefined || target === "") return undefined;
   const id =
     typeof target === "number"

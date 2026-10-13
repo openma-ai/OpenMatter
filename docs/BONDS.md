@@ -701,6 +701,54 @@ policy)` and `validateBotCredential(info, user, policy)` return every
 Delegated user output without a provider-native marker is allowed only under
 the conditions in [IDENTITY_MODEL.md](IDENTITY_MODEL.md#executionidentity).
 
+### GitLab bot accounts
+
+A GitLab Installation is a bot credential that an administrator creates and
+registers. Bond never creates one. These steps were checked on the
+self-managed 17.1.8 instance:
+
+1. Create the token. As a Maintainer of the project (Owner of the group),
+   open Settings > Access tokens > Add new token. Choose the Developer role,
+   the scopes `read_api` and `write_repository`, and an expiry date. These
+   cover fetch, push, and merge requests opened by push options. By default
+   Developer cannot push to protected branches. REST writes such as `comment_mr` need
+   `api`, which grants every API write, so add it only when needed. GitLab
+   shows the token once; put it in the host's secret store.
+2. Validate it. `readTokenInfo` and `readUser` read the token and its bot
+   user. `validateBotCredential(info, user, policy)` must return no problems.
+3. Register it. Use the bot user's ID as `providerInstallationId`; it
+   survives rotation. `tokenExpiryInstant` converts GitLab's date to the
+   instant Bond stores.
+
+   ```ts
+   await bond.claimInstallation({
+     tenantId,
+     providerAppId,
+     providerInstallationId: user.id,
+     actor,
+     verified: true,
+     credential: { token, expiresAt: tokenExpiryInstant(info.expiresAt) },
+   });
+   ```
+
+4. Choose the ProviderApp's principal policy. `app` always uses the bot,
+   `user` uses the user's link and falls back to the bot, and `user_only`
+   never uses it. Unattended work needs `app` or `user`.
+5. Rotate before expiry. On 17.1.8 the bot cannot rotate its own token, so a
+   human Maintainer calls `POST /projects/:id/access_tokens/:token_id/rotate`
+   (or the `groups/` form) with `expires_at`. The bot user stays the same,
+   the new token gets a new token ID, and the old token stops working at
+   once. Register the new token by calling `claimInstallation` again with the
+   same `providerInstallationId`; it returns `already_owned` and replaces the
+   stored credential. `replaceInstallationCredential` does the same by
+   Installation ID. Both drop the cached token.
+6. Retire it. Revoking the token returns 401 for every later call, blocks the
+   bot user, and removes it from the project. Call `releaseInstallation` so
+   Bond stops selecting it.
+
+The live lane in `examples/gitlab-bond-local` runs steps 2 to 5 in bot mode,
+without a browser. Step 5 runs when it is given a Maintainer token.
+
 ## Consumers
 
 | Consumer                               | Runs the flow                                               | Store                         | Key custody                                               |
@@ -791,3 +839,12 @@ The OpenMA control plane follows ADR 0009 (GitHub) and ADR 0010
   rotated-out refresh token is refused but does not revoke the current pair,
   so the refresh lease is the only concurrency guard; loopback redirect URIs
   are matched without the port (RFC 8252).
+- Verified there on 2026-10-13 with `examples/gitlab-bond-local` and the
+  packages in this repository. OAuth, 14 of 14 checks: PKCE exchange, sealed
+  storage, one refresh for six parallel callers, the old access token
+  rejected after refresh, a relink of the same account updated in place,
+  revoking the previous token left the new token valid (401 and 200), and
+  unlink revoked the token. Bot, 6 of 6 checks: `validateBotCredential`,
+  unattended work as the bot, fallback with `no_link` under `user`, and a
+  Maintainer rotation that kept the bot user, invalidated the old token, and
+  replaced the stored one.

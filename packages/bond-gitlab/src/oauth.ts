@@ -233,7 +233,13 @@ export const refreshAccessToken = (client: OAuthClient, refreshToken: string) =>
     refresh_token: refreshToken,
   });
 
-/** Revokes an access or refresh token. GitLab revokes the whole grant. */
+/**
+ * Revokes one access or refresh token. GitLab (Doorkeeper) stores an access
+ * token and its refresh token as one record, so revoking either ends that
+ * pair only. Other tokens the same user holds for the same application keep
+ * working: on a live instance, revoking the previous token after a relink left
+ * the new one valid.
+ */
 export const revokeToken = (client: OAuthClient, token: string) =>
   Effect.gen(function* () {
     const origin = canonicalOrigin(client.origin);

@@ -802,6 +802,21 @@ describe("classifyGitLabRequest hardening", () => {
     }
   });
 
+  it("denies a query string on writes, so it cannot carry target_project_id", () => {
+    for (const p of [
+      "/api/v4/projects/42/merge_requests?target_project_id=7",
+      "/api/v4/projects/42/merge_requests/3/notes?confidential=true",
+    ]) {
+      expect(c("POST", p), p).toEqual({
+        allow: false,
+        reason: "query parameters on a write",
+      });
+    }
+    expect(
+      c("GET", "/api/v4/projects/42/merge_requests?state=opened"),
+    ).toMatchObject({ allow: true, operation: "read" });
+  });
+
   it("returns the validated REST tail to rebuild the upstream URL", () => {
     expect(
       c("GET", "/api/v4/projects/42/repository/branches/feature%2Fx"),
@@ -844,6 +859,28 @@ describe("classifyGitLabRequest hardening", () => {
     ).toBe("target_project_id is not a project ID");
     expect(mergeRequestBodyProblem("raw", 42)).toBe(
       "merge request body is not an object",
+    );
+    // Repeated or variant keys: parsers disagree on which value wins.
+    expect(
+      mergeRequestBodyProblem(
+        new URLSearchParams([
+          ["target_project_id", "42"],
+          ["target_project_id", "7"],
+        ]),
+        42,
+      ),
+    ).toBe("target_project_id appears more than once");
+    expect(
+      mergeRequestBodyProblem(
+        new URLSearchParams({ "target_project_id[]": "7" }),
+        42,
+      ),
+    ).toBe("target_project_id has an unsupported form");
+    expect(mergeRequestBodyProblem({ "target_project_id[]": 7 }, 42)).toBe(
+      "target_project_id has an unsupported form",
+    );
+    expect(mergeRequestBodyProblem({ target_project_id: [7] }, 42)).toBe(
+      "target_project_id is not a project ID",
     );
   });
 });
