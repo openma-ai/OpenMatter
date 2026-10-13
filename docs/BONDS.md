@@ -1,6 +1,7 @@
 # Bond: linked provider accounts and execution principals
 
-**Status:** proposed (2026-10-12). Not implemented.
+**Status:** proposed (2026-10-12). The kernel `@openmatter/bond` is
+implemented; provider bindings are not.
 **Decision:** OpenMatter provides Bond, an optional, storage-free kernel that
 links work-platform accounts, selects an explicit `ExecutionPrincipal`, and
 produces a `CredentialResolver`. Applications own persistence, encryption
@@ -359,16 +360,27 @@ interface ProviderAppConfig {
 interface ProviderAppSource {
   // implemented by the application: OMA reads its database,
   // Backchat reads local settings, a self-hosted host reads its config
-  get(ref: ProviderAppRef): Effect<ProviderAppConfig, ConfigError>;
+  // returns the effective configuration for one (tenant, ProviderApp) pair
+  get(q: { tenantId; providerAppId }): Effect<ProviderAppConfig, ConfigError>;
 }
 
 interface BondStore {
   getInstallation(
     ref: InstallationRef,
   ): Effect<Installation | undefined, StoreError>;
+  listInstallations(q: {
+    tenantId;
+    providerAppId;
+  }): Effect<readonly Installation[], StoreError>;
   claimInstallation(
     value: Installation,
   ): Effect<"claimed" | "already_owned" | "owned_elsewhere", StoreError>; // unique by (provider app, provider installation id)
+  updateInstallationCredential(q: {
+    tenantId;
+    installationId;
+    credential: Sealed;
+    credentialExpiresAt?;
+  }): Effect<"updated" | "not_found", StoreError>; // owning tenant, active only
   releaseInstallation(
     ref: InstallationRef,
     actor: string,
@@ -380,7 +392,25 @@ interface BondStore {
     appUserId;
     providerAppId;
   }): Effect<UserLink | undefined, StoreError>;
-  upsertUserLink(value: UserLinkWrite): Effect<UserLink, StoreError>; // idempotent by (tenant, provider user id, provider app)
+  findUserLinkByProviderUser(q: {
+    tenantId;
+    providerAppId;
+    providerUserId;
+  }): Effect<UserLink | undefined, StoreError>;
+  listUserLinks(q: {
+    tenantId;
+    providerAppId;
+    status?;
+  }): Effect<readonly UserLink[], StoreError>;
+  upsertUserLink(
+    value: UserLinkWrite,
+  ): Effect<UserLink | "provider_user_taken", StoreError>; // idempotent by (tenant, provider user id, provider app)
+  updateUserLinkStatus(q: {
+    tenantId;
+    linkId;
+    status;
+    reason;
+  }): Effect<void, StoreError>; // never leaves revoked
 
   acquireRefreshLease(
     id: string,
@@ -392,6 +422,10 @@ interface BondStore {
     lease: RefreshLease,
     sealed: SealedTokens,
   ): Effect<"committed" | "stale_lease" | "revoked", StoreError>; // fenced by lease token
+  releaseRefreshLease(
+    id: string,
+    lease: RefreshLease,
+  ): Effect<void, StoreError>;
   revokeUserLink(id: string, tombstone: Tombstone): Effect<void, StoreError>;
 }
 
@@ -407,6 +441,7 @@ interface SecretCipher {
 }
 
 interface StateSigner {
+  // used by provider bindings and application routes, not the kernel:
   // OAuth state and install state; short-lived, single-use
   sign(claims: LinkState, ttlSeconds: number): Effect<string>;
   verify(token: string): Effect<LinkState, StateError>;
@@ -423,7 +458,8 @@ const bond = makeBond({
   providerApps, // ProviderAppSource
   store, // BondStore
   cipher, // SecretCipher
-  state, // StateSigner
+  providers: { gitlab, github }, // BondProvider from each binding
+  audit, // optional sink for audit facts
 });
 ```
 
@@ -450,15 +486,20 @@ Invariants every application adapter must satisfy:
 
 ## Conformance suite
 
-`@openmatter/bond/conformance` exports
-`runBondStoreConformance(makeStore, makeCipher)`. Each application runs
-it against its real adapter in its own CI, against its real database. The
-suite covers idempotent upserts, tenant isolation, lease races with parallel
-callers, stale-lease commits, revoke-then-refresh, key rotation reads, expiry
-boundaries, relinking with the other method, policy narrowing to
-`method_disallowed`, `pat` links that never take a refresh lease, a second
-tenant claiming an owned Installation, release then claim, and one link
-serving two Installations of the same ProviderApp.
+`@openmatter/bond` exports `bondStoreConformanceCases({ makeStore })`. It
+returns framework-neutral cases that throw on failure, so each application
+runs them in its own test runner, against its real adapter and database. The
+suite covers idempotent upserts, ciphertext stored with its key id, tenant
+isolation, a provider user held by another application user, lease races
+with parallel callers (run concurrently, so a real adapter must serialize
+them), expired-lease takeover and stale-lease commits, revoke-then-refresh,
+status changes such as `method_disallowed`, one owning tenant per
+Installation with release then claim, one link serving two Installations of
+the same ProviderApp, `pat` links without refresh material, relinking the
+same provider user with the other method in place, the newest active link
+winning during a relink, and tenant-scoped replacement of an Installation
+credential. Expiry and policy decisions are kernel logic and are covered by
+the kernel tests, not by the store suite.
 
 The memory adapter passes the same suite and is labelled test-only.
 
