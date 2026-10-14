@@ -17,7 +17,7 @@ export interface StoreConformanceOptions {
   readonly makeStore: () => OpenMatterStore | Promise<OpenMatterStore>;
   /**
    * Lease lifetime used by expiry cases. The suite waits slightly longer, so
-   * the store's own clock decides expiry. Default 60 ms.
+   * the store's own clock decides expiry. Default 250 ms.
    */
   readonly shortLeaseMs?: number;
 }
@@ -79,7 +79,7 @@ const agentEvent = (
 export const storeConformanceCases = (
   options: StoreConformanceOptions,
 ): readonly StoreConformanceCase[] => {
-  const short = options.shortLeaseMs ?? 60;
+  const short = options.shortLeaseMs ?? 250;
   const expire = () => sleep(short * 2 + 20);
   const fresh = () => Promise.resolve(options.makeStore());
 

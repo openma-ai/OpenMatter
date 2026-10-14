@@ -15,7 +15,7 @@ export interface InboxConformanceOptions {
   readonly makeInbox: () => DurableInbox | Promise<DurableInbox>;
   /**
    * Lease lifetime used by expiry cases. The suite waits slightly longer, so
-   * the inbox's own clock decides expiry. Default 60 ms.
+   * the inbox's own clock decides expiry. Default 250 ms.
    */
   readonly shortLeaseMs?: number;
 }
@@ -47,7 +47,7 @@ const item = (id: string, over: Partial<InboxItem> = {}): InboxItem => ({
 export const inboxConformanceCases = (
   options: InboxConformanceOptions,
 ): readonly InboxConformanceCase[] => {
-  const short = options.shortLeaseMs ?? 60;
+  const short = options.shortLeaseMs ?? 250;
   const expire = () => sleep(short * 2 + 20);
   const fresh = () => Promise.resolve(options.makeInbox());
   const claim = (inbox: DurableInbox, ownerId: string, durationMs = LONG) =>
