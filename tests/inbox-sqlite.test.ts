@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeSqliteInbox } from "../packages/inbox-sqlite/src/index.js";
+import { inboxConformanceCases } from "../packages/matter/src/inbox/index.js";
 
 const item = {
   id: "slack:envelope-1",
@@ -147,4 +148,12 @@ describe("SQLite durable inbox", () => {
     ).toMatchObject({ _tag: "InboxError" });
     await Effect.runPromise(inbox.close);
   });
+});
+
+describe("SQLite durable inbox conformance", () => {
+  for (const c of inboxConformanceCases({
+    makeInbox: () => makeSqliteInbox({ filename: ":memory:" }),
+  })) {
+    it(c.name, c.run);
+  }
 });

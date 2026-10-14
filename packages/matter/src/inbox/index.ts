@@ -55,3 +55,9 @@ export interface DurableInbox {
     input: { readonly durationMs: number },
   ) => Effect.Effect<void, InboxError>;
 }
+
+export {
+  inboxConformanceCases,
+  type InboxConformanceCase,
+  type InboxConformanceOptions,
+} from "./conformance.js";
