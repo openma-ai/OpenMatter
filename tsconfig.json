@@ -15,6 +15,7 @@
       "@openma/matter": ["./packages/matter/src/index.ts"],
       "@openma/matter/*": ["./packages/matter/src/*/index.ts"],
       "@openma/matter-*/bond": ["./packages/*/src/bond/index.ts"],
+      "@openma/matter-loop": ["./packages/loop/src/index.ts"],
       "@openma/matter-agent-mock": ["./packages/agent-mock/src/index.ts"],
       "@openma/matter-fastify": ["./packages/fastify/src/index.ts"],
       "@openma/matter-hono": ["./packages/hono/src/index.ts"],

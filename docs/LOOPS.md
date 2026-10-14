@@ -1,9 +1,9 @@
 # Loops
 
-| Field  | Value                                    |
-| ------ | ---------------------------------------- |
-| Status | Executable v0                            |
-| API    | `Loop`, `defineLoop()`, and `app.loop()` |
+| Field  | Value                                                           |
+| ------ | --------------------------------------------------------------- |
+| Status | Executable v0                                                   |
+| API    | `Loop`, `defineLoop()`, `app.loop()`, and `@openma/matter-loop` |
 
 A Loop is a built-in or user-defined process definition that keeps an Agent
 present in a work environment. It repeatedly associates subscribed Events with
@@ -107,6 +107,80 @@ app.loop(review, { projects: ["project:42"] });
 `requiredBonds` lists the provider accounts the Loop uses and the operations
 it performs there. The runtime only checks its shape; a host compares it with
 what the configured agent is granted before enabling an instance.
+
+## Guest Loops
+
+`@openma/matter-loop` is the package Loop code imports when it should run
+outside the application process, for example in an isolate with no network.
+It has no dependencies, not even Effect, so a Loop bundle carries nothing but
+its own code.
+
+```ts
+import { defineLoop } from "@openma/matter-loop";
+
+export default defineLoop(
+  {
+    id: "chat-reply",
+    configSchema: {
+      type: "object",
+      properties: { agentId: { type: "string" } },
+      required: ["agentId"],
+    },
+    runAs: "app",
+  },
+  (app, { config }) =>
+    app.on("chat.message.received", async (work) => {
+      const context = await work.context.project({
+        scopeId: "scope-1",
+        workThreadId: work.event.id,
+        items: [work.context.event()],
+        grants: ["chat.message.reply"],
+      });
+      const turn = await work
+        .agent(String(config.agentId))
+        .session({
+          scopeId: "scope-1",
+          workThreadId: work.event.id,
+          privacyPartition: "team",
+        })
+        .turn({ context, allow: ["chat.message.reply"] });
+      const reply = await work.effect(context, {
+        integrationId: "chat",
+        operation: "message.reply",
+        input: { text: turn.output ?? null },
+      });
+      return work.react.effects([reply]);
+    }),
+);
+```
+
+The handler API mirrors the native one with Promises instead of Effects.
+Everything a guest handler can do goes through a `LoopHost`: four capabilities
+(`projectContext`, `createEffect`, `agentTurn`, `agentCancel`) whose arguments
+and results are portable JSON. The guest records (`WorkEvent`,
+`ContextProjection`, `WorkEffect`, and the rest) are written out in the
+package; `@openma/matter/runtime` checks at compile time that each one is
+identical to its core or runtime counterpart.
+
+- `app.loop()` accepts a guest Loop as well as a native one and runs it in
+  process. Configuration is validated the same way.
+- `loadLoop(loop, config)` validates the configuration, runs `install` once,
+  and returns a `LoadedLoop` with the registered Event types and a
+  `handle(event, host)` function. It throws if the Loop registers no handler.
+- A host that runs Loop code in an isolate loads the bundle there, wraps the
+  isolate's `handle` in a `LoadedLoop`, and registers it with
+  `installLoadedLoop(app, loaded)`. The runtime passes each Event's
+  capabilities as `makeLoopHost(work)`; the host serves that object to the
+  isolate as its RPC stub.
+- A refused capability rejects with an `Error` whose `name` is the runtime
+  error's tag (for example `AuthorizationError`), so it survives structured
+  cloning.
+- An Agent Turn returns an `AgentTurnSummary`: Session and Turn ids, outcome,
+  output, and the Agent events as JSON. The full records stay in the host's
+  store.
+
+Native Loops from `@openma/matter/runtime` stay available for trusted code that
+wants Effect directly, such as the built-in Loops below.
 
 ## Built-in Loop
 

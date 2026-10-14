@@ -220,6 +220,7 @@ other implicitly. Read the [identity model](docs/IDENTITY_MODEL.md).
 | Package                 | Contents                                                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `@openma/matter`        | The kernel. Subpaths: `.` (core Schemas), `/credentials`, `/bond`, `/store`, `/inbox`, `/integration`, `/agent`, `/runtime`, `/http` |
+| `@openma/matter-loop`   | The Loop guest SDK: `defineLoop` and the host capability protocol. No dependencies                                                   |
 | `@openma/matter-gitlab` | GitLab Bond provider (`/bond`)                                                                                                       |
 
 Reference adapters (`store-memory`, `store-sqlite`, `store-mysql`,

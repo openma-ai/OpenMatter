@@ -2,7 +2,7 @@
 // validation that turns a submitted value into the config `install` receives.
 // See docs/LOOPS.md, "Configuration".
 
-import type { JsonValue } from "../index.js";
+import type { JsonValue } from "./json.js";
 
 type Annotations = {
   readonly title?: string;

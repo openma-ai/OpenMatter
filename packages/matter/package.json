@@ -59,7 +59,8 @@
     "provenance": true
   },
   "dependencies": {
-    "@openma/common": "^0.9.0"
+    "@openma/common": "^0.9.0",
+    "@openma/matter-loop": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

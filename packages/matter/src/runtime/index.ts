@@ -33,7 +33,13 @@ import {
   type OpenMatterStore,
 } from "../store/index.js";
 import { Effect, Layer, Schema, Stream } from "effect";
+import {
+  isGuestLoop,
+  loadLoop,
+  type Loop as GuestLoop,
+} from "@openma/matter-loop";
 import { makeAgentTurnRuntime } from "./agent-turn.js";
+import { installLoadedLoop } from "./guest-host.js";
 import {
   AgentAccessError,
   AuthorizationError,
@@ -62,6 +68,7 @@ import {
 } from "./portable-json.js";
 
 export * from "./contracts.js";
+export { installLoadedLoop, makeLoopHost } from "./guest-host.js";
 
 const ReactionDraftSchema = Schema.Struct({
   status: Schema.Literal("completed", "failed", "cancelled"),
@@ -653,7 +660,10 @@ export const createOpenMatter = (
     acceptFromProgram(integrationId, input).pipe(Effect.provide(services));
 
   const app: OpenMatterApplication = {
-    loop: (loop: Loop, config?: JsonValue) => {
+    loop: (loop: Loop | GuestLoop, config?: JsonValue) => {
+      if (isGuestLoop(loop)) {
+        return installLoadedLoop(app, loadLoop(loop, config));
+      }
       const resolved = resolveLoopConfig(loop.definition.configSchema, config);
       if (!resolved.ok) {
         throw new TypeError(
