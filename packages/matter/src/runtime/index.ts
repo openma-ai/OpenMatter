@@ -41,6 +41,7 @@ import {
   EventBusyError,
   SessionBusyError,
   WorkEventValidationError,
+  resolveLoopConfig,
   type ConsumeSummary,
   type Loop,
   type OpenMatterApplication,
@@ -652,8 +653,14 @@ export const createOpenMatter = (
     acceptFromProgram(integrationId, input).pipe(Effect.provide(services));
 
   const app: OpenMatterApplication = {
-    loop: (loop: Loop) => {
-      loop.install(app);
+    loop: (loop: Loop, config?: JsonValue) => {
+      const resolved = resolveLoopConfig(loop.definition.configSchema, config);
+      if (!resolved.ok) {
+        throw new TypeError(
+          `Invalid configuration for Loop ${loop.definition.id}: ${resolved.problems.join("; ")}`,
+        );
+      }
+      loop.install(app, { config: resolved.config });
       return app;
     },
     on: (eventTypes, handler) => {
