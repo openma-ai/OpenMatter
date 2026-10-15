@@ -25,6 +25,7 @@ import type {
   PrincipalPolicy,
   PrincipalResolution,
   ProviderAppConfig,
+  ProviderKind,
   Sealed,
   UserLink,
 } from "./types.js";
@@ -42,14 +43,14 @@ export const allowedLinkMethods = (
   policy === "pat_only"
     ? ["pat"]
     : policy === "oauth_only"
-      ? ["oauth"]
-      : ["oauth", "pat"];
+      ? ["oauth", "device"]
+      : ["oauth", "device", "pat"];
 
 export interface BondOptions {
   readonly providerApps: ProviderAppSource;
   readonly store: BondStore;
   readonly cipher: SecretCipher;
-  readonly providers: Partial<Record<"github" | "gitlab", BondProvider>>;
+  readonly providers: Partial<Record<ProviderKind, BondProvider>>;
   /** ISO-8601 now. Defaults to the system clock. */
   readonly clock?: () => string;
   /** Owner recorded on refresh leases. Defaults to a random id per kernel. */

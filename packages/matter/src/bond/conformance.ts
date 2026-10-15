@@ -423,6 +423,15 @@ export const bondStoreConformanceCases = (
       },
     },
     {
+      name: "a device link is stored with its refresh material",
+      run: async () => {
+        const store = await fresh();
+        const a = await linkOf(store, write({ method: "device" }));
+        assert(a.method === "device", "method recorded");
+        assert(a.refresh !== undefined, "refresh token stored");
+      },
+    },
+    {
       name: "relinking the same provider user with the other method updates the link in place",
       run: async () => {
         const store = await fresh();

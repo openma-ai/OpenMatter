@@ -164,8 +164,10 @@ ExecutionPrincipal     who performs one external operation
 ```
 
 - `Installation.status`: `pending` → `active` → `suspended` | `revoked`.
-- `UserLink.method`: `oauth` (provider authorization, refreshable) or `pat`
-  (a user-supplied personal access token, not refreshable).
+- `UserLink.method`: `oauth` (provider authorization by redirect,
+  refreshable), `device` (provider authorization by the OAuth device flow,
+  RFC 8628, refreshable), or `pat` (a user-supplied personal access token,
+  not refreshable).
 - `UserLink.status`: `active` → `refresh_failed` | `expired` |
   `method_disallowed` | `revoked`. Every non-active state keeps the reason
   and requires the user to re-link.
@@ -286,15 +288,17 @@ Rules:
 `LinkMethodPolicy` is configured per (tenant, ProviderApp). It says how users
 may link.
 
-| Policy            | Allowed methods                                | Requires             |
-| ----------------- | ---------------------------------------------- | -------------------- |
-| `pat_only`        | `pat`                                          | nothing              |
-| `oauth_only`      | `oauth`                                        | an OAuth application |
-| `oauth_preferred` | `oauth`, then `pat` as an explicit alternative | an OAuth application |
+| Policy            | Allowed methods                                          | Requires             |
+| ----------------- | -------------------------------------------------------- | -------------------- |
+| `pat_only`        | `pat`                                                    | nothing              |
+| `oauth_only`      | `oauth`, `device`                                        | an OAuth application |
+| `oauth_preferred` | `oauth`, `device`, then `pat` as an explicit alternative | an OAuth application |
 
 GitHub ProviderApps are `oauth_only`. Their user principal must come from the
 App's user-to-server authorization, which carries the delegation marker.
-GitLab ProviderApps may use any of the three policies.
+GitLab ProviderApps may use any of the three policies. A `device` link is an
+OAuth link obtained by the device flow. Every policy that allows `oauth` allows
+`device`, and the PAT rules, such as `maxPatLifetimeDays`, do not apply to it.
 
 Rules:
 
@@ -333,7 +337,8 @@ A `pat` link has no refresh token and takes no lease. Its expiry comes from
 the provider's token metadata. The kernel reports `expiring` inside a
 configurable warning window, and moves the link to `expired` at expiry or
 when the application reports that the provider rejected the token. For an
-OAuth link, such a report forces a refresh under the lease instead.
+OAuth or device link, such a report forces a refresh under the lease
+instead.
 
 Revocation deletes nothing silently. It writes a tombstone (`revoked`, time,
 actor, reason) and asks the provider to revoke the grant where supported. A
@@ -345,7 +350,7 @@ Sketch, not final API:
 
 ```ts
 interface ProviderAppConfig {
-  provider: "github" | "gitlab";
+  provider: "github" | "gitlab" | "feishu";
   baseUrl: string; // canonical origin
   linkMethodPolicy: "pat_only" | "oauth_only" | "oauth_preferred";
   maxPatLifetimeDays?: number; // pat only
@@ -525,7 +530,7 @@ interface BondBinding {
   boolean, `enum`, `default`, `required`). Fields marked `x-secret` are
   stored sealed and never returned to clients. A ProviderApp configured by
   the deployment, such as a shared GitHub App, has no fields;
-- `linkMethods`: `oauth`, `pat`, or both, before the ProviderApp's link
+- `linkMethods`: any of `oauth`, `device`, and `pat`, before the ProviderApp's link
   method policy narrows them;
 - `resourceKinds`: each kind, such as `project`, with the operations it
   supports and whether each is a read or a write.
@@ -603,7 +608,7 @@ denial               failure reason, when denied
 requestingActor      application user or event actor that caused the work
 trigger              attended | unattended
 executionPrincipal   app | user, installation id, user link id; when granted
-method               oauth | pat, for a user principal
+method               oauth | device | pat, for a user principal
 policy               app | user | user_only
 fallback             false | { reason }
 access               read | write

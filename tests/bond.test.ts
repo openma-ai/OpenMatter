@@ -635,6 +635,139 @@ describe("Bond linking", () => {
   });
 });
 
+describe("Bond device links", () => {
+  const deviceLink = (
+    ctx: ReturnType<typeof setup>,
+    accessExpiresAt?: string,
+  ) =>
+    ctx.bond.link({
+      tenantId: "t1",
+      appUserId: "u1",
+      providerAppId: "gl",
+      method: "device",
+      providerUser: { id: "42", login: "alice" },
+      grant: {
+        accessToken: "access-0",
+        refreshToken: "refresh-0",
+        accessExpiresAt:
+          accessExpiresAt ?? new Date(ctx.now() + 2 * HOUR).toISOString(),
+        scopes: ["read_user"],
+      },
+      actor: "u1",
+    });
+
+  it("links and resolves a device link where OAuth is allowed", async () => {
+    for (const linkMethodPolicy of ["oauth_only", "oauth_preferred"] as const) {
+      const ctx = setup({ linkMethodPolicy });
+      const link = await run(deviceLink(ctx));
+      expect(link.method).toBe("device");
+      expect(link.refresh?.ciphertext).toBe(
+        "sealed:bond.user.refresh:refresh-0",
+      );
+      const { credential } = await run(
+        ctx.bond.credential({
+          tenantId: "t1",
+          providerAppId: "gl",
+          principal: attended(),
+          sessionCreatorId: "u1",
+          access: "read",
+        }),
+      );
+      expect(credential.token).toBe("access-0");
+      expect(ctx.audit[0]).toMatchObject({ method: "device" });
+    }
+  });
+
+  it("refreshes a device link like an OAuth link", async () => {
+    const ctx = setup();
+    await run(deviceLink(ctx, new Date(ctx.now() + 60_000).toISOString()));
+    const { credential } = await run(
+      ctx.bond.credential({
+        tenantId: "t1",
+        providerAppId: "gl",
+        principal: attended(),
+        sessionCreatorId: "u1",
+        access: "read",
+      }),
+    );
+    expect(ctx.provider.refreshCalls).toBe(1);
+    expect(credential.token).toBe("access-1");
+  });
+
+  it("does not apply the personal access token lifetime to device links", async () => {
+    const ctx = setup({ maxPatLifetimeDays: 1 });
+    const link = await run(
+      deviceLink(ctx, new Date(ctx.now() + 30 * DAY).toISOString()),
+    );
+    expect(link.method).toBe("device");
+  });
+
+  it("refuses a device link under a pat-only policy", async () => {
+    const ctx = setup({ linkMethodPolicy: "pat_only" });
+    expect((await fail(deviceLink(ctx))).reason).toBe("method_disallowed");
+  });
+
+  it("narrowing to pat only disables and revokes device links", async () => {
+    const ctx = setup();
+    await run(deviceLink(ctx));
+    ctx.setConfig({ linkMethodPolicy: "pat_only" });
+    expect(
+      await run(
+        ctx.bond.narrowLinkMethods({ tenantId: "t1", providerAppId: "gl" }),
+      ),
+    ).toBe(1);
+    expect(ctx.provider.revoked).toEqual(["access-0"]);
+  });
+
+  it("registers a feishu provider", async () => {
+    let now = Date.parse("2026-10-12T00:00:00.000Z");
+    const feishu: BondProvider = {
+      ...fakeProvider(() => now),
+      provider: "feishu",
+    };
+    const config: ProviderAppConfig = {
+      ...baseConfig,
+      id: "fs",
+      provider: "feishu",
+      baseUrl: "https://open.feishu.cn",
+    };
+    const bond = makeBond({
+      providerApps: { get: () => Effect.succeed(config) },
+      store: makeMemoryBondStore({ nowMs: () => now }),
+      cipher: testCipher(),
+      providers: { feishu },
+      clock: () => new Date(now).toISOString(),
+    });
+    await run(
+      bond.link({
+        tenantId: "t1",
+        appUserId: "u1",
+        providerAppId: "fs",
+        method: "device",
+        providerUser: { id: "ou_1", login: "alice" },
+        grant: {
+          accessToken: "u-token",
+          refreshToken: "r-token",
+          accessExpiresAt: new Date(now + 2 * HOUR).toISOString(),
+          scopes: ["read_user"],
+        },
+        actor: "u1",
+      }),
+    );
+    now += 1;
+    const { credential } = await run(
+      bond.credential({
+        tenantId: "t1",
+        providerAppId: "fs",
+        principal: attended(),
+        sessionCreatorId: "u1",
+        access: "read",
+      }),
+    );
+    expect(credential.token).toBe("u-token");
+  });
+});
+
 describe("Bond credentials", () => {
   it("returns the user token and audits the resolution", async () => {
     const ctx = setup();
