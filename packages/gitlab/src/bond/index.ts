@@ -55,3 +55,10 @@ export {
   makeGitLabBondProvider,
   type GitLabBondProviderOptions,
 } from "./provider.js";
+export {
+  GITLAB_MIN_ACCESS_LEVEL,
+  gitlabManifest,
+  makeGitLabBinding,
+  makeGitLabResourceCatalog,
+  type GitLabResourceCatalogOptions,
+} from "./resources.js";

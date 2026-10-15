@@ -34,6 +34,7 @@ export const canonicalOrigin = (input: string): string => {
 export interface JsonResponse {
   readonly status: number;
   readonly body: unknown;
+  readonly headers?: Headers;
 }
 
 /** One JSON request. Never follows redirects: a redirect is an error. */
@@ -54,7 +55,7 @@ export const requestJson = (
           body = undefined;
         }
       }
-      return { status: response.status, body };
+      return { status: response.status, body, headers: response.headers };
     },
     catch: (cause) =>
       new ProviderError({

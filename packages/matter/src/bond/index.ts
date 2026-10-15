@@ -31,6 +31,23 @@ export {
   type LinkState,
   type PrincipalInputs,
 } from "./principal.js";
+export {
+  checkResourceRequest,
+  manifestProblems,
+  parseResourceId,
+  resourceId,
+  type BondBinding,
+  type BondFormField,
+  type BondFormSchema,
+  type BondManifest,
+  type BondOperation,
+  type BondResource,
+  type BondResourceCatalog,
+  type BondResourceKind,
+  type BondResourcePage,
+  type BondResourceRejection,
+  type BondResourceValidation,
+} from "./manifest.js";
 export { makeMemoryBondStore } from "./memory.js";
 export {
   bondStoreConformanceCases,

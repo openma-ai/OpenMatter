@@ -6,7 +6,12 @@ import {
   ProviderError,
   StoreError,
   bondStoreConformanceCases,
+  checkResourceRequest,
   makeBond,
+  manifestProblems,
+  parseResourceId,
+  resourceId,
+  type BondManifest,
   makeMemoryBondStore,
   selectPrincipal,
   type AuditFact,
@@ -1247,5 +1252,95 @@ describe("Bond credentials", () => {
       }),
     );
     expect(t2.reason).toBe("app_not_configured");
+  });
+});
+
+describe("binding manifest helpers", () => {
+  const manifest: BondManifest = {
+    provider: "gitlab",
+    title: "Test",
+    setupSchema: {
+      type: "object",
+      properties: { baseUrl: { type: "string", title: "URL", format: "uri" } },
+      required: ["baseUrl"],
+    },
+    linkMethods: ["pat"],
+    resourceKinds: [
+      {
+        kind: "project",
+        title: "Project",
+        operations: [
+          { name: "fetch", description: "f", access: "read" },
+          { name: "push", description: "p", access: "write" },
+        ],
+      },
+    ],
+  };
+
+  it("parses and builds <kind>:<key> resource IDs", () => {
+    expect(resourceId("project", 42)).toBe("project:42");
+    expect(parseResourceId("project:42")).toEqual({
+      kind: "project",
+      key: "42",
+    });
+    expect(parseResourceId("chat:oc_a:b")).toEqual({
+      kind: "chat",
+      key: "oc_a:b",
+    });
+    for (const bad of ["", "project", "project:", ":42", "Project:1", "1x:2"]) {
+      expect(parseResourceId(bad)).toBeUndefined();
+    }
+  });
+
+  it("checks the kind and operations before any provider call", () => {
+    expect(
+      checkResourceRequest(manifest, "project:7", ["fetch", "push"]),
+    ).toMatchObject({
+      ok: true,
+      key: "7",
+      kind: { kind: "project" },
+    });
+    expect(checkResourceRequest(manifest, "nope", ["fetch"])).toMatchObject({
+      ok: false,
+      reason: "malformed_id",
+    });
+    expect(checkResourceRequest(manifest, "group:7", ["fetch"])).toMatchObject({
+      ok: false,
+      reason: "unknown_kind",
+    });
+    expect(
+      checkResourceRequest(manifest, "project:7", ["fetch", "delete"]),
+    ).toMatchObject({
+      ok: false,
+      reason: "unknown_operation",
+      message: "project does not support delete",
+    });
+  });
+
+  it("reports manifest problems a host could not render or enforce", () => {
+    expect(manifestProblems(manifest)).toEqual([]);
+    const broken: BondManifest = {
+      ...manifest,
+      setupSchema: { type: "object", properties: {}, required: ["baseUrl"] },
+      resourceKinds: [
+        { kind: "project", title: "P", operations: [] },
+        {
+          kind: "project",
+          title: "P2",
+          operations: [
+            { name: "Push", description: "x", access: "write" },
+            { name: "fetch", description: "x", access: "read" },
+            { name: "fetch", description: "x", access: "read" },
+          ],
+        },
+      ],
+    };
+    expect(manifestProblems(broken)).toEqual([
+      "kind project has no operations",
+      "duplicate kind project",
+      "invalid operation project.Push",
+      "duplicate operation project.fetch",
+      "required field baseUrl is not defined",
+    ]);
   });
 });

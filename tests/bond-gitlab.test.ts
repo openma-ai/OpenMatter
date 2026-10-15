@@ -2,7 +2,9 @@ import { Effect, Either } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   ConfigError,
+  ProviderError,
   makeBond,
+  manifestProblems,
   makeMemoryBondStore,
   type ProviderAppConfig,
 } from "../packages/matter/src/bond/index.js";
@@ -18,7 +20,10 @@ import {
   evaluatePush,
   exchangeCode,
   isValidRefName,
+  gitlabManifest,
+  makeGitLabBinding,
   makeGitLabBondProvider,
+  makeGitLabResourceCatalog,
   makeReceivePackHeadParser,
   mergeRequestBodyProblem,
   mergeRequestFooter,
@@ -928,6 +933,256 @@ describe("GitLab provider configuration errors", () => {
       );
       expect(Either.isLeft(r) && r.left.rejected, `${status} ${error}`).toBe(
         false,
+      );
+    }
+  });
+});
+
+describe("GitLab manifest and resource catalog", () => {
+  const config: ProviderAppConfig = {
+    id: "gl",
+    provider: "gitlab",
+    baseUrl: ORIGIN,
+    linkMethodPolicy: "pat_only",
+    principalPolicy: "user_only",
+    allowedScopes: ["read_api"],
+    identityBinding: { kind: "none" },
+    allowUserPrincipalOutput: false,
+  };
+
+  type Reply = {
+    status: number;
+    body?: unknown;
+    headers?: Record<string, string>;
+  };
+  const fake = (handler: (url: URL) => Reply) => {
+    const calls: { url: URL; auth: string | null }[] = [];
+    const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      calls.push({
+        url,
+        auth: new Headers(init?.headers).get("authorization"),
+      });
+      const { status, body, headers } = handler(url);
+      return new Response(body === undefined ? null : JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json", ...headers },
+      });
+    }) as typeof fetch;
+    return { impl, calls };
+  };
+
+  const project = (id: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    name: `p${id}`,
+    path_with_namespace: `group/p${id}`,
+    web_url: `${ORIGIN}/group/p${id}`,
+    ...extra,
+  });
+  const access = (project: number, group = 0) => ({
+    permissions: {
+      project_access: project === 0 ? null : { access_level: project },
+      group_access: group === 0 ? null : { access_level: group },
+    },
+  });
+
+  it("declares a valid manifest and wires the binding", () => {
+    expect(manifestProblems(gitlabManifest)).toEqual([]);
+    expect(gitlabManifest.resourceKinds.map((k) => k.kind)).toEqual([
+      "project",
+    ]);
+    expect(
+      gitlabManifest.resourceKinds[0]!.operations.map(
+        (o) => `${o.name}:${o.access}`,
+      ),
+    ).toEqual([
+      "fetch:read",
+      "read:read",
+      "push:write",
+      "open_mr:write",
+      "comment_mr:write",
+    ]);
+    const binding = makeGitLabBinding();
+    expect(binding.manifest).toBe(gitlabManifest);
+    expect(binding.provider.provider).toBe("gitlab");
+  });
+
+  it("lists member projects with Reporter access, page by page", async () => {
+    const { impl, calls } = fake((url) =>
+      url.searchParams.get("page") === "1"
+        ? {
+            status: 200,
+            body: [project(1), { id: "bad" }, project(2)],
+            headers: { "x-next-page": "2" },
+          }
+        : { status: 200, body: [project(3)], headers: { "x-next-page": "" } },
+    );
+    const catalog = makeGitLabResourceCatalog({ fetch: impl });
+    const first = await run(
+      catalog.list({ config, token: "tok", query: "  api ", limit: 500 }),
+    );
+    expect(first).toEqual({
+      items: [
+        {
+          id: "project:1",
+          kind: "project",
+          title: "group/p1",
+          url: `${ORIGIN}/group/p1`,
+        },
+        {
+          id: "project:2",
+          kind: "project",
+          title: "group/p2",
+          url: `${ORIGIN}/group/p2`,
+        },
+      ],
+      nextCursor: "2",
+    });
+    const params = Object.fromEntries(calls[0]!.url.searchParams);
+    expect(calls[0]!.url.pathname).toBe("/api/v4/projects");
+    expect(params).toEqual({
+      membership: "true",
+      min_access_level: "20",
+      simple: "true",
+      order_by: "last_activity_at",
+      per_page: "100",
+      page: "1",
+      search: "api",
+    });
+    expect(calls[0]!.auth).toBe("Bearer tok");
+    const second = await run(
+      catalog.list({ config, token: "tok", cursor: first.nextCursor! }),
+    );
+    expect(second).toEqual({
+      items: [
+        {
+          id: "project:3",
+          kind: "project",
+          title: "group/p3",
+          url: `${ORIGIN}/group/p3`,
+        },
+      ],
+    });
+    await run(catalog.list({ config, token: "tok", cursor: "../x" }));
+    expect(calls[2]!.url.searchParams.get("page")).toBe("1");
+    expect(calls[2]!.url.searchParams.get("per_page")).toBe("20");
+    expect(calls[2]!.url.searchParams.has("search")).toBe(false);
+  });
+
+  it("fails a list on an HTTP error without marking the grant rejected", async () => {
+    const { impl } = fake(() => ({
+      status: 401,
+      body: { message: "401 Unauthorized" },
+    }));
+    const result = await run(
+      Effect.either(
+        makeGitLabResourceCatalog({ fetch: impl }).list({ config, token: "t" }),
+      ),
+    );
+    expect(Either.isLeft(result) && result.left).toBeInstanceOf(ProviderError);
+    expect(Either.isLeft(result) && result.left.rejected).toBe(false);
+    expect(Either.isLeft(result) && result.left.status).toBe(401);
+  });
+
+  it("validates each operation against the token's access level", async () => {
+    const levels: Record<string, Reply> = {
+      "/api/v4/projects/1": { status: 200, body: project(1, access(30)) },
+      "/api/v4/projects/2": { status: 200, body: project(2, access(20)) },
+      "/api/v4/projects/3": { status: 200, body: project(3, access(10, 40)) },
+      "/api/v4/projects/4": {
+        status: 404,
+        body: { message: "404 Project Not Found" },
+      },
+      "/api/v4/projects/5": {
+        status: 200,
+        body: project(5, { ...access(40), archived: true }),
+      },
+      "/api/v4/projects/6": { status: 200, body: project(6, access(0)) },
+    };
+    const { impl, calls } = fake(
+      (url) => levels[url.pathname] ?? { status: 500 },
+    );
+    const catalog = makeGitLabResourceCatalog({ fetch: impl });
+    const validate = (resource: string, operations: string[]) =>
+      run(catalog.validate({ config, token: "tok", resource, operations }));
+
+    expect(await validate("project:1", ["fetch", "push", "open_mr"])).toEqual({
+      ok: true,
+      resource: {
+        id: "project:1",
+        kind: "project",
+        title: "group/p1",
+        url: `${ORIGIN}/group/p1`,
+      },
+    });
+    expect(await validate("project:2", ["fetch"])).toMatchObject({ ok: true });
+    expect(await validate("project:2", ["fetch", "push"])).toEqual({
+      ok: false,
+      reason: "insufficient_access",
+      message: "Needs GitLab access level 30; the token holds 20",
+    });
+    expect(await validate("project:3", ["push"])).toMatchObject({ ok: true });
+    expect(await validate("project:4", ["fetch"])).toMatchObject({
+      ok: false,
+      reason: "not_found",
+    });
+    expect(await validate("project:5", ["read"])).toMatchObject({ ok: true });
+    expect(await validate("project:5", ["push"])).toEqual({
+      ok: false,
+      reason: "insufficient_access",
+      message: "Project 5 is archived",
+    });
+    expect(await validate("project:6", ["fetch"])).toMatchObject({
+      ok: false,
+      reason: "insufficient_access",
+    });
+    expect(calls.every((c) => c.auth === "Bearer tok")).toBe(true);
+  });
+
+  it("rejects malformed IDs and unknown operations without calling GitLab", async () => {
+    const { impl, calls } = fake(() => ({ status: 500 }));
+    const catalog = makeGitLabResourceCatalog({ fetch: impl });
+    const validate = (resource: string, operations: string[]) =>
+      run(catalog.validate({ config, token: "t", resource, operations }));
+    expect(await validate("project:group%2Fp1", ["fetch"])).toMatchObject({
+      ok: false,
+      reason: "malformed_id",
+    });
+    expect(await validate("project:0", ["fetch"])).toMatchObject({
+      ok: false,
+      reason: "malformed_id",
+    });
+    expect(await validate("group:1", ["fetch"])).toMatchObject({
+      ok: false,
+      reason: "unknown_kind",
+    });
+    expect(await validate("project:1", ["merge"])).toMatchObject({
+      ok: false,
+      reason: "unknown_operation",
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("fails validation on server errors and on a different project in the reply", async () => {
+    const { impl } = fake((url) =>
+      url.pathname.endsWith("/7")
+        ? { status: 200, body: project(8, access(40)) }
+        : { status: 502 },
+    );
+    const catalog = makeGitLabResourceCatalog({ fetch: impl });
+    for (const resource of ["project:7", "project:9"]) {
+      const result = await run(
+        Effect.either(
+          catalog.validate({
+            config,
+            token: "t",
+            resource,
+            operations: ["fetch"],
+          }),
+        ),
+      );
+      expect(Either.isLeft(result) && result.left).toBeInstanceOf(
+        ProviderError,
       );
     }
   });

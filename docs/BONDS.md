@@ -115,7 +115,7 @@ packages are that kind of binding.
 @octokit/auth-app, @octokit/auth-oauth-user, @octokit/auth-oauth-device
         provider protocol: App JWT, installation tokens, web and device flow
                 │
-@openma/matter-bond-github
+@openma/matter-github/bond
         GitHub binding: install-and-authorize, repository intersection,
         repository-scoped installation tokens, attribution helpers
                 │
@@ -504,6 +504,62 @@ the kernel tests, not by the store suite.
 
 The memory adapter passes the same suite and is labelled test-only.
 
+## Manifest and resource catalog
+
+A host such as OpenMA renders setup forms, account linking, resource pickers,
+and grants without provider-specific code. Each binding therefore exports a
+`BondBinding`:
+
+```ts
+interface BondBinding {
+  manifest: BondManifest; // static description
+  provider: BondProvider; // token protocol, used by the kernel
+  resources: BondResourceCatalog; // list and validate resources
+}
+```
+
+`BondManifest` declares:
+
+- `setupSchema`: the fields an administrator fills in to enable the
+  ProviderApp in a tenant, as a small JSON Schema subset (string, integer,
+  boolean, `enum`, `default`, `required`). Fields marked `x-secret` are
+  stored sealed and never returned to clients. A ProviderApp configured by
+  the deployment, such as a shared GitHub App, has no fields;
+- `linkMethods`: `oauth`, `pat`, or both, before the ProviderApp's link
+  method policy narrows them;
+- `resourceKinds`: each kind, such as `project`, with the operations it
+  supports and whether each is a read or a write.
+
+Resource IDs have the form `<kind>:<key>`, such as `project:42`. Hosts store
+and compare them as opaque strings in grants and Loop configuration. Keys are
+stable provider IDs, never display paths, so a rename or transfer does not
+change what a grant covers.
+
+`BondResourceCatalog` has two operations:
+
+- `list({ config, token, query, cursor, limit })` returns one page of
+  resources visible to the token, for pickers.
+- `validate({ config, token, resource, operations })` decides whether the
+  token may perform the operations on the resource. It returns `ok` with the
+  resource, or one of `malformed_id`, `unknown_kind`, `unknown_operation`,
+  `not_found`, or `insufficient_access`. Transport and HTTP failures are a
+  `ProviderError`, as elsewhere in Bond.
+
+The caller supplies the token, normally from `Bond.credential`, so the
+caller chooses whose access is checked. A host that must check both the
+requester and the app principal calls `validate` once with each token.
+`checkResourceRequest` performs the shape and operation checks shared by all
+bindings before any provider call, and `manifestProblems` reports a manifest
+a host could not render or enforce.
+
+The GitLab binding exports `makeGitLabBinding`. Its one kind is `project`,
+keyed by the numeric project ID. `list` returns member projects where the
+token holds at least Reporter. `validate` requires Reporter (20) for `fetch`
+and `read`, Developer (30) for `push`, `open_mr`, and `comment_mr`, using the
+higher of the project and group access levels, and refuses writes to
+archived projects. An instance administrator without a membership reports no
+access level and is treated as having none.
+
 ## CredentialRequest extension
 
 ```ts
@@ -565,7 +621,7 @@ visible author, execution principal, requesting actor, and provider receipt.
 
 ## GitHub binding
 
-`@openma/matter-bond-github` provides:
+`@openma/matter-github/bond` provides:
 
 - **Install and authorize in one redirect.** The App enables "Request user
   authorization (OAuth) during installation", so the first administrator gets
