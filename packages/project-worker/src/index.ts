@@ -5,7 +5,7 @@ import { ProjectWorkerServer } from "./http.js";
 export { workerConfigFromEnv, type WorkerConfig } from "./config.js";
 export { ProjectWorker } from "./coordinator.js";
 export { ProjectWorkerServer } from "./http.js";
-export { makeMysqlStore } from "@openmatter/store-mysql";
+export { makeMysqlStore } from "@openma/matter-store-mysql";
 
 const isMain =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

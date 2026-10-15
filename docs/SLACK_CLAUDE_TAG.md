@@ -1,12 +1,12 @@
 # Slack integration and the Claude Tag Loop
 
-| Field         | Value                           |
-| ------------- | ------------------------------- |
-| Status        | Executable v0                   |
-| Work adapter  | `@openmatter/integration-slack` |
-| Built-in Loop | `@openmatter/orchestration`     |
-| Cloud host    | `@openmatter/host-cloudflare`   |
-| Local host    | `@openmatter/host-local`        |
+| Field         | Value                            |
+| ------------- | -------------------------------- |
+| Status        | Executable v0                    |
+| Work adapter  | `@openma/matter-slack/bond`      |
+| Built-in Loop | `@openma/matter-orchestration`   |
+| Cloud host    | `@openma/matter-host-cloudflare` |
+| Local host    | `@openma/matter-host-local`      |
 
 This vertical slice intentionally separates four concerns:
 
@@ -14,7 +14,7 @@ This vertical slice intentionally separates four concerns:
 Slack HTTP or Socket Mode
           │ native payload
           ▼
-@openmatter/integration-slack
+@openma/matter-slack/bond
           │ immutable WorkEvent
           ▼
 Claude Tag Loop ── ContextProjection ── AgentDriver
@@ -93,7 +93,7 @@ code. A credential store plugs in through the provider-neutral authority
 resolver:
 
 ```ts
-import { makeCredentialResolver } from "@openmatter/credentials";
+import { makeCredentialResolver } from "@openma/matter/credentials";
 
 const slack = makeSlackIntegration({
   credentials: makeCredentialResolver(({ authority }) =>
@@ -252,7 +252,7 @@ long Agent Turn; exposing the operation does not make a delayed trigger valid.
 ## Local Node: no webhook
 
 When a laptop, private network, or local server cannot expose a Request URL,
-`@openmatter/host-local` uses Slack's official
+`@openma/matter-host-local` uses Slack's official
 [`@slack/socket-mode`](https://docs.slack.dev/tools/node-slack-sdk/socket-mode)
 client. Socket Mode delivers pre-authenticated envelopes over a reconnecting
 WebSocket, so per-request signature verification is neither required nor
@@ -287,8 +287,8 @@ and billing, while Workers already provide a public HTTP endpoint. Switching
 between these hosts does not alter the WorkEvent, Scope, Session, or Reaction
 model.
 
-`@openmatter/inbox-sqlite` is the embedded Node adapter; another database or
-queue can implement the same `@openmatter/inbox` port. Completed inbox rows are
+`@openma/matter-inbox-sqlite` is the embedded Node adapter; another database or
+queue can implement the same `@openma/matter/inbox` port. Completed inbox rows are
 retained for provider-envelope deduplication. The transport inbox does not
 replace `OpenMatterStore`: a crash-safe standalone service needs both on durable
 storage. Slack Web API Effects remain at-least-once where Slack exposes no

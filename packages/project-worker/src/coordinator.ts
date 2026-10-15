@@ -1,15 +1,15 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { coordinatorLoop } from "@openmatter/orchestration";
+import { coordinatorLoop } from "@openma/matter-orchestration";
 import { Effect } from "effect";
-import type { JsonValue, ThreadGoal, WorkEvent } from "@openmatter/core";
+import type { JsonValue, ThreadGoal, WorkEvent } from "@openma/matter";
 import {
   associateProjectEvent,
   makeMemoryProjectCommandSink,
   makeProjectControl,
   makeProjectIntegration,
   PROJECT_WORK_EVENT_TYPES,
-} from "@openmatter/project";
+} from "@openma/matter-project";
 import {
   goalContinuationText,
   goalTurnTokens,
@@ -19,15 +19,15 @@ import {
   type ProjectWorkCommand,
   type ProjectWorkConfig,
   type ProjectWorkView,
-} from "@openmatter/project-host";
+} from "@openma/matter-project-host";
 import {
   createOpenMatter,
   type OpenMatterApplication,
-} from "@openmatter/runtime";
-import type { MysqlStore } from "@openmatter/store-mysql";
-import { makeMysqlStore } from "@openmatter/store-mysql";
-import type { SqliteStore } from "@openmatter/store-sqlite";
-import { makeSqliteStore } from "@openmatter/store-sqlite";
+} from "@openma/matter/runtime";
+import type { MysqlStore } from "@openma/matter-store-mysql";
+import { makeMysqlStore } from "@openma/matter-store-mysql";
+import type { SqliteStore } from "@openma/matter-store-sqlite";
+import { makeSqliteStore } from "@openma/matter-store-sqlite";
 import {
   makeProjectCatalog,
   type ProjectCatalog,

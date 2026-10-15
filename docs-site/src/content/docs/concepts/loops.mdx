@@ -24,7 +24,7 @@ Event → Scope / WorkThread → Context → Agent Session / Turn → Reaction �
 ## Define one
 
 ```ts
-import { defineLoop } from "@openmatter/runtime";
+import { defineLoop } from "@openma/matter/runtime";
 
 const issueTriage = defineLoop(
   {
@@ -68,7 +68,7 @@ The Agent still owns reasoning, planning, and its internal tool-use sequence. A 
 ## Use a built-in Loop
 
 ```ts
-import { claudeTag } from "@openmatter/orchestration";
+import { claudeTag } from "@openma/matter-orchestration";
 
 app.loop(
   claudeTag({

@@ -1,6 +1,7 @@
 {
-  "name": "@openmatter/store-mysql",
+  "name": "@openma/matter-store-mysql",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,8 +17,7 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/store": "workspace:*",
+    "@openma/matter": "workspace:*",
     "mysql2": "3.15.3"
   },
   "peerDependencies": {

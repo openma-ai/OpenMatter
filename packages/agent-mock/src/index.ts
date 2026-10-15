@@ -2,7 +2,7 @@ import {
   createOpenMAEvent,
   type AgentDriver,
   type OpenMAEvent,
-} from "@openmatter/agent";
+} from "@openma/matter/agent";
 import { Effect, Stream } from "effect";
 
 export interface MockAgentDriver {

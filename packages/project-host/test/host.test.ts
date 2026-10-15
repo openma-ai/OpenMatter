@@ -1,11 +1,11 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { makeMockAgentDriver } from "@openmatter/agent-mock";
+import { makeMockAgentDriver } from "@openma/matter-agent-mock";
 import {
   ProjectWorkService,
   type ProjectWorkConfig,
-} from "@openmatter/project-host";
+} from "@openma/matter-project-host";
 import { afterEach, describe, expect, it } from "vitest";
 
 const directories: string[] = [];

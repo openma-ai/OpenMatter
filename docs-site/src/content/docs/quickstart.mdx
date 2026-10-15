@@ -9,20 +9,30 @@ OpenMatter is a TypeScript SDK, not a hosted runtime. Start with the in-memory S
 
 <Steps>
 
-1. **Install the foundation**
+1. **Get the reference adapters**
+
+   The kernel is published as `@openma/matter`. The in-memory Store and the
+   mock adapters are private workspace packages, so start inside a clone:
 
    ```sh
-   pnpm add effect @openmatter/runtime @openmatter/store-memory \
-     @openmatter/integration-mock @openmatter/agent-mock
+   git clone https://github.com/openma-ai/OpenMatter.git
+   cd OpenMatter && pnpm install
+   ```
+
+   In your own application, install the kernel and supply a real Store,
+   Integration, and Agent Driver:
+
+   ```sh
+   pnpm add effect @openma/matter
    ```
 
 2. **Create an application**
 
    ```ts
-   import { makeMockAgentDriver } from "@openmatter/agent-mock";
-   import { makeMockIntegration } from "@openmatter/integration-mock";
-   import { createOpenMatter } from "@openmatter/runtime";
-   import { makeMemoryStore } from "@openmatter/store-memory";
+   import { makeMockAgentDriver } from "@openma/matter-agent-mock";
+   import { makeMockIntegration } from "@openma/matter-integration-mock";
+   import { createOpenMatter } from "@openma/matter/runtime";
+   import { makeMemoryStore } from "@openma/matter-store-memory";
 
    const chat = makeMockIntegration({ id: "chat" });
    const worker = makeMockAgentDriver({ id: "worker", output: "Hello" });
@@ -52,7 +62,7 @@ OpenMatter is a TypeScript SDK, not a hosted runtime. Start with the in-memory S
 A Loop packages the long-lived event behavior. Its handler explicitly constructs context, chooses session continuity, grants operations, and returns a terminal Reaction.
 
 ```ts
-import { defineLoop } from "@openmatter/runtime";
+import { defineLoop } from "@openma/matter/runtime";
 
 const chatLoop = defineLoop(
   {

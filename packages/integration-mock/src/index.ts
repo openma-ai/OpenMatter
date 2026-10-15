@@ -2,11 +2,11 @@ import {
   JsonValueSchema,
   type JsonValue,
   type WorkEffect,
-} from "@openmatter/core";
+} from "@openma/matter";
 import {
   IntegrationError,
   type WorkIntegration,
-} from "@openmatter/integration";
+} from "@openma/matter/integration";
 import { Effect, Schema } from "effect";
 
 export const MockNativeEventSchema = Schema.Struct({

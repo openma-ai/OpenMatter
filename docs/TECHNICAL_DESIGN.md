@@ -59,20 +59,20 @@ claim token, or fencing token.
 ## 3. Package boundaries
 
 ```text
-@openmatter/core              immutable records and Effect Schemas
-@openmatter/store             durable Store port
-@openmatter/store-memory      in-process reference Store
-@openmatter/inbox             durable transport-envelope port
-@openmatter/inbox-sqlite      embedded Node inbox adapter
-@openmatter/integration       WorkIntegration port
-@openmatter/integration-mock  reference work adapter
-@openmatter/agent             AgentDriver and OpenMAEvent port
-@openmatter/agent-mock        reference agent adapter
-@openmatter/runtime           lifecycle orchestration
-@openmatter/integration-slack signed Slack ingress and semantic operations
-@openmatter/orchestration     built-in code-first Loops
-@openmatter/host-cloudflare   Worker HTTP/Queue host binding
-@openmatter/host-local        Node Socket Mode host binding
+@openma/matter              immutable records and Effect Schemas
+@openma/matter/store             durable Store port
+@openma/matter-store-memory      in-process reference Store
+@openma/matter/inbox             durable transport-envelope port
+@openma/matter-inbox-sqlite      embedded Node inbox adapter
+@openma/matter/integration       WorkIntegration port
+@openma/matter-integration-mock  reference work adapter
+@openma/matter/agent             AgentDriver and OpenMAEvent port
+@openma/matter-agent-mock        reference agent adapter
+@openma/matter/runtime           lifecycle orchestration
+@openma/matter-slack/bond signed Slack ingress and semantic operations
+@openma/matter-orchestration     built-in code-first Loops
+@openma/matter-host-cloudflare   Worker HTTP/Queue host binding
+@openma/matter-host-local        Node Socket Mode host binding
 ```
 
 Dependency direction is inward toward `core`. Concrete provider SDKs,

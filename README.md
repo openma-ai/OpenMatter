@@ -66,8 +66,8 @@ git clone https://github.com/openma-ai/OpenMatter.git
 cd OpenMatter
 pnpm install
 pnpm check
-pnpm --filter @openmatter/example-basic build
-pnpm --filter @openmatter/example-basic start
+pnpm --filter @openma/matter-example-basic build
+pnpm --filter @openma/matter-example-basic start
 ```
 
 The basic example uses the Memory Store and mock adapters, then executes the
@@ -83,7 +83,7 @@ TypeScript. The definition can be inspected, versioned, generated, and later
 visualized without pretending arbitrary application logic is serializable.
 
 ```ts
-import { defineLoop } from "@openmatter/runtime";
+import { defineLoop } from "@openma/matter/runtime";
 
 const issueTriage = defineLoop(
   {
@@ -112,7 +112,7 @@ For Slack, the built-in `claudeTag()` Loop already defines mention, direct
 message, slash-command, Scope, WorkThread, Session, and reply behavior:
 
 ```ts
-import { claudeTag } from "@openmatter/orchestration";
+import { claudeTag } from "@openma/matter-orchestration";
 
 app.loop(
   claudeTag({
@@ -217,15 +217,16 @@ other implicitly. Read the [identity model](docs/IDENTITY_MODEL.md).
 
 ## Packages
 
-| Group              | Packages                                                                      |
-| ------------------ | ----------------------------------------------------------------------------- |
-| Foundation         | `@openmatter/core`, `store`, `integration`, `agent`, `runtime`, `credentials` |
-| Reference adapters | `store-memory`, `integration-mock`, `agent-mock`                              |
-| Work platforms     | `integration-slack`, `integration-github`, `integration-linear`               |
-| Agent bridge       | `agent-claude`                                                                |
-| Orchestration      | `orchestration`                                                               |
-| HTTP and hosts     | `http`, `fastify`, `hono`, `host-cloudflare`, `host-local`                    |
-| Ingress durability | `inbox`, `inbox-sqlite`                                                       |
+| Package                 | Contents                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `@openma/matter`        | The kernel. Subpaths: `.` (core Schemas), `/credentials`, `/bond`, `/store`, `/inbox`, `/integration`, `/agent`, `/runtime`, `/http` |
+| `@openma/matter-gitlab` | GitLab Bond provider (`/bond`)                                                                                                       |
+
+Reference adapters (`store-memory`, `store-sqlite`, `store-mysql`,
+`inbox-sqlite`, `*-mock`), the Slack, GitHub, and Linear providers
+(`@openma/matter-<provider>/bond`, like GitLab),
+`orchestration`, the Projects packages, hosts, and the Fastify/Hono components
+live in this repository as private workspace packages.
 
 The dependency direction and ownership of every package are documented in
 [Project structure](docs/PROJECT_STRUCTURE.md).

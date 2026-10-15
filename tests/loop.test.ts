@@ -1,6 +1,6 @@
-import type { WorkEvent } from "@openmatter/core";
-import { createOpenMatter, defineLoop } from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
+import type { WorkEvent } from "@openma/matter";
+import { createOpenMatter, defineLoop } from "@openma/matter/runtime";
+import { makeMemoryStore } from "@openma/matter-store-memory";
 import { describe, expect, it } from "vitest";
 
 const event = (id: string): WorkEvent => ({

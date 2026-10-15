@@ -4,7 +4,7 @@ import {
   type AgentDriver,
   type AgentSessionHandle,
   type OpenMAEvent,
-} from "@openmatter/agent";
+} from "@openma/matter/agent";
 import { Effect, Stream } from "effect";
 import type { ProjectCatalog, StoredThread } from "./catalog.js";
 

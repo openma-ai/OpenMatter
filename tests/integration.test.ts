@@ -1,6 +1,6 @@
-import { makeMockIntegration } from "@openmatter/integration-mock";
-import { createOpenMatter } from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
+import { makeMockIntegration } from "@openma/matter-integration-mock";
+import { createOpenMatter } from "@openma/matter/runtime";
+import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 

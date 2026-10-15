@@ -1,0 +1,57 @@
+{
+  "name": "@openma/matter",
+  "version": "0.1.0",
+  "description": "OpenMatter kernel: work facts, Bond, Integration, Agent, Store, Inbox, and Runtime contracts.",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./credentials": {
+      "types": "./dist/credentials/index.d.ts",
+      "import": "./dist/credentials/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js"
+    },
+    "./integration": {
+      "types": "./dist/integration/index.d.ts",
+      "import": "./dist/integration/index.js"
+    },
+    "./inbox": {
+      "types": "./dist/inbox/index.d.ts",
+      "import": "./dist/inbox/index.js"
+    },
+    "./agent": {
+      "types": "./dist/agent/index.d.ts",
+      "import": "./dist/agent/index.js"
+    },
+    "./store": {
+      "types": "./dist/store/index.d.ts",
+      "import": "./dist/store/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
+    "./bond": {
+      "types": "./dist/bond/index.d.ts",
+      "import": "./dist/bond/index.js"
+    }
+  },
+  "dependencies": {
+    "@openma/common": "^0.9.0"
+  },
+  "peerDependencies": {
+    "effect": "^3.22.1"
+  }
+}

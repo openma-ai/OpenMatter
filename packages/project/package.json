@@ -1,6 +1,7 @@
 {
-  "name": "@openmatter/project",
+  "name": "@openma/matter-project",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,11 +17,8 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/inbox": "workspace:*",
-    "@openmatter/integration": "workspace:*",
-    "@openmatter/orchestration": "workspace:*",
-    "@openmatter/runtime": "workspace:*"
+    "@openma/matter": "workspace:*",
+    "@openma/matter-orchestration": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

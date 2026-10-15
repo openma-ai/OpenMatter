@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("CredentialResolver", () => {
   it("resolves one authority-scoped credential through the common request shape", async () => {
     const { makeCredentialResolver } =
-      await import("../packages/credentials/src/index.js");
+      await import("../packages/matter/src/credentials/index.js");
     const seen: unknown[] = [];
     const resolver = makeCredentialResolver((request) => {
       seen.push(request);
@@ -21,7 +21,7 @@ describe("CredentialResolver", () => {
 
   it("contains rejected credential sources as typed retryable failures", async () => {
     const { CredentialError, makeCredentialResolver } =
-      await import("../packages/credentials/src/index.js");
+      await import("../packages/matter/src/credentials/index.js");
     const resolver = makeCredentialResolver(async () => {
       throw new Error("vault unavailable");
     });
@@ -48,7 +48,7 @@ describe("CredentialResolver", () => {
 
   it("can bind static credentials to one authority", async () => {
     const { staticCredentialResolver } =
-      await import("../packages/credentials/src/index.js");
+      await import("../packages/matter/src/credentials/index.js");
     const resolver = staticCredentialResolver(
       { token: "fixed" },
       { integrationId: "slack", authority: "TWORK" },
@@ -63,7 +63,7 @@ describe("CredentialResolver", () => {
 
   it("passes an optional execution principal through to the source unchanged", async () => {
     const { makeCredentialResolver } =
-      await import("../packages/credentials/src/index.js");
+      await import("../packages/matter/src/credentials/index.js");
     const seen: unknown[] = [];
     const resolver = makeCredentialResolver((request) => {
       seen.push(request.principal);
@@ -87,7 +87,7 @@ describe("CredentialResolver", () => {
 
   it("refuses a requester principal from a static installation credential", async () => {
     const { CredentialError, staticCredentialResolver } =
-      await import("../packages/credentials/src/index.js");
+      await import("../packages/matter/src/credentials/index.js");
     const fixed = staticCredentialResolver(
       { token: "fixed" },
       { integrationId: "slack", authority: "TWORK" },
@@ -131,7 +131,7 @@ describe("CredentialResolver", () => {
 
   it("rules out a requester principal without an attended trigger or requester at the type level", () => {
     type Request =
-      import("../packages/credentials/src/index.js").ExecutionPrincipalRequest;
+      import("../packages/matter/src/credentials/index.js").ExecutionPrincipalRequest;
     // @ts-expect-error runAs requester needs requesterId
     const noRequester: Request = {
       tenantId: "w1",

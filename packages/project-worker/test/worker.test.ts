@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { makeProjectMcpServer } from "@openmatter/project-mcp";
-import type { ProjectWorkConfig } from "@openmatter/project-host";
+import { makeProjectMcpServer } from "@openma/matter-project-mcp";
+import type { ProjectWorkConfig } from "@openma/matter-project-host";
 import { afterEach, describe, expect, it } from "vitest";
 import type { WorkerConfig } from "../src/config.js";
 import { ProjectWorkerServer } from "../src/http.js";

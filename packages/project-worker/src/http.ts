@@ -6,8 +6,8 @@ import {
 import type {
   ProjectWorkCommand,
   ProjectWorkConfig,
-} from "@openmatter/project-host";
-import type { ProjectGoalInput } from "@openmatter/project-host";
+} from "@openma/matter-project-host";
+import type { ProjectGoalInput } from "@openma/matter-project-host";
 import type { WorkerConfig } from "./config.js";
 import { ProjectWorker } from "./coordinator.js";
 import type { OmaClient } from "./oma.js";
