@@ -59,6 +59,55 @@ app.loop(issueTriage);
 code and is intentionally separate: standard definitions can be inspected and
 visualized without pretending arbitrary TypeScript can be serialized.
 
+## Configuration
+
+A definition may declare `configSchema`, a small JSON Schema subset that a
+host renders as a form, so one Loop serves many configured instances:
+
+```ts
+const review = defineLoop(
+  {
+    id: "mr-review",
+    configSchema: {
+      type: "object",
+      properties: {
+        projects: { type: "array", items: { type: "string" }, minItems: 1 },
+        skipDrafts: { type: "boolean", default: true },
+      },
+      required: ["projects"],
+    },
+    requiredBonds: [
+      { provider: "gitlab", operations: ["fetch", "comment_mr"] },
+    ],
+    runAs: "app",
+  },
+  (app, { config }) =>
+    app.on("gitlab.merge_request.opened", (work) =>
+      work.react.none(`watching ${String(config.projects)}`),
+    ),
+);
+
+app.loop(review, { projects: ["project:42"] });
+```
+
+- Field types are `string` (with `enum`, `minLength`, `maxLength`),
+  `number` and `integer` (with `minimum`, `maximum`), `boolean`, and `array`
+  of one of those (with `minItems`, `maxItems`). Each may carry `title`,
+  `description`, `default`, and host hints whose names start with `x-`.
+  Anything else is rejected when the Loop is defined.
+- `app.loop(loop, config)` validates the configuration, rejects unknown
+  fields, fills defaults, and passes the result to `install` as
+  `context.config`. An invalid configuration throws a TypeError listing every
+  problem, and nothing is installed. A Loop without a schema accepts only an
+  absent or empty configuration.
+- Configuration holds no secrets. Provider credentials come from Bond.
+- `resolveLoopConfig` and `loopConfigSchemaProblems` are exported so a host
+  can validate a form before installing.
+
+`requiredBonds` lists the provider accounts the Loop uses and the operations
+it performs there. The runtime only checks its shape; a host compares it with
+what the configured agent is granted before enabling an instance.
+
 ## Built-in Loop
 
 ```ts
@@ -126,5 +175,6 @@ that starts a Session for an Event records the sender as its creator.
 Owning or configuring a Loop never lends the owner's account to unattended
 runs. When no app principal exists, as on a GitLab instance without a
 registered bot credential, an unattended write fails explicitly instead of
-borrowing a person's link. This field is proposed and not yet part of the
-executable v0 API.
+borrowing a person's link. `runAs` is part of the definition and defaults to
+`app`. The runtime records it but does not resolve principals itself; the
+host passes it to Bond when it requests a credential.
