@@ -32,8 +32,10 @@ from a primary source or a live tenant.
 - **Bot identity** (`tenant_access_token`) and **user identity**
   (`user_access_token` from a Feishu user link) are kept apart everywhere;
   every egress row names the identity it uses.
-- Recommended defaults: long connection for self-built apps, webhook for the
-  marketplace app; rollout self-built → auto-provisioned → marketplace.
+- **Decision: customers always bring their own self-built app.** OpenMA
+  does not publish a marketplace app (§10 item 12). Defaults: long
+  connection; rollout pasted self-built → auto-provisioned self-built. The
+  marketplace analysis below is kept for reference only.
 
 ## 2. Current OMA Feishu implementation inventory
 
@@ -278,6 +280,9 @@ token. The agent never sees `app_secret` or a raw token.
 
 ### 5.1 Comparison
 
+Model 1 is analysed for completeness but **not pursued** (§10 item 12). The
+credential shape keeps `kind` so it can be added later without a migration.
+
 | Aspect              | 1. Shared OpenMA marketplace app (应用商店应用)                                                 | 2. Customer self-built app (企业自建应用)                                                                                                          | 3. Auto-provisioned self-built app                                                                                                 |
 | ------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Install flow        | Tenant admin installs from the Feishu app store; first-enable event creates the installation    | Customer creates the app in the developer console, enables bot, adds scopes and events, publishes a version, pastes `app_id`/`app_secret` (+ keys) | One click: OpenMA starts an app-registration device flow, the user confirms in Feishu, OpenMA receives `client_id`/`client_secret` |
@@ -398,10 +403,9 @@ Binding; the host persists the result as a `self_built` ProviderApp with
   link methods. Add `"device"` as a link method, or treat device flow as an
   `oauth` variant **(decision, §10)**.
 - `appCredential(config, installation, storedCredential)`
-  (`ports.ts:225-232`) fits self-built apps (mint from `appSecret`). The
-  marketplace model also needs the latest `app_ticket`; add an
-  `AppTicketStore` port (`put(appId, ticket)`, `get(appId)`) that the host
-  backs with its own table.
+  (`ports.ts:225-232`) fits self-built apps (mint from `appSecret`), which
+  are the only model pursued. A marketplace app would also need an
+  `AppTicketStore` port for the latest `app_ticket`; not needed (§10 item 12).
 
 ### 6.2 Manifest
 
@@ -467,8 +471,7 @@ third-party apps)**.
 Redirect vs device flow: the redirect URL must be allowlisted in each app's
 security settings, which customers of model 2 must do by hand and model 3
 apps may not allow at all **(verify)**. Device flow needs no redirect.
-Recommendation: device flow for models 2 and 3, redirect for model 1 (one
-app, one allowlisted callback).
+Decision: device flow by default (§10 item 7).
 
 Principal policy: messages to the bot (p2p or @mention) are `attended`;
 everything else, including card actions from a user who did not address the
@@ -659,8 +662,8 @@ tools, feishu-chat`. Parity fixtures recorded from OMA's
    (`kind: "self_built"`, `ingress: "long_connection"`) + a `feishu-chat`
    instance with the stored granularity.
 5. OMA: delete the legacy pieces one release later.
-6. OpenMatter: model 3 (`registration.ts`) behind a flag; then model 1
-   (`AppTicketStore`, lifecycle events, shared webhook).
+6. OpenMatter: model 3 (`registration.ts`) behind a flag. Model 1 is not
+   planned (§10 item 12).
 
 | OMA today                                                                           | Replaced by                                                |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -683,8 +686,9 @@ until the Feishu user link replaces it (§10 item 7).
 Recorded after review with the maintainer. Items marked **(verify)** still
 need a live tenant or confirmation from Feishu.
 
-1. **Default ingress.** Long connection for self-built Bonds (models 2 and 3),
-   webhook for the marketplace app (model 1). Both ship in v1.
+1. **Default ingress.** Long connection; webhook (with `encryptKey`) for
+   deployments that prefer an inbound URL, such as Workers-only hosts. Both
+   ship in v1.
 2. **Long connection.** Use `@larksuiteoapi/node-sdk` as an optional peer of
    `/long-connection` only; `/bond` stays SDK-free.
 3. **Connections per app.** Allow up to N (default 2) connections per app;
@@ -696,8 +700,9 @@ need a live tenant or confirmation from Feishu.
    Feishu confirms third parties may call `oauth/v1/app/registration`.
 6. **Webhook encryption.** Required: `ingress: "webhook"` without
    `encryptKey` is rejected.
-7. **User link.** Device flow for models 2 and 3, redirect for model 1. The
-   same link supplies the token for the official Feishu MCP server, so the
+7. **User link.** Device flow, which needs no redirect allowlisting in the
+   customer's app. Redirect stays available for customers who configure it.
+   The same link supplies the token for the official Feishu MCP server, so the
    separate MCP OAuth preset can be removed.
 8. **Link method.** Add `"device"` to `LinkMethod`.
 9. **Group messages without a mention.** Off by default; enabling it needs
@@ -706,10 +711,12 @@ need a live tenant or confirmation from Feishu.
 11. **User-identity output.** Built-in Loops never write as the user. Custom
     Loops may, only when the administrator enables `allowUserPrincipalOutput`;
     Feishu shows no delegation marker on user-token messages **(verify)**.
-12. **Delivery order.** Model 2 first (no review dependency, usable by
-    private deployments), then model 1 once the OpenMA marketplace listing is
-    approved, then model 3. Model 1 is the default entry in the cloud console;
-    private deployments show only "use your own app".
+12. **No marketplace app.** OpenMA does not apply for Feishu ISV status or
+    publish a store app. Every tenant brings its own self-built app: model 2
+    (paste) first, then model 3 (one-click) as the low-friction path. Cloud
+    and private deployments show the same entry. `app_ticket`,
+    `AppTicketStore`, the shared webhook and lifecycle events are out of
+    scope.
 13. **Several apps per tenant.** Supported by the existing kernel: many
     ProviderApps per tenant, Installations unique by
     `(providerAppId, providerInstallationId)`, UserLinks keyed by
@@ -729,14 +736,17 @@ need a live tenant or confirmation from Feishu.
 
 ## 11. User experience
 
-**Administrator.** The cloud console offers "Add to Feishu" (model 1): the
-Feishu install page lists the scopes, a Feishu administrator approves, and the
-console shows the connected tenant and bot. "Use your own app" (models 2 and 3) is the advanced path for a custom bot name, several bots, or a private
-deployment; the console lists the scopes and events to enable and shows the
-long-connection state. The administrator then binds the bot to Agents and
-sets the identity policy (§10 items 11 and 14).
+**Administrator.** The console's "Connect Feishu" asks for the app the
+tenant owns. Model 3 is the quick path: scan a code, confirm in Feishu, and
+the app is created. Model 2 is the manual path: create a self-built app, paste
+`app_id`/`app_secret`, and follow the console's checklist of scopes and
+events; ingress defaults to long connection, so no public URL is needed. A
+Feishu administrator still approves the app version in their tenant. The
+administrator then binds the bot to Agents and sets the identity policy (§10
+items 11 and 14). A tenant that wants one bot per Agent creates one app per
+Agent.
 
-**Group default Agent.** With one shared bot and several Agents, the bot
+**Group default Agent.** When one bot serves several Agents, the bot
 posts a setup card when it joins a chat ("Which Agent handles this chat?").
 A chat owner picks once; the console can change it. `@bot /<agent> ...`
 overrides it for one message. The reply card title names the Agent.
@@ -765,6 +775,6 @@ member, and the reason for any fallback.
 Bitable, Sheets, approval, calendar, task, OKR and meeting events and write
 APIs; drive file events beyond passthrough; file/image upload Effects until a
 blob-reference convention exists; ephemeral and CardKit streaming cards;
-mini-program and web-app identities; contact sync; message search; creating
-the marketplace listing itself; and the Lark SDK's long-connection wire
+mini-program and web-app identities; contact sync; message search; the marketplace app (model 1: ISV listing, `app_ticket`, shared webhook,
+lifecycle events); and the Lark SDK's long-connection wire
 format.
