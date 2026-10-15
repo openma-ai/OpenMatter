@@ -7,7 +7,7 @@ import {
   makeSlackIntegration,
   makeSlackHttpEndpoint,
   verifySlackRequest,
-} from "../packages/integration-slack/src/index.js";
+} from "../packages/slack/src/bond/index.js";
 
 const signedSlackRequest = (
   body: string,

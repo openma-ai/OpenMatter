@@ -4,7 +4,7 @@ import {
   type CloudflareQueueBatch,
   type CloudflareQueuePort,
 } from "@openma/matter-host-cloudflare";
-import { makeSlackIntegration } from "@openma/matter-integration-slack";
+import { makeSlackIntegration } from "@openma/matter-slack/bond";
 import { claudeTag } from "@openma/matter-orchestration";
 import { createOpenMatter } from "@openma/matter/runtime";
 import type { OpenMatterStore } from "@openma/matter/store";

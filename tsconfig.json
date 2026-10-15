@@ -14,7 +14,7 @@
     "paths": {
       "@openma/matter": ["./packages/matter/src/index.ts"],
       "@openma/matter/*": ["./packages/matter/src/*/index.ts"],
-      "@openma/matter-gitlab/bond": ["./packages/gitlab/src/bond/index.ts"],
+      "@openma/matter-*/bond": ["./packages/*/src/bond/index.ts"],
       "@openma/matter-agent-mock": ["./packages/agent-mock/src/index.ts"],
       "@openma/matter-fastify": ["./packages/fastify/src/index.ts"],
       "@openma/matter-hono": ["./packages/hono/src/index.ts"],
@@ -23,17 +23,8 @@
       ],
       "@openma/matter-host-local": ["./packages/host-local/src/index.ts"],
       "@openma/matter-inbox-sqlite": ["./packages/inbox-sqlite/src/index.ts"],
-      "@openma/matter-integration-github": [
-        "./packages/integration-github/src/index.ts"
-      ],
-      "@openma/matter-integration-linear": [
-        "./packages/integration-linear/src/index.ts"
-      ],
       "@openma/matter-integration-mock": [
         "./packages/integration-mock/src/index.ts"
-      ],
-      "@openma/matter-integration-slack": [
-        "./packages/integration-slack/src/index.ts"
       ],
       "@openma/matter-orchestration": ["./packages/orchestration/src/index.ts"],
       "@openma/matter-project": ["./packages/project/src/index.ts"],

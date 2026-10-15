@@ -3,7 +3,7 @@ title: GitHub
 description: Signed GitHub App events, installation-scoped Context, and finite repository Effects.
 ---
 
-`@openma/matter-integration-github` turns GitHub App deliveries into standard
+`@openma/matter-github/bond` turns GitHub App deliveries into standard
 `WorkEvent` facts. It verifies the raw request body, uses
 `X-GitHub-Delivery` for idempotency, and uses `installation.id` as credential
 authority.
@@ -13,7 +13,7 @@ import { makeCredentialResolver } from "@openma/matter/credentials";
 import {
   makeGitHubHttpEndpoint,
   makeGitHubIntegration,
-} from "@openma/matter-integration-github";
+} from "@openma/matter-github/bond";
 
 const github = makeGitHubIntegration({
   credentials: makeCredentialResolver(({ authority }) =>

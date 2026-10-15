@@ -5,7 +5,7 @@ import { makeCredentialResolver } from "../packages/matter/src/credentials/index
 import {
   makeLinearHttpEndpoint,
   makeLinearIntegration,
-} from "../packages/integration-linear/src/index.js";
+} from "../packages/linear/src/bond/index.js";
 
 const signedLinearRequest = (body: string, signature?: string) =>
   new Request("https://example.com/linear/events", {

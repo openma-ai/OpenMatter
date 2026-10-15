@@ -67,12 +67,12 @@ importers:
       "@openma/matter-host-cloudflare":
         specifier: workspace:*
         version: link:../../packages/host-cloudflare
-      "@openma/matter-integration-slack":
-        specifier: workspace:*
-        version: link:../../packages/integration-slack
       "@openma/matter-orchestration":
         specifier: workspace:*
         version: link:../../packages/orchestration
+      "@openma/matter-slack":
+        specifier: workspace:*
+        version: link:../../packages/slack
 
   examples/slack-local:
     dependencies:
@@ -82,12 +82,12 @@ importers:
       "@openma/matter-host-local":
         specifier: workspace:*
         version: link:../../packages/host-local
-      "@openma/matter-integration-slack":
-        specifier: workspace:*
-        version: link:../../packages/integration-slack
       "@openma/matter-orchestration":
         specifier: workspace:*
         version: link:../../packages/orchestration
+      "@openma/matter-slack":
+        specifier: workspace:*
+        version: link:../../packages/slack
 
   packages/agent-mock:
     dependencies:
@@ -104,6 +104,12 @@ importers:
       fastify:
         specifier: 5.12.1
         version: 5.12.1
+
+  packages/github:
+    dependencies:
+      "@openma/matter":
+        specifier: workspace:*
+        version: link:../matter
 
   packages/gitlab:
     dependencies:
@@ -126,9 +132,9 @@ importers:
       "@openma/matter":
         specifier: workspace:*
         version: link:../matter
-      "@openma/matter-integration-slack":
+      "@openma/matter-slack":
         specifier: workspace:*
-        version: link:../integration-slack
+        version: link:../slack
 
   packages/host-local:
     dependencies:
@@ -148,25 +154,13 @@ importers:
         specifier: workspace:*
         version: link:../matter
 
-  packages/integration-github:
-    dependencies:
-      "@openma/matter":
-        specifier: workspace:*
-        version: link:../matter
-
-  packages/integration-linear:
-    dependencies:
-      "@openma/matter":
-        specifier: workspace:*
-        version: link:../matter
-
   packages/integration-mock:
     dependencies:
       "@openma/matter":
         specifier: workspace:*
         version: link:../matter
 
-  packages/integration-slack:
+  packages/linear:
     dependencies:
       "@openma/matter":
         specifier: workspace:*
@@ -255,6 +249,12 @@ importers:
       mysql2:
         specifier: 3.15.3
         version: 3.15.3
+
+  packages/slack:
+    dependencies:
+      "@openma/matter":
+        specifier: workspace:*
+        version: link:../matter
 
   packages/store-memory:
     dependencies:

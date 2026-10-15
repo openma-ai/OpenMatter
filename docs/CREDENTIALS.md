@@ -8,7 +8,7 @@ plane.
 
 ```ts
 import { makeCredentialResolver } from "@openma/matter/credentials";
-import { makeSlackIntegration } from "@openma/matter-integration-slack";
+import { makeSlackIntegration } from "@openma/matter-slack/bond";
 
 const credentials = makeCredentialResolver(async (request) => {
   return credentialVault.resolve(request.integrationId, request.authority);

@@ -16,8 +16,8 @@ export default defineConfig({
         replacement: fromRoot("./packages/matter/src") + "/$1/index.ts",
       },
       {
-        find: "@openma/matter-gitlab/bond",
-        replacement: fromRoot("./packages/gitlab/src/bond/index.ts"),
+        find: /^@openma\/matter-([a-z]+)\/bond$/,
+        replacement: fromRoot("./packages") + "/$1/src/bond/index.ts",
       },
       {
         find: /^@openma\/matter-agent-mock$/,
@@ -44,20 +44,8 @@ export default defineConfig({
         replacement: fromRoot("./packages/inbox-sqlite/src/index.ts"),
       },
       {
-        find: /^@openma\/matter-integration-github$/,
-        replacement: fromRoot("./packages/integration-github/src/index.ts"),
-      },
-      {
-        find: /^@openma\/matter-integration-linear$/,
-        replacement: fromRoot("./packages/integration-linear/src/index.ts"),
-      },
-      {
         find: /^@openma\/matter-integration-mock$/,
         replacement: fromRoot("./packages/integration-mock/src/index.ts"),
-      },
-      {
-        find: /^@openma\/matter-integration-slack$/,
-        replacement: fromRoot("./packages/integration-slack/src/index.ts"),
       },
       {
         find: /^@openma\/matter-orchestration$/,

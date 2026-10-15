@@ -23,7 +23,7 @@ To see the Integration, Agent Driver, ContextProjection, Session, Reaction, and 
 
 ```ts
 import { makeCredentialResolver } from "@openma/matter/credentials";
-import { makeSlackIntegration } from "@openma/matter-integration-slack";
+import { makeSlackIntegration } from "@openma/matter-slack/bond";
 
 const credentials = makeCredentialResolver(({ authority }) =>
   credentialVault.slack(authority),

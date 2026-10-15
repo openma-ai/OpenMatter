@@ -3,7 +3,7 @@ import { createOpenMatter } from "@openma/matter/runtime";
 import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { makeSlackIntegration } from "../packages/integration-slack/src/index.js";
+import { makeSlackIntegration } from "../packages/slack/src/bond/index.js";
 import { claudeTag } from "../packages/orchestration/src/index.js";
 
 describe("built-in Claude Tag orchestration", () => {

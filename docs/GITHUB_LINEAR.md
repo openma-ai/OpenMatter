@@ -5,7 +5,7 @@
 | Status | Executable v0                                            |
 | Scope  | Signed ingress, Context readers, credentials and Effects |
 
-`@openma/matter-integration-github` and `@openma/matter-integration-linear` are
+`@openma/matter-github/bond` and `@openma/matter-linear/bond` are
 full Work Integrations. They normalize provider input into the same immutable
 `WorkEvent` envelope used by Slack and expose provider reads and writes through
 the same Context and WorkEffect boundaries.
@@ -63,7 +63,7 @@ import { makeCredentialResolver } from "@openma/matter/credentials";
 import {
   makeGitHubHttpEndpoint,
   makeGitHubIntegration,
-} from "@openma/matter-integration-github";
+} from "@openma/matter-github/bond";
 
 const github = makeGitHubIntegration({
   credentials: makeCredentialResolver(({ authority }) =>
@@ -98,7 +98,7 @@ import { makeCredentialResolver } from "@openma/matter/credentials";
 import {
   makeLinearHttpEndpoint,
   makeLinearIntegration,
-} from "@openma/matter-integration-linear";
+} from "@openma/matter-linear/bond";
 
 const linear = makeLinearIntegration({
   credentials: makeCredentialResolver(({ authority }) =>

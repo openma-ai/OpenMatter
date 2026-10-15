@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@openma/matter": "workspace:*",
-    "@openma/matter-integration-slack": "workspace:*"
+    "@openma/matter-slack": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

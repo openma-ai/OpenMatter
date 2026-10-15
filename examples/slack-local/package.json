@@ -6,7 +6,7 @@
   "dependencies": {
     "@openma/matter": "workspace:*",
     "@openma/matter-host-local": "workspace:*",
-    "@openma/matter-integration-slack": "workspace:*",
+    "@openma/matter-slack": "workspace:*",
     "@openma/matter-orchestration": "workspace:*"
   }
 }

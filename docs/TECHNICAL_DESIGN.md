@@ -69,7 +69,7 @@ claim token, or fencing token.
 @openma/matter/agent             AgentDriver and OpenMAEvent port
 @openma/matter-agent-mock        reference agent adapter
 @openma/matter/runtime           lifecycle orchestration
-@openma/matter-integration-slack signed Slack ingress and semantic operations
+@openma/matter-slack/bond signed Slack ingress and semantic operations
 @openma/matter-orchestration     built-in code-first Loops
 @openma/matter-host-cloudflare   Worker HTTP/Queue host binding
 @openma/matter-host-local        Node Socket Mode host binding

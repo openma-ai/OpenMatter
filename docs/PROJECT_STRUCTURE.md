@@ -25,15 +25,19 @@ packages/
 │   └── src/http             ./http         provider-neutral portable HTTP endpoint
 ├── gitlab               @openma/matter-gitlab — ./bond: GitLab Bond provider
 │
+│   One package per provider, @openma/matter-<provider>. ./bond holds the
+│   Binding and the Integration; the Integration depends only on the
+│   credentials port. Private until published:
+├── slack                ./bond: Slack events, operations and signed HTTP decoder
+├── github               ./bond: GitHub App events, Context, Effects and HTTP decoder
+├── linear               ./bond: Linear events, Context, Effects and HTTP decoder
+│
 │   private (not published)
 ├── store-memory         process-local Store reference adapter
 ├── store-sqlite         embedded Node Store adapter
 ├── store-mysql          MySQL Store adapter for hosted Projects
 ├── inbox-sqlite         embedded Node durable-inbox adapter
 ├── integration-mock     executable work-platform reference adapter
-├── integration-slack    Slack events, operations and signed HTTP decoder
-├── integration-github   GitHub App events, Context, Effects and HTTP decoder
-├── integration-linear   Linear events, Context, Effects and HTTP decoder
 ├── agent-mock           executable Agent Driver reference adapter
 ├── orchestration        built-in application-level Loops (coordinator, Claude tag, Linear)
 ├── project              project commands, controls and WorkIntegration
@@ -69,12 +73,12 @@ Everything else depends on `@openma/matter`:
 ```text
 gitlab ──────────→ matter/bond
 store-* / inbox-sqlite / *-mock → matter
-integration-slack / integration-github / integration-linear → matter
+slack / github / linear → matter
 orchestration ───→ matter/runtime
 project ─────────→ matter + orchestration
 project-host ────→ project + store-sqlite + inbox-sqlite + matter
 project-mcp ─────→ project + project-host
-host-cloudflare ─→ matter/runtime + integration-slack
+host-cloudflare ─→ matter/runtime + slack/bond
 host-local ──────→ matter/runtime + matter/inbox + Slack Socket Mode SDK
 fastify / hono ──→ matter/http
 ```

@@ -8,7 +8,7 @@ import {
   makeSqliteInbox,
   type SqliteInbox,
 } from "../packages/inbox-sqlite/src/index.js";
-import { makeSlackIntegration } from "../packages/integration-slack/src/index.js";
+import { makeSlackIntegration } from "../packages/slack/src/bond/index.js";
 
 type SocketListener = (event: {
   readonly type: string;

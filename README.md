@@ -223,7 +223,8 @@ other implicitly. Read the [identity model](docs/IDENTITY_MODEL.md).
 | `@openma/matter-gitlab` | GitLab Bond provider (`/bond`)                                                                                                       |
 
 Reference adapters (`store-memory`, `store-sqlite`, `store-mysql`,
-`inbox-sqlite`, `*-mock`), the Slack, GitHub, and Linear integrations,
+`inbox-sqlite`, `*-mock`), the Slack, GitHub, and Linear providers
+(`@openma/matter-<provider>/bond`, like GitLab),
 `orchestration`, the Projects packages, hosts, and the Fastify/Hono components
 live in this repository as private workspace packages.
 

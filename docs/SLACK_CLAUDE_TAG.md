@@ -1,12 +1,12 @@
 # Slack integration and the Claude Tag Loop
 
-| Field         | Value                              |
-| ------------- | ---------------------------------- |
-| Status        | Executable v0                      |
-| Work adapter  | `@openma/matter-integration-slack` |
-| Built-in Loop | `@openma/matter-orchestration`     |
-| Cloud host    | `@openma/matter-host-cloudflare`   |
-| Local host    | `@openma/matter-host-local`        |
+| Field         | Value                            |
+| ------------- | -------------------------------- |
+| Status        | Executable v0                    |
+| Work adapter  | `@openma/matter-slack/bond`      |
+| Built-in Loop | `@openma/matter-orchestration`   |
+| Cloud host    | `@openma/matter-host-cloudflare` |
+| Local host    | `@openma/matter-host-local`      |
 
 This vertical slice intentionally separates four concerns:
 
@@ -14,7 +14,7 @@ This vertical slice intentionally separates four concerns:
 Slack HTTP or Socket Mode
           │ native payload
           ▼
-@openma/matter-integration-slack
+@openma/matter-slack/bond
           │ immutable WorkEvent
           ▼
 Claude Tag Loop ── ContextProjection ── AgentDriver

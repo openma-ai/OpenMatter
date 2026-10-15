@@ -55,13 +55,13 @@ The endpoint's `Response` is returned unchanged.
 
 ## Slack composition
 
-`@openma/matter-integration-slack` owns Slack's signature and acknowledgement
+`@openma/matter-slack/bond` owns Slack's signature and acknowledgement
 semantics and exposes them as the same portable endpoint:
 
 ```ts
 import Fastify from "fastify";
 import { openMatter } from "@openma/matter-fastify";
-import { makeSlackHttpEndpoint } from "@openma/matter-integration-slack";
+import { makeSlackHttpEndpoint } from "@openma/matter-slack/bond";
 
 const slack = makeSlackHttpEndpoint({
   signingSecret: process.env.SLACK_SIGNING_SECRET!,
