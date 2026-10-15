@@ -20,6 +20,10 @@ export default defineConfig({
         replacement: fromRoot("./packages") + "/$1/src/bond/index.ts",
       },
       {
+        find: /^@openma\/matter-loop$/,
+        replacement: fromRoot("./packages/loop/src/index.ts"),
+      },
+      {
         find: /^@openma\/matter-agent-mock$/,
         replacement: fromRoot("./packages/agent-mock/src/index.ts"),
       },

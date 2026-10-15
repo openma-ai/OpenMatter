@@ -3,29 +3,29 @@ import type {
   AgentDriverError,
   OpenMAEvent,
 } from "../agent/index.js";
-import {
-  JsonValueSchema,
-  type AgentSession,
-  type ContextItem,
-  type ContextProjection,
-  type EffectDeliveryReceipt,
-  type JsonValue,
-  type ReactionReceipt,
-  type Turn,
-  type WorkEffect,
-  type WorkEvent,
+import type {
+  AgentSession,
+  ContextItem,
+  ContextProjection,
+  EffectDeliveryReceipt,
+  JsonValue,
+  ReactionReceipt,
+  Turn,
+  WorkEffect,
+  WorkEvent,
 } from "../index.js";
 import type {
   IntegrationError,
   WorkIntegration,
 } from "../integration/index.js";
 import { StoreError, type OpenMatterStore } from "../store/index.js";
-import { Data, Schema, type Effect } from "effect";
+import { Data, type Effect } from "effect";
 import {
-  loopConfigSchemaProblems,
+  snapshotLoopDefinition,
+  type Loop as GuestLoop,
   type LoopConfig,
-  type LoopConfigSchema,
-} from "./loop-config.js";
+  type LoopDefinition,
+} from "@openma/matter-loop";
 
 export class EventBusyError extends Data.TaggedError("EventBusyError")<{
   readonly eventId: string;
@@ -166,37 +166,16 @@ export type WorkHandlerResult =
 
 export type WorkHandler = (work: WorkContext) => WorkHandlerResult;
 
-/**
- * Whose provider identity a Loop's writes use. `app` is the Installation
- * principal; `requester` is the user who sent an attended Event. The host
- * resolves it through Bond (docs/LOOPS.md, "Execution principal").
- */
-export type LoopRunAs = "app" | "requester";
-
-/** A provider account the Loop needs, and the operations it performs there. */
-export interface LoopRequiredBond {
-  readonly provider: string;
-  readonly operations: readonly string[];
-}
-
-export interface LoopDefinition {
-  readonly id: string;
-  readonly version?: string;
-  readonly description?: string;
-  readonly spec?: JsonValue;
-  /** What a Loop instance is configured with. See `resolveLoopConfig`. */
-  readonly configSchema?: LoopConfigSchema;
-  /** Checked by the host against the agent's grants before enabling. */
-  readonly requiredBonds?: readonly LoopRequiredBond[];
-  /** Defaults to `app`. */
-  readonly runAs?: LoopRunAs;
-}
-
 export interface LoopInstallContext {
   /** The validated configuration, with schema defaults filled in. */
   readonly config: LoopConfig;
 }
 
+/**
+ * A Loop whose handlers run in the host process with the Effect-based
+ * `WorkContext`. Loop code meant to run in an isolate uses `defineLoop` from
+ * `@openma/matter-loop` instead; `app.loop` accepts both.
+ */
 export interface Loop {
   readonly definition: LoopDefinition;
   readonly install: (
@@ -205,104 +184,11 @@ export interface Loop {
   ) => void | OpenMatterApplication;
 }
 
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0;
-
-const requiredBondsProblem = (value: unknown): string | undefined => {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value)) return "requiredBonds must be a list";
-  for (const bond of value) {
-    if (
-      typeof bond !== "object" ||
-      bond === null ||
-      !isNonEmptyString((bond as LoopRequiredBond).provider) ||
-      !Array.isArray((bond as LoopRequiredBond).operations) ||
-      (bond as LoopRequiredBond).operations.length === 0 ||
-      !(bond as LoopRequiredBond).operations.every(isNonEmptyString) ||
-      Object.keys(bond).some((k) => k !== "provider" && k !== "operations")
-    ) {
-      return "each requiredBonds entry needs a provider and a non-empty list of operations";
-    }
-  }
-  return undefined;
-};
-
-const immutableLoopJson = <T extends JsonValue>(value: T): T => {
-  const snapshot = structuredClone(value) as T;
-  const freeze = (current: JsonValue): void => {
-    if (current === null || typeof current !== "object") return;
-    for (const nested of Array.isArray(current)
-      ? current
-      : Object.values(current)) {
-      freeze(nested);
-    }
-    Object.freeze(current);
-  };
-  freeze(snapshot);
-  return snapshot;
-};
-
 export const defineLoop = (
   definition: LoopDefinition,
   install: Loop["install"],
-): Loop => {
-  if (
-    typeof definition.id !== "string" ||
-    definition.id.length === 0 ||
-    (definition.version !== undefined &&
-      typeof definition.version !== "string") ||
-    (definition.description !== undefined &&
-      typeof definition.description !== "string") ||
-    (definition.spec !== undefined &&
-      !Schema.is(JsonValueSchema)(definition.spec))
-  ) {
-    throw new TypeError("Loop definition must contain portable JSON metadata");
-  }
-  const problems = [
-    ...(definition.configSchema === undefined
-      ? []
-      : loopConfigSchemaProblems(definition.configSchema)),
-    ...[requiredBondsProblem(definition.requiredBonds)].filter(
-      (p): p is string => p !== undefined,
-    ),
-    ...(definition.runAs === undefined ||
-    definition.runAs === "app" ||
-    definition.runAs === "requester"
-      ? []
-      : ["runAs must be app or requester"]),
-  ];
-  if (problems.length > 0) {
-    throw new TypeError(`Loop definition is invalid: ${problems.join("; ")}`);
-  }
-  const snapshot: LoopDefinition = Object.freeze({
-    id: definition.id,
-    ...(definition.version === undefined
-      ? {}
-      : { version: definition.version }),
-    ...(definition.description === undefined
-      ? {}
-      : { description: definition.description }),
-    ...(definition.spec === undefined
-      ? {}
-      : { spec: immutableLoopJson(definition.spec) }),
-    ...(definition.configSchema === undefined
-      ? {}
-      : {
-          configSchema: immutableLoopJson(
-            definition.configSchema as unknown as JsonValue,
-          ) as unknown as LoopConfigSchema,
-        }),
-    ...(definition.requiredBonds === undefined
-      ? {}
-      : {
-          requiredBonds: immutableLoopJson(
-            definition.requiredBonds as unknown as JsonValue,
-          ) as unknown as readonly LoopRequiredBond[],
-        }),
-    ...(definition.runAs === undefined ? {} : { runAs: definition.runAs }),
-  });
-  return Object.freeze({ definition: snapshot, install });
-};
+): Loop =>
+  Object.freeze({ definition: snapshotLoopDefinition(definition), install });
 
 export interface OpenMatterOptions {
   readonly store: OpenMatterStore;
@@ -325,7 +211,10 @@ export interface OpenMatterApplication {
    * and defaults are applied; an invalid configuration throws a TypeError
    * listing every problem, and nothing is installed.
    */
-  readonly loop: (loop: Loop, config?: JsonValue) => OpenMatterApplication;
+  readonly loop: (
+    loop: Loop | GuestLoop,
+    config?: JsonValue,
+  ) => OpenMatterApplication;
   readonly on: (
     eventType: string | readonly string[],
     handler: WorkHandler,
@@ -386,4 +275,7 @@ export {
   type LoopConfigResult,
   type LoopConfigScalar,
   type LoopConfigSchema,
-} from "./loop-config.js";
+  type LoopDefinition,
+  type LoopRequiredBond,
+  type LoopRunAs,
+} from "@openma/matter-loop";

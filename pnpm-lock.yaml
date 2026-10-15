@@ -166,11 +166,16 @@ importers:
         specifier: workspace:*
         version: link:../matter
 
+  packages/loop: {}
+
   packages/matter:
     dependencies:
       "@openma/common":
         specifier: ^0.9.0
         version: 0.9.0
+      "@openma/matter-loop":
+        specifier: workspace:*
+        version: link:../loop
 
   packages/orchestration:
     dependencies:

@@ -6,7 +6,8 @@
 | Runtime baseline | Node.js 22.5+, TypeScript 6, Effect 3 |
 
 The package split follows runtime responsibility rather than provider or
-product. Only two packages are published to npm (see [Releasing](RELEASING.md));
+product. The kernel, the Loop guest SDK, and the provider packages that have an
+outside consumer are published to npm (see [Releasing](RELEASING.md));
 every other workspace package is `private` until it has a consumer outside this
 repository.
 
@@ -23,6 +24,7 @@ packages/
 │   │                                       OpenMA connector → AgentDriver bridge
 │   ├── src/runtime          ./runtime      Effect orchestration and Promise facades
 │   └── src/http             ./http         provider-neutral portable HTTP endpoint
+├── loop                 @openma/matter-loop — dependency-free guest SDK for Loops run in an isolate
 ├── gitlab               @openma/matter-gitlab — ./bond: GitLab Bond provider
 │
 │   One package per provider, @openma/matter-<provider>. ./bond holds the
@@ -64,9 +66,13 @@ bond ──────→ credentials
 agent ─────→ core + @openma/common/agent-contract
 store ─────→ agent + core
 inbox / integration → core
-runtime ───→ store + integration + agent + core
+runtime ───→ store + integration + agent + core + @openma/matter-loop
 http       (no dependencies)
 ```
+
+`@openma/matter-loop` depends on nothing, not even Effect, because Loop code
+bundled into an isolate should carry only itself. `/runtime` adapts its
+Promise protocol to the Effect `WorkContext`.
 
 Everything else depends on `@openma/matter`:
 
@@ -83,7 +89,7 @@ host-local ──────→ matter/runtime + matter/inbox + Slack Socket Mo
 fastify / hono ──→ matter/http
 ```
 
-All canonical packages share Effect as a peer dependency so Context tags, Fibers, Streams, and error channels come from the application's one Effect runtime. Provider SDKs, ACP clients, databases, queues, and cloud runtimes remain adapter dependencies.
+All canonical packages except `@openma/matter-loop` share Effect as a peer dependency so Context tags, Fibers, Streams, and error channels come from the application's one Effect runtime. Provider SDKs, ACP clients, databases, queues, and cloud runtimes remain adapter dependencies.
 
 ## Storage boundary
 
