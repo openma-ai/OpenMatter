@@ -93,6 +93,20 @@ The canonical Store is behavior-oriented. It owns authoritative lease time, fenc
 envelopes before an early ACK and replays them into the Runtime. Keeping it
 separate prevents Slack/queue receipt state from leaking into domain storage.
 
+Both contracts ship framework-neutral conformance suites, so a host that
+writes its own adapter, such as one over its existing database, proves the
+same behavior as the bundled ones. `storeConformanceCases({ makeStore })`
+from `@openma/matter/store` covers exclusive event leases, expired-lease
+takeover with stale-token fencing, one terminal Reaction per event, effect
+intents claimed until delivered, Session binding handover, and Session-fenced
+Turn and Agent event writes where a terminal event wins.
+`inboxConformanceCases({ makeInbox })` from `@openma/matter/inbox` covers
+idempotent enqueue and key collisions, exclusive and expiring claims, retry
+delays, renewal, fencing, and claim limits. Each returns cases that throw on
+failure; run them in your own test runner against the real database. Expiry
+cases use real time, so the adapter's own clock decides. The memory, SQLite,
+and MySQL Stores and the SQLite inbox run them in this repository.
+
 ## Verification
 
 ```bash

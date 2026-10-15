@@ -231,3 +231,9 @@ export const StoreService = Context.GenericTag<OpenMatterStore>(
 
 export const storeLayer = (store: OpenMatterStore) =>
   Layer.succeed(StoreService, store);
+
+export {
+  storeConformanceCases,
+  type StoreConformanceCase,
+  type StoreConformanceOptions,
+} from "./conformance.js";

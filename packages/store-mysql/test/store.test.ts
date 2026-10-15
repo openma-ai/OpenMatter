@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { Reaction, WorkEvent } from "@openma/matter";
 import { Effect } from "effect";
 import { createPool } from "mysql2/promise";
-import { describe, expect, it } from "vitest";
+import { storeConformanceCases } from "@openma/matter/store";
+import { afterAll, describe, expect, it } from "vitest";
 import { makeMysqlStore } from "../src/index.js";
 
 const mysqlUrl = process.env.PROJECT_WORKER_MYSQL_URL;
@@ -94,4 +95,23 @@ describe("mysql store", () => {
     await Effect.runPromise(foreign.close);
     await pool.end();
   });
+});
+
+describe("mysql store conformance", () => {
+  const pool = mysqlUrl ? createPool(mysqlUrl) : undefined;
+  afterAll(async () => {
+    await pool?.end();
+  });
+  // Each case gets its own tenant, so cases never see each other's rows.
+  for (const c of storeConformanceCases({
+    makeStore: () => makeMysqlStore({ pool: pool!, tenantId: randomUUID() }),
+  })) {
+    it(c.name, async (ctx) => {
+      if (!pool) {
+        ctx.skip("MySQL tests need PROJECT_WORKER_MYSQL_URL");
+        return;
+      }
+      await c.run();
+    });
+  }
 });
