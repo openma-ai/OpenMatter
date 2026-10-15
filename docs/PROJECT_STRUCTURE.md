@@ -25,7 +25,8 @@ packages/
 │   ├── src/runtime          ./runtime      Effect orchestration and Promise facades
 │   └── src/http             ./http         provider-neutral portable HTTP endpoint
 ├── loop                 @openma/matter-loop — dependency-free guest SDK for Loops run in an isolate
-├── gitlab               @openma/matter-gitlab — ./bond: GitLab Bond provider
+├── gitlab               @openma/matter-gitlab — ./bond: GitLab Bond provider, webhook
+│                        ingest, note Effects, HTTP decoder, and Loop templates
 │
 │   One package per provider, @openma/matter-<provider>. ./bond holds the
 │   Binding and the Integration; the Integration depends only on the
@@ -77,7 +78,7 @@ Promise protocol to the Effect `WorkContext`.
 Everything else depends on `@openma/matter`:
 
 ```text
-gitlab ──────────→ matter/bond
+gitlab ──────────→ matter + @openma/matter-loop (templates)
 store-* / inbox-sqlite / *-mock → matter
 slack / github / linear → matter
 orchestration ───→ matter/runtime

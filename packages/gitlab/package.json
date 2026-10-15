@@ -1,7 +1,7 @@
 {
   "name": "@openma/matter-gitlab",
   "version": "0.1.0",
-  "description": "GitLab Bond for OpenMatter.",
+  "description": "GitLab for OpenMatter: the Bond provider, webhook ingest, merge request and issue note delivery, and the GitLab Loop templates.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -24,7 +24,8 @@
     "provenance": true
   },
   "dependencies": {
-    "@openma/matter": "workspace:*"
+    "@openma/matter": "workspace:*",
+    "@openma/matter-loop": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"
