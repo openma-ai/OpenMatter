@@ -1,9 +1,9 @@
 # Agent Runtime and Session Lifecycle
 
-| Field  | Value                                              |
-| ------ | -------------------------------------------------- |
-| Status | Executable v0 contract                             |
-| Source | `@openmatter/agent` and `@openmatter/runtime` APIs |
+| Field  | Value                                                    |
+| ------ | -------------------------------------------------------- |
+| Status | Executable v0 contract                                   |
+| Source | `@openma/matter-agent` and `@openma/matter-runtime` APIs |
 
 ## Purpose
 
@@ -31,7 +31,7 @@ interface AgentDriver {
 }
 ```
 
-This is the Effect-native internal contract. Promise facades may exist at application and transport boundaries; they are not a second Agent Driver model. `@openmatter/agent-claude` adapts the shared Promise/AsyncIterable `OpenMAAgentConnector` from `@openma/common` into this Effect port. Concrete connectors may target Claude Managed Agents, ACP, an in-process SDK, a subprocess, or a private runtime.
+This is the Effect-native internal contract. Promise facades may exist at application and transport boundaries; they are not a second Agent Driver model. `@openma/matter-agent-claude` adapts the shared Promise/AsyncIterable `OpenMAAgentConnector` from `@openma/common` into this Effect port. Concrete connectors may target Claude Managed Agents, ACP, an in-process SDK, a subprocess, or a private runtime.
 
 ## OpenMAEvent
 
@@ -196,9 +196,9 @@ The binding must expose unsupported behavior through capabilities rather than si
 
 ## Managed-runtime binding
 
-A managed runtime may already provide hosted session storage, reconnectable streams, confirmation flows, execution isolation, and usage policy. That hosted control plane remains the provider's SaaS; neither `@openma/common` nor `@openmatter/agent-claude` pretends to reimplement it.
+A managed runtime may already provide hosted session storage, reconnectable streams, confirmation flows, execution isolation, and usage policy. That hosted control plane remains the provider's SaaS; neither `@openma/common` nor `@openma/matter-agent-claude` pretends to reimplement it.
 
-The concrete `OpenMAAgentConnector` consumes the provider API and emits canonical facts. `@openmatter/agent-claude` then maps those handles and events into AgentSession, Turn, and the Effect stream without duplicating the hosted control plane.
+The concrete `OpenMAAgentConnector` consumes the provider API and emits canonical facts. `@openma/matter-agent-claude` then maps those handles and events into AgentSession, Turn, and the Effect stream without duplicating the hosted control plane.
 
 OpenMatter still owns the work-side trigger, scope, Matter, WorkThread, context projection, effective work operations, and final Reaction.
 

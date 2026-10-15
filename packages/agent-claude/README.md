@@ -1,4 +1,4 @@
-# @openmatter/agent-claude
+# @openma/matter-agent-claude
 
 Effect-native bridge from the shared `@openma/common/agent-contract` to
 OpenMatter's durable `AgentDriver` port.

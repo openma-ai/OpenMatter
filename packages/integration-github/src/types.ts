@@ -1,7 +1,7 @@
-import type { ContextItem } from "@openmatter/core";
-import type { CredentialResolver } from "@openmatter/credentials";
-import type { WorkIntegration } from "@openmatter/integration";
-import type { IntegrationError } from "@openmatter/integration";
+import type { ContextItem } from "@openma/matter-core";
+import type { CredentialResolver } from "@openma/matter-credentials";
+import type { WorkIntegration } from "@openma/matter-integration";
+import type { IntegrationError } from "@openma/matter-integration";
 import type { Effect } from "effect";
 
 export interface GitHubCredentials {

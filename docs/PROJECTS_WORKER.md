@@ -1,6 +1,6 @@
 # Projects worker
 
-`@openmatter/project-worker` is the cloud Projects service. Backchat and a
+`@openma/matter-project-worker` is the cloud Projects service. Backchat and a
 future web app talk to it over HTTP. OpenMA stays the execution substrate:
 the worker calls the public Sessions API with the caller's API key and
 `x-active-tenant`. It does not add project tables to OpenMA.

@@ -2,7 +2,7 @@ import {
   JsonValueSchema,
   type ContextProjection,
   type JsonValue,
-} from "@openmatter/core";
+} from "@openma/matter-core";
 import {
   isOpenMAEvent as isCanonicalOpenMAEvent,
   type OpenMAEvent as CanonicalOpenMAEvent,
@@ -122,7 +122,7 @@ export interface AgentCapabilities {
 export type AgentDriverRegistry = ReadonlyMap<string, AgentDriver>;
 
 export const AgentDrivers = Context.GenericTag<AgentDriverRegistry>(
-  "@openmatter/agent/AgentDrivers",
+  "@openma/matter-agent/AgentDrivers",
 );
 
 export const agentDriverLayer = (

@@ -5,11 +5,11 @@ OpenMatter framework components solve only the final transport step:
 ```text
 Integration or application
   └─ HttpEndpoint (Request → Response)
-       ├─ @openmatter/fastify
-       └─ @openmatter/hono
+       ├─ @openma/matter-fastify
+       └─ @openma/matter-hono
 ```
 
-`@openmatter/http` is deliberately smaller than a server abstraction. Its
+`@openma/matter-http` is deliberately smaller than a server abstraction. Its
 `HttpEndpoint` contains a method, a path, and a Web-standard handler. The
 endpoint owner decides how to verify a provider request, decode its payload,
 submit durable work, and acknowledge the provider. Fastify and Hono do not know
@@ -19,8 +19,8 @@ about Slack, Agent sessions, ContextProjection, or orchestration.
 
 ```ts
 import Fastify from "fastify";
-import { openMatter } from "@openmatter/fastify";
-import type { HttpEndpoint } from "@openmatter/http";
+import { openMatter } from "@openma/matter-fastify";
+import type { HttpEndpoint } from "@openma/matter-http";
 
 const endpoint: HttpEndpoint = {
   method: "POST",
@@ -45,7 +45,7 @@ or close the server.
 
 ```ts
 import { Hono } from "hono";
-import { openMatter } from "@openmatter/hono";
+import { openMatter } from "@openma/matter-hono";
 
 const server = new Hono().route("/", openMatter({ endpoints: [endpoint] }));
 ```
@@ -55,13 +55,13 @@ The endpoint's `Response` is returned unchanged.
 
 ## Slack composition
 
-`@openmatter/integration-slack` owns Slack's signature and acknowledgement
+`@openma/matter-integration-slack` owns Slack's signature and acknowledgement
 semantics and exposes them as the same portable endpoint:
 
 ```ts
 import Fastify from "fastify";
-import { openMatter } from "@openmatter/fastify";
-import { makeSlackHttpEndpoint } from "@openmatter/integration-slack";
+import { openMatter } from "@openma/matter-fastify";
+import { makeSlackHttpEndpoint } from "@openma/matter-integration-slack";
 
 const slack = makeSlackHttpEndpoint({
   signingSecret: process.env.SLACK_SIGNING_SECRET!,

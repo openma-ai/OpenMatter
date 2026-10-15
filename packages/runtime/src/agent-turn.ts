@@ -11,18 +11,18 @@ import {
   type AgentDriverRegistry,
   type AgentSessionHandle,
   type OpenMAEvent,
-} from "@openmatter/agent";
+} from "@openma/matter-agent";
 import {
   type AgentSession,
   type JsonValue,
   type Turn,
   type WorkEvent,
-} from "@openmatter/core";
+} from "@openma/matter-core";
 import {
   StoreError,
   StoreService,
   type OpenMatterStore,
-} from "@openmatter/store";
+} from "@openma/matter-store";
 import { Cause, Effect, Schema, Stream } from "effect";
 import {
   AgentAccessError,

@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/agent-mock",
+  "name": "@openma/matter-agent-mock",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,7 +16,7 @@
     }
   },
   "dependencies": {
-    "@openmatter/agent": "workspace:*"
+    "@openma/matter-agent": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

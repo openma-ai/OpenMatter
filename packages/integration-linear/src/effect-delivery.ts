@@ -1,6 +1,6 @@
-import type { JsonValue, WorkEffect } from "@openmatter/core";
-import type { ProviderDeliveryResult } from "@openmatter/integration";
-import { IntegrationError } from "@openmatter/integration";
+import type { JsonValue, WorkEffect } from "@openma/matter-core";
+import type { ProviderDeliveryResult } from "@openma/matter-integration";
+import { IntegrationError } from "@openma/matter-integration";
 import { Effect } from "effect";
 import type { LinearProviderClient } from "./provider-client.js";
 

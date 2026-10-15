@@ -33,7 +33,7 @@ grants, reactions, and recovery.
 ## User-defined Loop
 
 ```ts
-import { defineLoop } from "@openmatter/runtime";
+import { defineLoop } from "@openma/matter-runtime";
 
 const issueTriage = defineLoop(
   {
@@ -62,7 +62,7 @@ visualized without pretending arbitrary TypeScript can be serialized.
 ## Built-in Loop
 
 ```ts
-import { claudeTag } from "@openmatter/orchestration";
+import { claudeTag } from "@openma/matter-orchestration";
 
 app.loop(
   claudeTag({

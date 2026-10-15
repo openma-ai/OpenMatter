@@ -1,14 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/server";
-import type { ThreadGoal } from "@openmatter/core";
+import type { ThreadGoal } from "@openma/matter-core";
 import type {
   ProjectCommandReceipt,
   ProjectControl,
-} from "@openmatter/project";
+} from "@openma/matter-project";
 import { Effect } from "effect";
 import type {
   ProjectStatus,
   ProjectStatusQuery,
-} from "@openmatter/project-host";
+} from "@openma/matter-project-host";
 import * as z from "zod/v4";
 
 export interface ProjectMcpServerOptions {

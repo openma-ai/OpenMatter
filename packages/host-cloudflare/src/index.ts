@@ -1,9 +1,9 @@
-import { JsonValueSchema, type JsonValue } from "@openmatter/core";
+import { JsonValueSchema, type JsonValue } from "@openma/matter-core";
 import {
   decodeSlackHttpRequest,
   type SlackHttpIngressError,
-} from "@openmatter/integration-slack";
-import type { OpenMatterApplication } from "@openmatter/runtime";
+} from "@openma/matter-integration-slack";
+import type { OpenMatterApplication } from "@openma/matter-runtime";
 import { Effect, Schema } from "effect";
 
 export interface OpenMatterIngressJob {

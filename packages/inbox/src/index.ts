@@ -1,4 +1,4 @@
-import type { JsonValue } from "@openmatter/core";
+import type { JsonValue } from "@openma/matter-core";
 import { Data, type Effect } from "effect";
 
 export class InboxError extends Data.TaggedError("InboxError")<{

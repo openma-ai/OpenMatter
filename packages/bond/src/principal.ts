@@ -1,4 +1,4 @@
-import type { ExecutionPrincipalRequest } from "@openmatter/credentials";
+import type { ExecutionPrincipalRequest } from "@openma/matter-credentials";
 import { Either } from "effect";
 import { bondError, type BondError } from "./errors.js";
 import type {

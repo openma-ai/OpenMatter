@@ -2,7 +2,7 @@ import {
   StoreError,
   type LeaseRequest,
   type LeaseRenewal,
-} from "@openmatter/store";
+} from "@openma/matter-store";
 import { Duration, Effect } from "effect";
 
 export interface LeaseRuntime {

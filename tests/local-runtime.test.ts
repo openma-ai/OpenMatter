@@ -1,6 +1,6 @@
-import { createOpenMatter, SessionBusyError } from "@openmatter/runtime";
-import type { OpenMatterApplication } from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
+import { createOpenMatter, SessionBusyError } from "@openma/matter-runtime";
+import type { OpenMatterApplication } from "@openma/matter-runtime";
+import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeLocalSlackRuntime } from "../packages/host-local/src/index.js";

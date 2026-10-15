@@ -1,15 +1,15 @@
 {
-  "name": "@openmatter/example-slack-local",
+  "name": "@openma/matter-example-slack-local",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@openmatter/agent": "workspace:*",
-    "@openmatter/host-local": "workspace:*",
-    "@openmatter/inbox": "workspace:*",
-    "@openmatter/integration-slack": "workspace:*",
-    "@openmatter/orchestration": "workspace:*",
-    "@openmatter/runtime": "workspace:*",
-    "@openmatter/store": "workspace:*"
+    "@openma/matter-agent": "workspace:*",
+    "@openma/matter-host-local": "workspace:*",
+    "@openma/matter-inbox": "workspace:*",
+    "@openma/matter-integration-slack": "workspace:*",
+    "@openma/matter-orchestration": "workspace:*",
+    "@openma/matter-runtime": "workspace:*",
+    "@openma/matter-store": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/project-host",
+  "name": "@openma/matter-project-host",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,15 +16,15 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/store": "workspace:*",
-    "@openmatter/store-sqlite": "workspace:*",
-    "@openmatter/agent": "workspace:*",
-    "@openmatter/runtime": "workspace:*",
-    "@openmatter/orchestration": "workspace:*",
-    "@openmatter/project": "workspace:*",
-    "@openmatter/inbox": "workspace:*",
-    "@openmatter/inbox-sqlite": "workspace:*"
+    "@openma/matter-core": "workspace:*",
+    "@openma/matter-store": "workspace:*",
+    "@openma/matter-store-sqlite": "workspace:*",
+    "@openma/matter-agent": "workspace:*",
+    "@openma/matter-runtime": "workspace:*",
+    "@openma/matter-orchestration": "workspace:*",
+    "@openma/matter-project": "workspace:*",
+    "@openma/matter-inbox": "workspace:*",
+    "@openma/matter-inbox-sqlite": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

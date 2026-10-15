@@ -1,4 +1,4 @@
-import type { WorkEvent } from "@openmatter/core";
+import type { WorkEvent } from "@openma/matter-core";
 import { makeMemoryInbox } from "./memory-inbox.js";
 import {
   associateProjectEvent,
@@ -6,7 +6,7 @@ import {
   makeProjectControl,
   makeProjectIntegration,
   projectCommandSinkFromInbox,
-} from "@openmatter/project";
+} from "@openma/matter-project";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 

@@ -1,5 +1,5 @@
-import type { AgentSessionHandle, OpenMAEvent } from "@openmatter/agent";
-import type { JsonValue } from "@openmatter/core";
+import type { AgentSessionHandle, OpenMAEvent } from "@openma/matter-agent";
+import type { JsonValue } from "@openma/matter-core";
 import { Effect } from "effect";
 import { ContextProjectionError } from "./contracts.js";
 

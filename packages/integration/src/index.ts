@@ -3,7 +3,7 @@ import {
   type JsonValue,
   type WorkEffect,
   type WorkEvent,
-} from "@openmatter/core";
+} from "@openma/matter-core";
 import { Context, Data, Layer, Schema, type Effect } from "effect";
 
 export class IntegrationError extends Data.TaggedError("IntegrationError")<{
@@ -42,7 +42,7 @@ export interface WorkIntegration {
 export type WorkIntegrationRegistry = ReadonlyMap<string, WorkIntegration>;
 
 export const WorkIntegrations = Context.GenericTag<WorkIntegrationRegistry>(
-  "@openmatter/integration/WorkIntegrations",
+  "@openma/matter-integration/WorkIntegrations",
 );
 
 export const integrationLayer = (

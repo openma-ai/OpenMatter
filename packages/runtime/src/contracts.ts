@@ -2,7 +2,7 @@ import type {
   AgentDriver,
   AgentDriverError,
   OpenMAEvent,
-} from "@openmatter/agent";
+} from "@openma/matter-agent";
 import {
   JsonValueSchema,
   type AgentSession,
@@ -14,12 +14,12 @@ import {
   type Turn,
   type WorkEffect,
   type WorkEvent,
-} from "@openmatter/core";
+} from "@openma/matter-core";
 import type {
   IntegrationError,
   WorkIntegration,
-} from "@openmatter/integration";
-import { StoreError, type OpenMatterStore } from "@openmatter/store";
+} from "@openma/matter-integration";
+import { StoreError, type OpenMatterStore } from "@openma/matter-store";
 import { Data, Schema, type Effect } from "effect";
 
 export class EventBusyError extends Data.TaggedError("EventBusyError")<{

@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/runtime",
+  "name": "@openma/matter-runtime",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,10 +16,10 @@
     }
   },
   "dependencies": {
-    "@openmatter/agent": "workspace:*",
-    "@openmatter/core": "workspace:*",
-    "@openmatter/integration": "workspace:*",
-    "@openmatter/store": "workspace:*"
+    "@openma/matter-agent": "workspace:*",
+    "@openma/matter-core": "workspace:*",
+    "@openma/matter-integration": "workspace:*",
+    "@openma/matter-store": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

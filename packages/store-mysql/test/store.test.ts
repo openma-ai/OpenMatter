@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Reaction, WorkEvent } from "@openmatter/core";
+import type { Reaction, WorkEvent } from "@openma/matter-core";
 import { Effect } from "effect";
 import { createPool } from "mysql2/promise";
 import { describe, expect, it } from "vitest";

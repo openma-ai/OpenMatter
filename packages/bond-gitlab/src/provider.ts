@@ -3,7 +3,7 @@ import {
   type BondProvider,
   type ProviderAppConfig,
   type SecretRef,
-} from "@openmatter/bond";
+} from "@openma/matter-bond";
 import { Effect } from "effect";
 import type { Fetch } from "./http.js";
 import { refreshAccessToken, revokeToken, type OAuthClient } from "./oauth.js";

@@ -1,6 +1,6 @@
-import { JsonValueSchema } from "@openmatter/core";
-import type { WorkIntegration } from "@openmatter/integration";
-import { IntegrationError } from "@openmatter/integration";
+import { JsonValueSchema } from "@openma/matter-core";
+import type { WorkIntegration } from "@openma/matter-integration";
+import { IntegrationError } from "@openma/matter-integration";
 import { Effect, Schema } from "effect";
 import type { SlackProviderClient } from "./provider-client.js";
 import { isRecord } from "./shared.js";

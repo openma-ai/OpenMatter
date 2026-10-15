@@ -1,4 +1,4 @@
-import { ProviderError } from "@openmatter/bond";
+import { ProviderError } from "@openma/matter-bond";
 import { Effect } from "effect";
 
 export type Fetch = typeof globalThis.fetch;

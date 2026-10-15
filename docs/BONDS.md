@@ -1,7 +1,7 @@
 # Bond: linked provider accounts and execution principals
 
-**Status:** proposed (2026-10-12). The kernel `@openmatter/bond` and the
-GitLab binding `@openmatter/bond-gitlab` are implemented; the GitHub binding
+**Status:** proposed (2026-10-12). The kernel `@openma/matter-bond` and the
+GitLab binding `@openma/matter-bond-gitlab` are implemented; the GitHub binding
 is not.
 **Decision:** OpenMatter provides Bond, an optional, storage-free kernel that
 links work-platform accounts, selects an explicit `ExecutionPrincipal`, and
@@ -12,10 +12,10 @@ keys, HTTP routes, and membership-driven revocation.
 
 Work agents need two things from OpenMatter:
 
-| Module | Answers                                                                                                      | Packages                                                                 |
-| ------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| Bond   | who acts, and with which credential: installations, user links, link methods, principal selection, freshness | `@openmatter/bond`, `@openmatter/bond-github`, `@openmatter/bond-gitlab` |
-| Loop   | when the agent acts, and what it does: event and schedule sources, continuity, context, Reactions            | [Loops](LOOPS.md) and `@openmatter/integration-*`                        |
+| Module | Answers                                                                                                      | Packages                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Bond   | who acts, and with which credential: installations, user links, link methods, principal selection, freshness | `@openma/matter-bond`, `@openma/matter-bond-github`, `@openma/matter-bond-gitlab` |
+| Loop   | when the agent acts, and what it does: event and schedule sources, continuity, context, Reactions            | [Loops](LOOPS.md) and `@openma/matter-integration-*`                              |
 
 Comparable products split the same way. Devin separates Integrations (an
 organization connection plus personal account links) from Automations
@@ -52,7 +52,7 @@ static credential into each Session:
 
 - the OpenMA console asks the user to paste a GitHub PAT for every
   `github_repository` resource;
-- `@openmatter/project-worker` sends one deployment-wide
+- `@openma/matter-project-worker` sends one deployment-wide
   `PROJECT_WORKER_GITHUB_TOKEN` as `authorization_token`
   (`packages/project-worker/src/oma.ts`), so every Thread runs as the owner of
   that token.
@@ -104,7 +104,7 @@ Not in scope, and deliberately left to applications:
 
 This keeps the commitments in [README](../README.md) and
 [Credential resolution](CREDENTIALS.md): OpenMatter owns no mandatory
-credential service, and `@openmatter/credentials` remains a resolver port.
+credential service, and `@openma/matter-credentials` remains a resolver port.
 [Work Profiles](INTEGRATIONS.md) already allows "OAuth installation
 callbacks" as explicit, independently packageable custom bindings. These
 packages are that kind of binding.
@@ -115,23 +115,23 @@ packages are that kind of binding.
 @octokit/auth-app, @octokit/auth-oauth-user, @octokit/auth-oauth-device
         provider protocol: App JWT, installation tokens, web and device flow
                 │
-@openmatter/bond-github
+@openma/matter-bond-github
         GitHub binding: install-and-authorize, repository intersection,
         repository-scoped installation tokens, attribution helpers
                 │
-@openmatter/bond
+@openma/matter-bond
         kernel: link state machine, token freshness, principal selection,
         audit facts, ports, conformance suite, memory adapter (tests only)
                 │  produces
-@openmatter/credentials  CredentialResolver (unchanged port, extended request)
+@openma/matter-credentials  CredentialResolver (unchanged port, extended request)
 ────────────────────────────────────────────── application layer
 open-managed-agents   SQL adapter, purpose cipher/KMS, routes, console
 Backchat              SQLite metadata + OS keychain, device flow UI
 self-hosted hosts     their own store, routes, and key custody
 ```
 
-The Bond packages depend only on `effect`, `@openmatter/credentials`,
-and Octokit. They do not depend on `@openmatter/core` or the runtime, so a
+The Bond packages depend only on `effect`, `@openma/matter-credentials`,
+and Octokit. They do not depend on `@openma/matter-core` or the runtime, so a
 control plane can adopt them without adopting the Loop.
 
 Provider protocol code is not reimplemented. OpenMA currently hand-writes App
@@ -487,7 +487,7 @@ Invariants every application adapter must satisfy:
 
 ## Conformance suite
 
-`@openmatter/bond` exports `bondStoreConformanceCases({ makeStore })`. It
+`@openma/matter-bond` exports `bondStoreConformanceCases({ makeStore })`. It
 returns framework-neutral cases that throw on failure, so each application
 runs them in its own test runner, against its real adapter and database. The
 suite covers idempotent upserts, ciphertext stored with its key id, tenant
@@ -565,7 +565,7 @@ visible author, execution principal, requesting actor, and provider receipt.
 
 ## GitHub binding
 
-`@openmatter/bond-github` provides:
+`@openma/matter-bond-github` provides:
 
 - **Install and authorize in one redirect.** The App enables "Request user
   authorization (OAuth) during installation", so the first administrator gets
@@ -597,7 +597,7 @@ granted per Turn like any other.
 
 ## GitLab binding
 
-`@openmatter/bond-gitlab` covers gitlab.com and self-managed GitLab.
+`@openma/matter-bond-gitlab` covers gitlab.com and self-managed GitLab.
 By default it uses no bot, and every operation runs as the linking user.
 Project access tokens, group access tokens, and service accounts each create
 a bot user. An administrator may still register one of them as the
@@ -751,12 +751,12 @@ without a browser. Step 5 runs when it is given a Maintainer token.
 
 ## Consumers
 
-| Consumer                               | Runs the flow                                               | Store                         | Key custody                                               |
-| -------------------------------------- | ----------------------------------------------------------- | ----------------------------- | --------------------------------------------------------- |
-| open-managed-agents                    | yes, web flow                                               | SQL tables via its migrations | `cipherFor(purpose)` / KMS                                |
-| Backchat local                         | yes; GitHub device flow, GitLab PKCE with loopback redirect | SQLite for metadata           | OS keychain for tokens                                    |
-| Self-hosted OpenMatter                 | yes                                                         | host's choice                 | host's choice                                             |
-| `@openmatter/project-worker` on OpenMA | no                                                          | none                          | none. It references an OpenMA connection instead of a PAT |
+| Consumer                                  | Runs the flow                                               | Store                         | Key custody                                               |
+| ----------------------------------------- | ----------------------------------------------------------- | ----------------------------- | --------------------------------------------------------- |
+| open-managed-agents                       | yes, web flow                                               | SQL tables via its migrations | `cipherFor(purpose)` / KMS                                |
+| Backchat local                            | yes; GitHub device flow, GitLab PKCE with loopback redirect | SQLite for metadata           | OS keychain for tokens                                    |
+| Self-hosted OpenMatter                    | yes                                                         | host's choice                 | host's choice                                             |
+| `@openma/matter-project-worker` on OpenMA | no                                                          | none                          | none. It references an OpenMA connection instead of a PAT |
 
 ## Distribution
 
@@ -765,14 +765,14 @@ commit SHA, matching how Backchat consumes OpenMatter and how OMA consumes
 openma-common:
 
 ```jsonc
-"@openmatter/bond":
+"@openma/matter-bond":
   "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/bond",
-"@openmatter/bond-gitlab":
+"@openma/matter-bond-gitlab":
   "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/bond-gitlab"
 ```
 
-All `@openmatter/*` packages in one consumer use the same tag or SHA,
-including `@openmatter/credentials`. A bump is a reviewed lockfile change in
+All `@openma/matter-*` packages in one consumer use the same tag or SHA,
+including `@openma/matter-credentials`. A bump is a reviewed lockfile change in
 the consumer.
 
 ## Security notes

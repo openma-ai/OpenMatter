@@ -1,10 +1,10 @@
-# `@openmatter/fastify`
+# `@openma/matter-fastify`
 
 Fastify component for provider-neutral OpenMatter HTTP endpoints.
 
 ```ts
 import Fastify from "fastify";
-import { openMatter } from "@openmatter/fastify";
+import { openMatter } from "@openma/matter-fastify";
 
 const server = Fastify();
 await server.register(openMatter({ endpoints }));

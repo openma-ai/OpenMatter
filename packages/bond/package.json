@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/bond",
+  "name": "@openma/matter-bond",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,7 +16,7 @@
     }
   },
   "dependencies": {
-    "@openmatter/credentials": "workspace:*"
+    "@openma/matter-credentials": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

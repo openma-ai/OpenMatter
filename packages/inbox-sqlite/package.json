@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/inbox-sqlite",
+  "name": "@openma/matter-inbox-sqlite",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,8 +16,8 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/inbox": "workspace:*"
+    "@openma/matter-core": "workspace:*",
+    "@openma/matter-inbox": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

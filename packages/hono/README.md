@@ -1,10 +1,10 @@
-# `@openmatter/hono`
+# `@openma/matter-hono`
 
 Hono component for provider-neutral OpenMatter HTTP endpoints.
 
 ```ts
 import { Hono } from "hono";
-import { openMatter } from "@openmatter/hono";
+import { openMatter } from "@openma/matter-hono";
 
 const server = new Hono().route("/", openMatter({ endpoints }));
 ```

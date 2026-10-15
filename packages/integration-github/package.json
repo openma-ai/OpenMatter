@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/integration-github",
+  "name": "@openma/matter-integration-github",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,10 +16,10 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/credentials": "workspace:*",
-    "@openmatter/integration": "workspace:*",
-    "@openmatter/http": "workspace:*"
+    "@openma/matter-core": "workspace:*",
+    "@openma/matter-credentials": "workspace:*",
+    "@openma/matter-integration": "workspace:*",
+    "@openma/matter-http": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

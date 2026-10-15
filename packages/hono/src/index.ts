@@ -1,4 +1,4 @@
-import type { HttpEndpoint } from "@openmatter/http";
+import type { HttpEndpoint } from "@openma/matter-http";
 import { Hono } from "hono";
 
 export interface OpenMatterHonoOptions {
@@ -16,4 +16,4 @@ export const openMatter = (options: OpenMatterHonoOptions): Hono => {
   return router;
 };
 
-export type { HttpEndpoint, HttpMethod } from "@openmatter/http";
+export type { HttpEndpoint, HttpMethod } from "@openma/matter-http";

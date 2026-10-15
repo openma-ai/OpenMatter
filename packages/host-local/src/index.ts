@@ -1,7 +1,7 @@
 import { SocketModeClient } from "@slack/socket-mode";
-import { JsonValueSchema, type JsonValue } from "@openmatter/core";
-import type { DurableInbox, InboxClaim } from "@openmatter/inbox";
-import type { OpenMatterApplication } from "@openmatter/runtime";
+import { JsonValueSchema, type JsonValue } from "@openma/matter-core";
+import type { DurableInbox, InboxClaim } from "@openma/matter-inbox";
+import type { OpenMatterApplication } from "@openma/matter-runtime";
 import { Cause, Data, Duration, Effect, Fiber, Option, Schema } from "effect";
 
 export class LocalRuntimeError extends Data.TaggedError("LocalRuntimeError")<{

@@ -2,14 +2,14 @@ import type {
   ContextItem,
   ContextProjection,
   JsonValue,
-} from "@openmatter/core";
+} from "@openma/matter-core";
 import {
   defineLoop,
   type AgentTurnResult,
   type EffectInput,
   type Loop,
   type WorkContext,
-} from "@openmatter/runtime";
+} from "@openma/matter-runtime";
 import { Effect } from "effect";
 
 export type CoordinatorThread =

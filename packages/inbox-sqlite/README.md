@@ -1,11 +1,11 @@
-# `@openmatter/inbox-sqlite`
+# `@openma/matter-inbox-sqlite`
 
-Embedded Node.js adapter for `@openmatter/inbox`, implemented with the built-in
+Embedded Node.js adapter for `@openma/matter-inbox`, implemented with the built-in
 `node:sqlite` module. It is intended for a single-machine service, laptop,
 private server, or container with a persistent volume.
 
 ```ts
-import { makeSqliteInbox } from "@openmatter/inbox-sqlite";
+import { makeSqliteInbox } from "@openma/matter-inbox-sqlite";
 
 const inbox = makeSqliteInbox({
   filename: "./data/openmatter-inbox.sqlite",

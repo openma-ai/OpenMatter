@@ -3,8 +3,8 @@ import {
   createOpenMatter,
   EventBusyError,
   type OpenMatterApplication,
-} from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
+} from "@openma/matter-runtime";
+import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { makeCloudflareRuntime } from "../packages/host-cloudflare/src/index.js";

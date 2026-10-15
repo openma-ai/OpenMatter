@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/fastify",
+  "name": "@openma/matter-fastify",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,7 +16,7 @@
     }
   },
   "dependencies": {
-    "@openmatter/http": "workspace:*"
+    "@openma/matter-http": "workspace:*"
   },
   "peerDependencies": {
     "fastify": "^5.12.1"

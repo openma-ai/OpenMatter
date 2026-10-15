@@ -1,14 +1,14 @@
 {
-  "name": "@openmatter/example-slack-cloudflare",
+  "name": "@openma/matter-example-slack-cloudflare",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@openmatter/agent": "workspace:*",
-    "@openmatter/host-cloudflare": "workspace:*",
-    "@openmatter/integration-slack": "workspace:*",
-    "@openmatter/orchestration": "workspace:*",
-    "@openmatter/runtime": "workspace:*",
-    "@openmatter/store": "workspace:*"
+    "@openma/matter-agent": "workspace:*",
+    "@openma/matter-host-cloudflare": "workspace:*",
+    "@openma/matter-integration-slack": "workspace:*",
+    "@openma/matter-orchestration": "workspace:*",
+    "@openma/matter-runtime": "workspace:*",
+    "@openma/matter-store": "workspace:*"
   }
 }

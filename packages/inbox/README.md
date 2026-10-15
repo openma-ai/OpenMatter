@@ -1,4 +1,4 @@
-# `@openmatter/inbox`
+# `@openma/matter-inbox`
 
 Provider-neutral durable ingress contract for hosts that must acknowledge a
 native transport before an OpenMatter application finishes processing it.

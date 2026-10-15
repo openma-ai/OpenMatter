@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/store-memory",
+  "name": "@openma/matter-store-memory",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,8 +16,8 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/store": "workspace:*"
+    "@openma/matter-core": "workspace:*",
+    "@openma/matter-store": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

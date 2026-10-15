@@ -1,11 +1,11 @@
-import type { JsonValue, WorkEvent } from "@openmatter/core";
+import type { JsonValue, WorkEvent } from "@openma/matter-core";
 import {
   IntegrationError,
   type WorkIntegration,
-} from "@openmatter/integration";
-import type { DurableInbox } from "@openmatter/inbox";
-import type { CoordinatorAssociation } from "@openmatter/orchestration";
-import type { WorkContext } from "@openmatter/runtime";
+} from "@openma/matter-integration";
+import type { DurableInbox } from "@openma/matter-inbox";
+import type { CoordinatorAssociation } from "@openma/matter-orchestration";
+import type { WorkContext } from "@openma/matter-runtime";
 import { Data, Effect, Schema } from "effect";
 
 const AttachmentSchema = Schema.Struct({

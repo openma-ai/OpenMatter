@@ -11,8 +11,8 @@ import {
   type Turn,
   type TurnCancellationRequest,
   type WorkEvent,
-} from "@openmatter/core";
-import type { OpenMAEvent } from "@openmatter/agent";
+} from "@openma/matter-core";
+import type { OpenMAEvent } from "@openma/matter-agent";
 import {
   StoreError,
   type AccountThreadGoalInput,
@@ -21,8 +21,8 @@ import {
   type LeaseRequest,
   type WorkLease,
   type PendingEffectClaim,
-} from "@openmatter/store";
-import { ThreadGoalStatusSchema } from "@openmatter/core";
+} from "@openma/matter-store";
+import { ThreadGoalStatusSchema } from "@openma/matter-core";
 import { Effect, Schema } from "effect";
 
 export interface SqliteStore extends OpenMatterStore {

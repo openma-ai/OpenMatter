@@ -5,8 +5,8 @@ import {
   type AgentTurnInput as ConnectorTurnInput,
   type OpenMAAgentConnector,
 } from "@openma/common/agent-contract";
-import type { ContextProjection } from "@openmatter/core";
-import { makeClaudeAgentDriver } from "@openmatter/agent-claude";
+import type { ContextProjection } from "@openma/matter-core";
+import { makeClaudeAgentDriver } from "@openma/matter-agent-claude";
 import { Effect, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 

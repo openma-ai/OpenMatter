@@ -1,7 +1,7 @@
-import { makeMockAgentDriver } from "@openmatter/agent-mock";
-import { makeMockIntegration } from "@openmatter/integration-mock";
-import { createOpenMatter } from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
+import { makeMockAgentDriver } from "@openma/matter-agent-mock";
+import { makeMockIntegration } from "@openma/matter-integration-mock";
+import { createOpenMatter } from "@openma/matter-runtime";
+import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 
 const chat = makeMockIntegration({ id: "chat" });

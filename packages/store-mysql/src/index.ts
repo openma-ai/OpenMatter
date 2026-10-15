@@ -17,8 +17,8 @@ import {
   type Turn,
   type TurnCancellationRequest,
   type WorkEvent,
-} from "@openmatter/core";
-import type { OpenMAEvent } from "@openmatter/agent";
+} from "@openma/matter-core";
+import type { OpenMAEvent } from "@openma/matter-agent";
 import {
   StoreError,
   type AccountThreadGoalInput,
@@ -27,7 +27,7 @@ import {
   type PendingEffectClaim,
   type StoreSnapshot,
   type WorkLease,
-} from "@openmatter/store";
+} from "@openma/matter-store";
 import { Effect, Schema } from "effect";
 
 export interface MysqlStore extends OpenMatterStore {

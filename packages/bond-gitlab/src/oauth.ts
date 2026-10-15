@@ -1,4 +1,4 @@
-import { ProviderError, type TokenGrant } from "@openmatter/bond";
+import { ProviderError, type TokenGrant } from "@openma/matter-bond";
 import { Effect } from "effect";
 import {
   canonicalOrigin,

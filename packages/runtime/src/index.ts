@@ -4,7 +4,7 @@ import {
   agentDriverLayer,
   type AgentDriver,
   type AgentDriverRegistry,
-} from "@openmatter/agent";
+} from "@openma/matter-agent";
 import {
   JsonValueSchema,
   ContextProjectionSchema,
@@ -18,20 +18,20 @@ import {
   type ReactionReceipt,
   type WorkEffect,
   type WorkEvent,
-} from "@openmatter/core";
+} from "@openma/matter-core";
 import {
   IntegrationError,
   ProviderDeliveryResultSchema,
   WorkIntegrations,
   integrationLayer,
   type WorkIntegrationRegistry,
-} from "@openmatter/integration";
+} from "@openma/matter-integration";
 import {
   StoreError,
   StoreService,
   storeLayer,
   type OpenMatterStore,
-} from "@openmatter/store";
+} from "@openma/matter-store";
 import { Effect, Layer, Schema, Stream } from "effect";
 import { makeAgentTurnRuntime } from "./agent-turn.js";
 import {

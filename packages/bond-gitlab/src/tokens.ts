@@ -1,4 +1,4 @@
-import type { ProviderError } from "@openmatter/bond";
+import type { ProviderError } from "@openma/matter-bond";
 import { Effect } from "effect";
 import {
   bearer,

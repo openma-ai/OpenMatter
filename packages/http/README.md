@@ -1,9 +1,9 @@
-# `@openmatter/http`
+# `@openma/matter-http`
 
 Portable HTTP endpoint contract shared by OpenMatter framework components.
 
 ```ts
-import type { HttpEndpoint } from "@openmatter/http";
+import type { HttpEndpoint } from "@openma/matter-http";
 
 const endpoint: HttpEndpoint = {
   method: "POST",

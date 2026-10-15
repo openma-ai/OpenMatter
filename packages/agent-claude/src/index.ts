@@ -15,8 +15,8 @@ import {
   type AgentDriver,
   type AgentSessionHandle,
   type OpenMAEvent,
-} from "@openmatter/agent";
-import type { ContextProjection, JsonValue } from "@openmatter/core";
+} from "@openma/matter-agent";
+import type { ContextProjection, JsonValue } from "@openma/matter-core";
 import { Effect, Schema, Stream } from "effect";
 
 export interface ClaudeAgentDriverOptions {

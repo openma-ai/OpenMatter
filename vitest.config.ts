@@ -7,69 +7,73 @@ const fromRoot = (path: string) =>
 export default defineConfig({
   resolve: {
     alias: {
-      "@openmatter/core": fromRoot("./packages/core/src/index.ts"),
-      "@openmatter/credentials": fromRoot(
+      "@openma/matter-core": fromRoot("./packages/core/src/index.ts"),
+      "@openma/matter-credentials": fromRoot(
         "./packages/credentials/src/index.ts",
       ),
-      "@openmatter/bond": fromRoot("./packages/bond/src/index.ts"),
-      "@openmatter/bond-gitlab": fromRoot(
+      "@openma/matter-bond": fromRoot("./packages/bond/src/index.ts"),
+      "@openma/matter-bond-gitlab": fromRoot(
         "./packages/bond-gitlab/src/index.ts",
       ),
-      "@openmatter/store": fromRoot("./packages/store/src/index.ts"),
-      "@openmatter/store-memory": fromRoot(
+      "@openma/matter-store": fromRoot("./packages/store/src/index.ts"),
+      "@openma/matter-store-memory": fromRoot(
         "./packages/store-memory/src/index.ts",
       ),
-      "@openmatter/store-sqlite": fromRoot(
+      "@openma/matter-store-sqlite": fromRoot(
         "./packages/store-sqlite/src/index.ts",
       ),
-      "@openmatter/store-mysql": fromRoot(
+      "@openma/matter-store-mysql": fromRoot(
         "./packages/store-mysql/src/index.ts",
       ),
-      "@openmatter/inbox": fromRoot("./packages/inbox/src/index.ts"),
-      "@openmatter/inbox-sqlite": fromRoot(
+      "@openma/matter-inbox": fromRoot("./packages/inbox/src/index.ts"),
+      "@openma/matter-inbox-sqlite": fromRoot(
         "./packages/inbox-sqlite/src/index.ts",
       ),
-      "@openmatter/integration": fromRoot(
+      "@openma/matter-integration": fromRoot(
         "./packages/integration/src/index.ts",
       ),
-      "@openmatter/integration-mock": fromRoot(
+      "@openma/matter-integration-mock": fromRoot(
         "./packages/integration-mock/src/index.ts",
       ),
-      "@openmatter/integration-slack": fromRoot(
+      "@openma/matter-integration-slack": fromRoot(
         "./packages/integration-slack/src/index.ts",
       ),
-      "@openmatter/integration-github": fromRoot(
+      "@openma/matter-integration-github": fromRoot(
         "./packages/integration-github/src/index.ts",
       ),
-      "@openmatter/integration-linear": fromRoot(
+      "@openma/matter-integration-linear": fromRoot(
         "./packages/integration-linear/src/index.ts",
       ),
-      "@openmatter/agent": fromRoot("./packages/agent/src/index.ts"),
-      "@openmatter/agent-claude": fromRoot(
+      "@openma/matter-agent": fromRoot("./packages/agent/src/index.ts"),
+      "@openma/matter-agent-claude": fromRoot(
         "./packages/agent-claude/src/index.ts",
       ),
-      "@openmatter/agent-mock": fromRoot("./packages/agent-mock/src/index.ts"),
-      "@openmatter/runtime": fromRoot("./packages/runtime/src/index.ts"),
-      "@openmatter/host-cloudflare": fromRoot(
+      "@openma/matter-agent-mock": fromRoot(
+        "./packages/agent-mock/src/index.ts",
+      ),
+      "@openma/matter-runtime": fromRoot("./packages/runtime/src/index.ts"),
+      "@openma/matter-host-cloudflare": fromRoot(
         "./packages/host-cloudflare/src/index.ts",
       ),
-      "@openmatter/host-local": fromRoot("./packages/host-local/src/index.ts"),
-      "@openmatter/orchestration": fromRoot(
+      "@openma/matter-host-local": fromRoot(
+        "./packages/host-local/src/index.ts",
+      ),
+      "@openma/matter-orchestration": fromRoot(
         "./packages/orchestration/src/index.ts",
       ),
-      "@openmatter/project": fromRoot("./packages/project/src/index.ts"),
-      "@openmatter/project-host": fromRoot(
+      "@openma/matter-project": fromRoot("./packages/project/src/index.ts"),
+      "@openma/matter-project-host": fromRoot(
         "./packages/project-host/src/index.ts",
       ),
-      "@openmatter/project-mcp": fromRoot(
+      "@openma/matter-project-mcp": fromRoot(
         "./packages/project-mcp/src/index.ts",
       ),
-      "@openmatter/project-worker": fromRoot(
+      "@openma/matter-project-worker": fromRoot(
         "./packages/project-worker/src/index.ts",
       ),
-      "@openmatter/http": fromRoot("./packages/http/src/index.ts"),
-      "@openmatter/fastify": fromRoot("./packages/fastify/src/index.ts"),
-      "@openmatter/hono": fromRoot("./packages/hono/src/index.ts"),
+      "@openma/matter-http": fromRoot("./packages/http/src/index.ts"),
+      "@openma/matter-fastify": fromRoot("./packages/fastify/src/index.ts"),
+      "@openma/matter-hono": fromRoot("./packages/hono/src/index.ts"),
     },
   },
   test: {

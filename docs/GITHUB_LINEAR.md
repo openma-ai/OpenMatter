@@ -5,7 +5,7 @@
 | Status | Executable v0                                            |
 | Scope  | Signed ingress, Context readers, credentials and Effects |
 
-`@openmatter/integration-github` and `@openmatter/integration-linear` are
+`@openma/matter-integration-github` and `@openma/matter-integration-linear` are
 full Work Integrations. They normalize provider input into the same immutable
 `WorkEvent` envelope used by Slack and expose provider reads and writes through
 the same Context and WorkEffect boundaries.
@@ -59,11 +59,11 @@ credential authority; repository owner/name is Resource location, not the
 security boundary.
 
 ```ts
-import { makeCredentialResolver } from "@openmatter/credentials";
+import { makeCredentialResolver } from "@openma/matter-credentials";
 import {
   makeGitHubHttpEndpoint,
   makeGitHubIntegration,
-} from "@openmatter/integration-github";
+} from "@openma/matter-integration-github";
 
 const github = makeGitHubIntegration({
   credentials: makeCredentialResolver(({ authority }) =>
@@ -94,11 +94,11 @@ rejects stale deliveries, and uses `Linear-Delivery` as delivery identity.
 authentication; personal API keys use Linear's raw Authorization value.
 
 ```ts
-import { makeCredentialResolver } from "@openmatter/credentials";
+import { makeCredentialResolver } from "@openma/matter-credentials";
 import {
   makeLinearHttpEndpoint,
   makeLinearIntegration,
-} from "@openmatter/integration-linear";
+} from "@openma/matter-integration-linear";
 
 const linear = makeLinearIntegration({
   credentials: makeCredentialResolver(({ authority }) =>

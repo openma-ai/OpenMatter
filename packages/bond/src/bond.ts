@@ -2,8 +2,8 @@ import type {
   CredentialRequest,
   CredentialResolver,
   ExecutionPrincipalRequest,
-} from "@openmatter/credentials";
-import { CredentialError } from "@openmatter/credentials";
+} from "@openma/matter-credentials";
+import { CredentialError } from "@openma/matter-credentials";
 import { Duration, Effect, Either } from "effect";
 import { BondError, bondError } from "./errors.js";
 import type {

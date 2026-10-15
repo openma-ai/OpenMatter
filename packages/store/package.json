@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/store",
+  "name": "@openma/matter-store",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,8 +16,8 @@
     }
   },
   "dependencies": {
-    "@openmatter/agent": "workspace:*",
-    "@openmatter/core": "workspace:*"
+    "@openma/matter-agent": "workspace:*",
+    "@openma/matter-core": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

@@ -2,8 +2,8 @@ import {
   JsonValueSchema,
   type JsonValue,
   type WorkEvent,
-} from "@openmatter/core";
-import { IntegrationError } from "@openmatter/integration";
+} from "@openma/matter-core";
+import { IntegrationError } from "@openma/matter-integration";
 import { Effect, Schema } from "effect";
 import type { GitHubWebhookInput } from "./http.js";
 import {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import type { JsonValue } from "@openmatter/core";
+import type { JsonValue } from "@openma/matter-core";
 export interface ProjectWorkspaceBinding {
   id: string;
   projectId: string;

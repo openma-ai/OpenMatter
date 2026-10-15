@@ -7,8 +7,8 @@ import {
   type PoolConnection,
   type RowDataPacket,
 } from "mysql2/promise";
-import type { JsonValue } from "@openmatter/core";
-import type { ProjectWorkConfig } from "@openmatter/project-host";
+import type { JsonValue } from "@openma/matter-core";
+import type { ProjectWorkConfig } from "@openma/matter-project-host";
 
 export interface StoredProject {
   readonly project: {

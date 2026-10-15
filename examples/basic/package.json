@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/example-basic",
+  "name": "@openma/matter-example-basic",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,11 +8,11 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@openmatter/agent-mock": "workspace:*",
-    "@openmatter/core": "workspace:*",
-    "@openmatter/integration-mock": "workspace:*",
-    "@openmatter/runtime": "workspace:*",
-    "@openmatter/store-memory": "workspace:*",
+    "@openma/matter-agent-mock": "workspace:*",
+    "@openma/matter-core": "workspace:*",
+    "@openma/matter-integration-mock": "workspace:*",
+    "@openma/matter-runtime": "workspace:*",
+    "@openma/matter-store-memory": "workspace:*",
     "effect": "3.22.1"
   }
 }

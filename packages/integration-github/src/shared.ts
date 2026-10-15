@@ -1,4 +1,4 @@
-import type { JsonValue, WorkEvent } from "@openmatter/core";
+import type { JsonValue, WorkEvent } from "@openma/matter-core";
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

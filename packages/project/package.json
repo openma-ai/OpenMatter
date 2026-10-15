@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/project",
+  "name": "@openma/matter-project",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,11 +16,11 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/inbox": "workspace:*",
-    "@openmatter/integration": "workspace:*",
-    "@openmatter/orchestration": "workspace:*",
-    "@openmatter/runtime": "workspace:*"
+    "@openma/matter-core": "workspace:*",
+    "@openma/matter-inbox": "workspace:*",
+    "@openma/matter-integration": "workspace:*",
+    "@openma/matter-orchestration": "workspace:*",
+    "@openma/matter-runtime": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

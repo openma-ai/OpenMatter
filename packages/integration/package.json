@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/integration",
+  "name": "@openma/matter-integration",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
@@ -16,7 +16,7 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*"
+    "@openma/matter-core": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

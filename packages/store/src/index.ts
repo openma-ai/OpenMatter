@@ -10,8 +10,8 @@ import type {
   Turn,
   TurnCancellationRequest,
   WorkEvent,
-} from "@openmatter/core";
-import type { OpenMAEvent } from "@openmatter/agent";
+} from "@openma/matter-core";
+import type { OpenMAEvent } from "@openma/matter-agent";
 import { Context, Data, Layer, type Effect } from "effect";
 
 export class StoreError extends Data.TaggedError("StoreError")<{
@@ -47,7 +47,7 @@ export type EventClaim =
   | { readonly _tag: "Busy"; readonly lease: WorkLease };
 
 export interface PendingEffectClaim {
-  readonly effect: import("@openmatter/core").WorkEffect;
+  readonly effect: import("@openma/matter-core").WorkEffect;
   readonly attempt: number;
   readonly lease: WorkLease;
 }
@@ -226,7 +226,7 @@ export interface OpenMatterStore {
 }
 
 export const StoreService = Context.GenericTag<OpenMatterStore>(
-  "@openmatter/store/OpenMatterStore",
+  "@openma/matter-store/OpenMatterStore",
 );
 
 export const storeLayer = (store: OpenMatterStore) =>

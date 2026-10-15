@@ -2,8 +2,8 @@ import {
   CredentialError,
   makeCredentialResolver,
   type CredentialResolver,
-} from "@openmatter/credentials";
-import { IntegrationError } from "@openmatter/integration";
+} from "@openma/matter-credentials";
+import { IntegrationError } from "@openma/matter-integration";
 import { Effect } from "effect";
 import type { LinearCredentials, LinearIntegrationOptions } from "./types.js";
 

@@ -38,7 +38,7 @@ packages/
 └── hono                 Hono endpoint component
 ```
 
-`@openmatter/runtime` exposes one application model: `createOpenMatter()`. The repository is still pre-v1, so competing prototypes are removed instead of preserved as public compatibility debt.
+`@openma/matter-runtime` exposes one application model: `createOpenMatter()`. The repository is still pre-v1, so competing prototypes are removed instead of preserved as public compatibility debt.
 
 ## Dependency direction
 

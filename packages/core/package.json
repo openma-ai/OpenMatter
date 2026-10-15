@@ -1,5 +1,5 @@
 {
-  "name": "@openmatter/core",
+  "name": "@openma/matter-core",
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,

@@ -1,4 +1,4 @@
-# `@openmatter/host-local`
+# `@openma/matter-host-local`
 
 Slack Socket Mode host component for a long-running Node.js process. It needs no
 public webhook URL and uses a caller-provided `DurableInbox`:
@@ -19,6 +19,6 @@ pending or expired items, renews their leases during long Agent Turns, and
 completes or durably reschedules them. Graceful shutdown interrupts owned
 Fibers and releases their items for replay.
 
-`@openmatter/inbox-sqlite` is the embedded reference adapter. The inbox and the
+`@openma/matter-inbox-sqlite` is the embedded reference adapter. The inbox and the
 domain `OpenMatterStore` are separate dependencies and both must be durable for
 a crash-safe standalone deployment.
