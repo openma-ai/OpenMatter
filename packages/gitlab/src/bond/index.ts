@@ -62,3 +62,5 @@ export {
   makeGitLabResourceCatalog,
   type GitLabResourceCatalogOptions,
 } from "./resources.js";
+
+export * from "./integration/index.js";
