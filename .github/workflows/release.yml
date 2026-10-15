@@ -1,0 +1,39 @@
+name: Release
+
+# Pushing a v* tag publishes every public package whose version is not on npm
+# yet, with npm trusted publishing (GitHub OIDC, no token) and provenance. A
+# package must exist on npm with this workflow attached as its trusted
+# publisher first; `node scripts/release.mjs bootstrap` does that locally.
+# Re-running a tag is a no-op for versions already published.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/release.mjs check --tag "$GITHUB_REF_NAME"
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: npm install -g npm@^11.5.1
+      - run: node scripts/release.mjs publish

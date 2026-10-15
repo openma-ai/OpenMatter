@@ -760,20 +760,20 @@ without a browser. Step 5 runs when it is given a Maintainer token.
 
 ## Distribution
 
-The packages are not published to a registry. Consumers pin a git tag or
-commit SHA, matching how Backchat consumes OpenMatter and how OMA consumes
-openma-common:
+The kernel, including the Bond kernel, is published to npm as
+`@openma/matter`; each provider is a separate package such as
+`@openma/matter-gitlab`. All are released at one version with provenance
+(docs/RELEASING.md). Consumers install exact versions:
 
 ```jsonc
-"@openma/matter":
-  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/matter",
-"@openma/matter-gitlab":
-  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/gitlab"
+"@openma/matter": "0.1.0",
+"@openma/matter-gitlab": "0.1.0"
 ```
 
 `@openma/matter` and every `@openma/matter-*` package in one consumer use the
-same tag or SHA. A bump is a reviewed lockfile change in
-the consumer.
+same version. A bump is a reviewed lockfile change in the consumer. Git
+dependencies on this repository are not supported, because some build
+environments cannot download GitHub archives.
 
 ## Security notes
 
