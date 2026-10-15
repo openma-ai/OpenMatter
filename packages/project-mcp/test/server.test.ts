@@ -50,7 +50,12 @@ describe("project MCP", () => {
             status: input.status,
             revision: current.revision + 1,
           };
-          return current;
+          return {
+            status: "committed" as const,
+            operationId: input.operationId,
+            value: current as unknown as import("@openmatter/core").JsonValue,
+            observations: [],
+          };
         },
       },
       readStatus: async () => ({

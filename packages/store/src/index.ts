@@ -14,6 +14,21 @@ import type {
 import type { OpenMAEvent } from "@openmatter/agent";
 import { Context, Data, Layer, type Effect } from "effect";
 
+export {
+  makeMutationStore,
+  MutationError,
+  type MutationApply,
+  type MutationBackend,
+  type MutationBackendTransaction,
+  type MutationIntent,
+  type MutationRecord,
+  type MutationResult,
+  type MutationStore,
+  type MutationTransaction,
+  type ObservedState,
+  type StateObservation,
+} from "./mutation.js";
+
 export class StoreError extends Data.TaggedError("StoreError")<{
   readonly message: string;
   readonly cause?: unknown;

@@ -25,6 +25,11 @@ import {
 import { ThreadGoalStatusSchema } from "@openmatter/core";
 import { Effect, Schema } from "effect";
 
+export {
+  makeSqliteMutationStore,
+  type SqliteMutationStoreOptions,
+} from "./mutation.js";
+
 export interface SqliteStore extends OpenMatterStore {
   readonly close: Effect.Effect<void, StoreError>;
   readonly inspect: Effect.Effect<StoreSnapshot, StoreError>;

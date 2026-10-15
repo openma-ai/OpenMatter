@@ -94,6 +94,10 @@ This document records the active v0 decisions. Earlier briefs that conflict with
 
 ## Runtime implementation
 
+- Agent-facing conditional writes bind to the state the Agent observed, with a stable operation identity and immutable input. Conflict means no business write; the Agent decides whether to revise or stop. There is no framework draft lifecycle or automatic version refresh.
+- Conditional submission is a native Store primitive, independent of Loop and AgentDriver. Core owns the portable contracts; existing memory and SQLite adapters combine conditions, real state writes, and operation receipts. Successful replay returns its prior receipt before comparing versions changed by its own write. No separate mutation package is required.
+- Context items may carry resource observations; guarded WorkEffects preserve those conditions through the outbox. Conditional integration operations declare atomic or best-effort guarantees. Unsupported guards fail closed; unknown outcomes require reconciliation. Hosts route asynchronous conflict receipts back to Agents without modifying immutable Reactions.
+
 - Domain records are immutable values with Effect Schemas, not provider-connected live objects; ingress events, application-produced terminal Reactions, Agent events, handles, and receipts are checked again at runtime boundaries.
 - A ContextProjection is persisted and digest-addressed before an Agent Turn.
 - Reaction plus WorkEffect intents form the durable outbox boundary and are committed before delivery. A terminal Reaction is an atomic insert-once record; completion cannot be overwritten by a late cancellation finalizer.

@@ -10,6 +10,7 @@ import {
   type ContextProjection,
   type EffectDeliveryReceipt,
   type JsonValue,
+  type MutationGuard,
   type ReactionReceipt,
   type Turn,
   type WorkEffect,
@@ -63,6 +64,7 @@ export interface EffectInput {
   readonly operation: string;
   readonly input: JsonValue;
   readonly idempotencyKey?: string;
+  readonly mutation?: MutationGuard;
 }
 
 export interface ReactionDraft {
@@ -109,6 +111,7 @@ export interface WorkContext {
       readonly kind: string;
       readonly value: JsonValue;
       readonly provenance: ContextItem["provenance"];
+      readonly observation?: ContextItem["observation"];
     }) => ContextItem;
     readonly project: (input: {
       readonly scopeId: string;

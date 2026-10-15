@@ -74,6 +74,10 @@ export default defineConfig({
             { label: "Loops", slug: "concepts/loops" },
             { label: "Domain model", slug: "concepts/domain-model" },
             { label: "Runtime lifecycle", slug: "concepts/runtime" },
+            {
+              label: "Agent state protection",
+              slug: "concepts/state-protection",
+            },
           ],
         },
         {

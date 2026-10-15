@@ -127,6 +127,13 @@ for the complete composition.
 
 ## What belongs where
 
+Agent tools can use the native conditional-write APIs in `@openmatter/store`
+and its memory/SQLite adapters without installing the Loop runtime. They preserve
+original read conditions and idempotent operation receipts. Guarded WorkEffects
+carry those conditions through the outbox; integrations must declare their actual
+write guarantees. See [Agent state protection](docs/STATE_PROTECTION.md) for the API,
+Goal tool example, and external-platform limitations.
+
 | OpenMatter owns                        | The agent owns                       | The host application owns          |
 | -------------------------------------- | ------------------------------------ | ---------------------------------- |
 | Event normalization and subscription   | Reasoning and planning               | Server/process lifecycle           |
