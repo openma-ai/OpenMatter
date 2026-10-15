@@ -1,5 +1,5 @@
-import { JsonValueSchema, type JsonValue } from "@openma/matter-core";
-import { IntegrationError } from "@openma/matter-integration";
+import { JsonValueSchema, type JsonValue } from "@openma/matter";
+import { IntegrationError } from "@openma/matter/integration";
 import { Effect, Schema } from "effect";
 import type { LinearCredentialsFor } from "./credentials.js";
 import type { LinearCredentials } from "./types.js";

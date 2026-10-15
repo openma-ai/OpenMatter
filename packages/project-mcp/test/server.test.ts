@@ -6,7 +6,7 @@ import {
   THREAD_GOAL_INSTRUCTIONS,
   makeProjectMcpServer,
 } from "@openma/matter-project-mcp";
-import type { ThreadGoal } from "@openma/matter-core";
+import type { ThreadGoal } from "@openma/matter";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 

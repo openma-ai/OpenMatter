@@ -1,10 +1,10 @@
-import type { AgentDriver } from "@openma/matter-agent";
+import type { AgentDriver } from "@openma/matter/agent";
 import { makeLocalSlackRuntime } from "@openma/matter-host-local";
-import type { DurableInbox } from "@openma/matter-inbox";
+import type { DurableInbox } from "@openma/matter/inbox";
 import { makeSlackIntegration } from "@openma/matter-integration-slack";
 import { claudeTag } from "@openma/matter-orchestration";
-import { createOpenMatter } from "@openma/matter-runtime";
-import type { OpenMatterStore } from "@openma/matter-store";
+import { createOpenMatter } from "@openma/matter/runtime";
+import type { OpenMatterStore } from "@openma/matter/store";
 
 export interface LocalSlackOptions {
   readonly appToken: string;

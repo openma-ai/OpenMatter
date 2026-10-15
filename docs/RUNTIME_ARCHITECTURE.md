@@ -157,13 +157,13 @@ The source owns connection and reconnect policy. The Runtime owns normalized eve
 
 | Package                           | Responsibility                              |
 | --------------------------------- | ------------------------------------------- |
-| `@openma/matter-core`             | Effect Schemas and immutable domain records |
-| `@openma/matter-runtime`          | Handler registry and Effect orchestration   |
-| `@openma/matter-store`            | Durable storage service contract and Layer  |
+| `@openma/matter`                  | Effect Schemas and immutable domain records |
+| `@openma/matter/runtime`          | Handler registry and Effect orchestration   |
+| `@openma/matter/store`            | Durable storage service contract and Layer  |
 | `@openma/matter-store-memory`     | Process-local reference adapter             |
-| `@openma/matter-integration`      | Work integration contract and Layer         |
+| `@openma/matter/integration`      | Work integration contract and Layer         |
 | `@openma/matter-integration-mock` | Bidirectional mock work platform            |
-| `@openma/matter-agent`            | AgentDriver, OpenMAEvent, and Layer         |
+| `@openma/matter/agent`            | AgentDriver, OpenMAEvent, and Layer         |
 | `@openma/matter-agent-mock`       | Deterministic mock agent runtime            |
 
 ## Current limits

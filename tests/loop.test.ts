@@ -1,5 +1,5 @@
-import type { WorkEvent } from "@openma/matter-core";
-import { createOpenMatter, defineLoop } from "@openma/matter-runtime";
+import type { WorkEvent } from "@openma/matter";
+import { createOpenMatter, defineLoop } from "@openma/matter/runtime";
 import { makeMemoryStore } from "@openma/matter-store-memory";
 import { describe, expect, it } from "vitest";
 

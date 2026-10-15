@@ -1,5 +1,5 @@
-import type { WorkIntegration } from "@openma/matter-integration";
-import { IntegrationError } from "@openma/matter-integration";
+import type { WorkIntegration } from "@openma/matter/integration";
+import { IntegrationError } from "@openma/matter/integration";
 import { Effect } from "effect";
 import type { GitHubProviderClient } from "./provider-client.js";
 import { isRecord } from "./shared.js";

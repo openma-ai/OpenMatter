@@ -38,7 +38,7 @@ import {
   makeMemoryBondStore,
   type ProviderAppConfig,
   type SecretCipher,
-} from "@openma/matter-bond";
+} from "@openma/matter/bond";
 import {
   authorizationUrl,
   createPkce,
@@ -49,7 +49,7 @@ import {
   readUser,
   tokenExpiryInstant,
   validateBotCredential,
-} from "@openma/matter-bond-gitlab";
+} from "@openma/matter-gitlab/bond";
 
 const PORT = 18766;
 const REDIRECT = `http://127.0.0.1:${PORT}/callback`;

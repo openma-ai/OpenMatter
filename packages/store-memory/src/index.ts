@@ -9,9 +9,9 @@ import type {
   Turn,
   TurnCancellationRequest,
   WorkEvent,
-} from "@openma/matter-core";
-import { ThreadGoalStatusSchema } from "@openma/matter-core";
-import type { OpenMAEvent } from "@openma/matter-agent";
+} from "@openma/matter";
+import { ThreadGoalStatusSchema } from "@openma/matter";
+import type { OpenMAEvent } from "@openma/matter/agent";
 import {
   StoreError,
   type AccountThreadGoalInput,
@@ -22,7 +22,7 @@ import {
   type StoreSnapshot,
   type UpdateThreadGoalInput,
   type WorkLease,
-} from "@openma/matter-store";
+} from "@openma/matter/store";
 import { Effect, Schema } from "effect";
 
 export interface MemoryStoreOptions {

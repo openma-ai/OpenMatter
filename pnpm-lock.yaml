@@ -31,18 +31,15 @@ importers:
 
   examples/basic:
     dependencies:
+      "@openma/matter":
+        specifier: workspace:*
+        version: link:../../packages/matter
       "@openma/matter-agent-mock":
         specifier: workspace:*
         version: link:../../packages/agent-mock
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../../packages/core
       "@openma/matter-integration-mock":
         specifier: workspace:*
         version: link:../../packages/integration-mock
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../../packages/runtime
       "@openma/matter-store-memory":
         specifier: workspace:*
         version: link:../../packages/store-memory
@@ -52,21 +49,21 @@ importers:
 
   examples/gitlab-bond-local:
     dependencies:
-      "@openma/matter-bond":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../../packages/bond
-      "@openma/matter-bond-gitlab":
+        version: link:../../packages/matter
+      "@openma/matter-gitlab":
         specifier: workspace:*
-        version: link:../../packages/bond-gitlab
+        version: link:../../packages/gitlab
       effect:
         specifier: 3.22.1
         version: 3.22.1
 
   examples/slack-cloudflare:
     dependencies:
-      "@openma/matter-agent":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../../packages/agent
+        version: link:../../packages/matter
       "@openma/matter-host-cloudflare":
         specifier: workspace:*
         version: link:../../packages/host-cloudflare
@@ -76,95 +73,49 @@ importers:
       "@openma/matter-orchestration":
         specifier: workspace:*
         version: link:../../packages/orchestration
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../../packages/runtime
-      "@openma/matter-store":
-        specifier: workspace:*
-        version: link:../../packages/store
 
   examples/slack-local:
     dependencies:
-      "@openma/matter-agent":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../../packages/agent
+        version: link:../../packages/matter
       "@openma/matter-host-local":
         specifier: workspace:*
         version: link:../../packages/host-local
-      "@openma/matter-inbox":
-        specifier: workspace:*
-        version: link:../../packages/inbox
       "@openma/matter-integration-slack":
         specifier: workspace:*
         version: link:../../packages/integration-slack
       "@openma/matter-orchestration":
         specifier: workspace:*
         version: link:../../packages/orchestration
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../../packages/runtime
-      "@openma/matter-store":
-        specifier: workspace:*
-        version: link:../../packages/store
-
-  packages/agent:
-    dependencies:
-      "@openma/common":
-        specifier: ^0.9.0
-        version: 0.9.0
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../core
-
-  packages/agent-claude:
-    dependencies:
-      "@openma/common":
-        specifier: ^0.9.0
-        version: 0.9.0
-      "@openma/matter-agent":
-        specifier: workspace:*
-        version: link:../agent
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../core
 
   packages/agent-mock:
     dependencies:
-      "@openma/matter-agent":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../agent
-
-  packages/bond:
-    dependencies:
-      "@openma/matter-credentials":
-        specifier: workspace:*
-        version: link:../credentials
-
-  packages/bond-gitlab:
-    dependencies:
-      "@openma/matter-bond":
-        specifier: workspace:*
-        version: link:../bond
-
-  packages/core: {}
-
-  packages/credentials: {}
+        version: link:../matter
 
   packages/fastify:
     dependencies:
-      "@openma/matter-http":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../http
+        version: link:../matter
     devDependencies:
       fastify:
         specifier: 5.12.1
         version: 5.12.1
 
+  packages/gitlab:
+    dependencies:
+      "@openma/matter":
+        specifier: workspace:*
+        version: link:../matter
+
   packages/hono:
     dependencies:
-      "@openma/matter-http":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../http
+        version: link:../matter
     devDependencies:
       hono:
         specifier: 4.13.3
@@ -172,27 +123,18 @@ importers:
 
   packages/host-cloudflare:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
+        version: link:../matter
       "@openma/matter-integration-slack":
         specifier: workspace:*
         version: link:../integration-slack
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../runtime
 
   packages/host-local:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-inbox":
-        specifier: workspace:*
-        version: link:../inbox
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../runtime
+        version: link:../matter
       "@slack/socket-mode":
         specifier: 3.0.0
         version: 3.0.0(undici@7.29.0)
@@ -200,121 +142,62 @@ importers:
         specifier: 7.29.0
         version: 7.29.0
 
-  packages/http: {}
-
-  packages/inbox:
-    dependencies:
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../core
-
   packages/inbox-sqlite:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-inbox":
-        specifier: workspace:*
-        version: link:../inbox
-
-  packages/integration:
-    dependencies:
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../core
+        version: link:../matter
 
   packages/integration-github:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-credentials":
-        specifier: workspace:*
-        version: link:../credentials
-      "@openma/matter-http":
-        specifier: workspace:*
-        version: link:../http
-      "@openma/matter-integration":
-        specifier: workspace:*
-        version: link:../integration
+        version: link:../matter
 
   packages/integration-linear:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-credentials":
-        specifier: workspace:*
-        version: link:../credentials
-      "@openma/matter-http":
-        specifier: workspace:*
-        version: link:../http
-      "@openma/matter-integration":
-        specifier: workspace:*
-        version: link:../integration
+        version: link:../matter
 
   packages/integration-mock:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-integration":
-        specifier: workspace:*
-        version: link:../integration
+        version: link:../matter
 
   packages/integration-slack:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-credentials":
-        specifier: workspace:*
-        version: link:../credentials
-      "@openma/matter-http":
-        specifier: workspace:*
-        version: link:../http
-      "@openma/matter-integration":
-        specifier: workspace:*
-        version: link:../integration
+        version: link:../matter
+
+  packages/matter:
+    dependencies:
+      "@openma/common":
+        specifier: ^0.9.0
+        version: 0.9.0
 
   packages/orchestration:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../runtime
+        version: link:../matter
 
   packages/project:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-inbox":
-        specifier: workspace:*
-        version: link:../inbox
-      "@openma/matter-integration":
-        specifier: workspace:*
-        version: link:../integration
+        version: link:../matter
       "@openma/matter-orchestration":
         specifier: workspace:*
         version: link:../orchestration
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../runtime
 
   packages/project-host:
     dependencies:
-      "@openma/matter-agent":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../agent
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../core
-      "@openma/matter-inbox":
-        specifier: workspace:*
-        version: link:../inbox
+        version: link:../matter
       "@openma/matter-inbox-sqlite":
         specifier: workspace:*
         version: link:../inbox-sqlite
@@ -324,12 +207,6 @@ importers:
       "@openma/matter-project":
         specifier: workspace:*
         version: link:../project
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../runtime
-      "@openma/matter-store":
-        specifier: workspace:*
-        version: link:../store
       "@openma/matter-store-sqlite":
         specifier: workspace:*
         version: link:../store-sqlite
@@ -339,9 +216,9 @@ importers:
       "@modelcontextprotocol/server":
         specifier: 2.0.0
         version: 2.0.0
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
+        version: link:../matter
       "@openma/matter-project":
         specifier: workspace:*
         version: link:../project
@@ -354,12 +231,9 @@ importers:
 
   packages/project-worker:
     dependencies:
-      "@openma/matter-agent":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../agent
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../core
+        version: link:../matter
       "@openma/matter-orchestration":
         specifier: workspace:*
         version: link:../orchestration
@@ -372,12 +246,6 @@ importers:
       "@openma/matter-project-mcp":
         specifier: workspace:*
         version: link:../project-mcp
-      "@openma/matter-runtime":
-        specifier: workspace:*
-        version: link:../runtime
-      "@openma/matter-store":
-        specifier: workspace:*
-        version: link:../store
       "@openma/matter-store-mysql":
         specifier: workspace:*
         version: link:../store-mysql
@@ -388,59 +256,26 @@ importers:
         specifier: 3.15.3
         version: 3.15.3
 
-  packages/runtime:
-    dependencies:
-      "@openma/matter-agent":
-        specifier: workspace:*
-        version: link:../agent
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../core
-      "@openma/matter-integration":
-        specifier: workspace:*
-        version: link:../integration
-      "@openma/matter-store":
-        specifier: workspace:*
-        version: link:../store
-
-  packages/store:
-    dependencies:
-      "@openma/matter-agent":
-        specifier: workspace:*
-        version: link:../agent
-      "@openma/matter-core":
-        specifier: workspace:*
-        version: link:../core
-
   packages/store-memory:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-store":
-        specifier: workspace:*
-        version: link:../store
+        version: link:../matter
 
   packages/store-mysql:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-store":
-        specifier: workspace:*
-        version: link:../store
+        version: link:../matter
       mysql2:
         specifier: 3.15.3
         version: 3.15.3
 
   packages/store-sqlite:
     dependencies:
-      "@openma/matter-core":
+      "@openma/matter":
         specifier: workspace:*
-        version: link:../core
-      "@openma/matter-store":
-        specifier: workspace:*
-        version: link:../store
+        version: link:../matter
 
 packages:
   "@agentclientprotocol/sdk@1.3.0":

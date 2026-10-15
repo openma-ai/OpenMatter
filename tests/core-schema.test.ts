@@ -2,7 +2,7 @@ import {
   JsonValueSchema,
   WorkEventSchema,
   WorkEffectSchema,
-} from "@openma/matter-core";
+} from "@openma/matter";
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 

@@ -4,11 +4,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@openma/matter-agent": "workspace:*",
+    "@openma/matter": "workspace:*",
     "@openma/matter-host-cloudflare": "workspace:*",
     "@openma/matter-integration-slack": "workspace:*",
-    "@openma/matter-orchestration": "workspace:*",
-    "@openma/matter-runtime": "workspace:*",
-    "@openma/matter-store": "workspace:*"
+    "@openma/matter-orchestration": "workspace:*"
   }
 }

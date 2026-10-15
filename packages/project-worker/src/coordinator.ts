@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { coordinatorLoop } from "@openma/matter-orchestration";
 import { Effect } from "effect";
-import type { JsonValue, ThreadGoal, WorkEvent } from "@openma/matter-core";
+import type { JsonValue, ThreadGoal, WorkEvent } from "@openma/matter";
 import {
   associateProjectEvent,
   makeMemoryProjectCommandSink,
@@ -23,7 +23,7 @@ import {
 import {
   createOpenMatter,
   type OpenMatterApplication,
-} from "@openma/matter-runtime";
+} from "@openma/matter/runtime";
 import type { MysqlStore } from "@openma/matter-store-mysql";
 import { makeMysqlStore } from "@openma/matter-store-mysql";
 import type { SqliteStore } from "@openma/matter-store-sqlite";

@@ -2,8 +2,8 @@ import {
   CredentialError,
   makeCredentialResolver,
   type CredentialResolver,
-} from "@openma/matter-credentials";
-import { IntegrationError } from "@openma/matter-integration";
+} from "@openma/matter/credentials";
+import { IntegrationError } from "@openma/matter/integration";
 import { Effect } from "effect";
 import { isRecord } from "./shared.js";
 import type { SlackCredentials, SlackIntegrationOptions } from "./types.js";

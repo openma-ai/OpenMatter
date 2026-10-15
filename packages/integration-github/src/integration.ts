@@ -1,4 +1,4 @@
-import type { WorkIntegration } from "@openma/matter-integration";
+import type { WorkIntegration } from "@openma/matter/integration";
 import { makeGitHubContextReader } from "./context.js";
 import { makeGitHubCredentialsFor } from "./credentials.js";
 import { makeGitHubEffectDelivery } from "./effect-delivery.js";

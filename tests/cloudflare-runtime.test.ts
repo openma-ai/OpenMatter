@@ -3,7 +3,7 @@ import {
   createOpenMatter,
   EventBusyError,
   type OpenMatterApplication,
-} from "@openma/matter-runtime";
+} from "@openma/matter/runtime";
 import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";

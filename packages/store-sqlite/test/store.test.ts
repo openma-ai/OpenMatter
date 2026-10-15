@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Reaction, WorkEvent } from "@openma/matter-core";
+import type { Reaction, WorkEvent } from "@openma/matter";
 import { makeMemoryStore } from "@openma/matter-store-memory";
-import type { OpenMatterStore } from "@openma/matter-store";
+import type { OpenMatterStore } from "@openma/matter/store";
 import { makeSqliteStore, type SqliteStore } from "@openma/matter-store-sqlite";
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";

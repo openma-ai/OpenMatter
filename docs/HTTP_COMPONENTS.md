@@ -9,7 +9,7 @@ Integration or application
        └─ @openma/matter-hono
 ```
 
-`@openma/matter-http` is deliberately smaller than a server abstraction. Its
+`@openma/matter/http` is deliberately smaller than a server abstraction. Its
 `HttpEndpoint` contains a method, a path, and a Web-standard handler. The
 endpoint owner decides how to verify a provider request, decode its payload,
 submit durable work, and acknowledge the provider. Fastify and Hono do not know
@@ -20,7 +20,7 @@ about Slack, Agent sessions, ContextProjection, or orchestration.
 ```ts
 import Fastify from "fastify";
 import { openMatter } from "@openma/matter-fastify";
-import type { HttpEndpoint } from "@openma/matter-http";
+import type { HttpEndpoint } from "@openma/matter/http";
 
 const endpoint: HttpEndpoint = {
   method: "POST",

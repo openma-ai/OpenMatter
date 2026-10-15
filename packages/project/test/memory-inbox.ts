@@ -1,9 +1,9 @@
-import type { JsonValue } from "@openma/matter-core";
+import type { JsonValue } from "@openma/matter";
 import {
   type DurableInbox,
   type InboxClaim,
   type InboxItem,
-} from "@openma/matter-inbox";
+} from "@openma/matter/inbox";
 import { Effect } from "effect";
 
 export const makeMemoryInbox = (): DurableInbox & {

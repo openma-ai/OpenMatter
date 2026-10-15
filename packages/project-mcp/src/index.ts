@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/server";
-import type { ThreadGoal } from "@openma/matter-core";
+import type { ThreadGoal } from "@openma/matter";
 import type {
   ProjectCommandReceipt,
   ProjectControl,

@@ -6,20 +6,16 @@ import {
   createOpenMAEvent,
   isPermissionRequestEvent,
   type OpenMAEvent,
-} from "@openma/matter-agent";
+} from "@openma/matter/agent";
 import { makeMockIntegration } from "@openma/matter-integration-mock";
 import {
   IntegrationError,
   type WorkIntegration,
-} from "@openma/matter-integration";
-import { createOpenMatter } from "@openma/matter-runtime";
+} from "@openma/matter/integration";
+import { createOpenMatter } from "@openma/matter/runtime";
 import { makeMemoryStore } from "@openma/matter-store-memory";
-import { StoreError } from "@openma/matter-store";
-import type {
-  ContextProjection,
-  WorkEffect,
-  WorkEvent,
-} from "@openma/matter-core";
+import { StoreError } from "@openma/matter/store";
+import type { ContextProjection, WorkEffect, WorkEvent } from "@openma/matter";
 import { Deferred, Effect, Fiber, Stream } from "effect";
 
 const messageEvent = (id: string): WorkEvent => ({

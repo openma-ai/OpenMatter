@@ -2,8 +2,8 @@ import {
   JsonValueSchema,
   type JsonValue,
   type WorkEvent,
-} from "@openma/matter-core";
-import { IntegrationError } from "@openma/matter-integration";
+} from "@openma/matter";
+import { IntegrationError } from "@openma/matter/integration";
 import { Effect, Schema } from "effect";
 import {
   isRecord,

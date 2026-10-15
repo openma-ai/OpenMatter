@@ -14,7 +14,7 @@ import {
   type ProviderAppConfig,
   type SecretCipher,
   type TokenGrant,
-} from "../packages/bond/src/index.js";
+} from "../packages/matter/src/bond/index.js";
 
 const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
 const fail = async <A>(effect: Effect.Effect<A, BondError>) => {

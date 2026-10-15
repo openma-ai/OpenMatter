@@ -1,4 +1,4 @@
-import type { WorkIntegration } from "@openma/matter-integration";
+import type { WorkIntegration } from "@openma/matter/integration";
 import { Effect } from "effect";
 import { makeSlackContextReader } from "./context.js";
 import { makeSlackCredentialsFor } from "./credentials.js";

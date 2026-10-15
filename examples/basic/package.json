@@ -8,10 +8,9 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@openma/matter": "workspace:*",
     "@openma/matter-agent-mock": "workspace:*",
-    "@openma/matter-core": "workspace:*",
     "@openma/matter-integration-mock": "workspace:*",
-    "@openma/matter-runtime": "workspace:*",
     "@openma/matter-store-memory": "workspace:*",
     "effect": "3.22.1"
   }

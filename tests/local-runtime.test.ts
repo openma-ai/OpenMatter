@@ -1,5 +1,5 @@
-import { createOpenMatter, SessionBusyError } from "@openma/matter-runtime";
-import type { OpenMatterApplication } from "@openma/matter-runtime";
+import { createOpenMatter, SessionBusyError } from "@openma/matter/runtime";
+import type { OpenMatterApplication } from "@openma/matter/runtime";
 import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";

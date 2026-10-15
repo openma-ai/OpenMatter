@@ -1,6 +1,7 @@
 {
   "name": "@openma/matter-host-local",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,9 +17,7 @@
     }
   },
   "dependencies": {
-    "@openma/matter-core": "workspace:*",
-    "@openma/matter-inbox": "workspace:*",
-    "@openma/matter-runtime": "workspace:*",
+    "@openma/matter": "workspace:*",
     "@slack/socket-mode": "3.0.0",
     "undici": "7.29.0"
   },

@@ -33,7 +33,7 @@ grants, reactions, and recovery.
 ## User-defined Loop
 
 ```ts
-import { defineLoop } from "@openma/matter-runtime";
+import { defineLoop } from "@openma/matter/runtime";
 
 const issueTriage = defineLoop(
   {

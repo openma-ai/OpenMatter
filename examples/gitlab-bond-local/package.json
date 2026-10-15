@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@openma/matter-bond": "workspace:*",
-    "@openma/matter-bond-gitlab": "workspace:*",
+    "@openma/matter": "workspace:*",
+    "@openma/matter-gitlab": "workspace:*",
     "effect": "3.22.1"
   }
 }

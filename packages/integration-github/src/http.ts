@@ -1,5 +1,5 @@
-import { JsonValueSchema, type JsonValue } from "@openma/matter-core";
-import type { HttpEndpoint } from "@openma/matter-http";
+import { JsonValueSchema, type JsonValue } from "@openma/matter";
+import type { HttpEndpoint } from "@openma/matter/http";
 import { Data, Effect, Schema } from "effect";
 import { isRecord } from "./shared.js";
 

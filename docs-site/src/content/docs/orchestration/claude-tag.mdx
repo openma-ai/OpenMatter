@@ -23,15 +23,15 @@ Slack native input
 This is the smallest realistic composition. The Store, credential source, and Agent Driver remain injected ports.
 
 ```ts title="application.ts"
-import type { AgentDriver } from "@openma/matter-agent";
-import { makeCredentialResolver } from "@openma/matter-credentials";
+import type { AgentDriver } from "@openma/matter/agent";
+import { makeCredentialResolver } from "@openma/matter/credentials";
 import {
   makeSlackIntegration,
   type SlackCredentials,
 } from "@openma/matter-integration-slack";
 import { claudeTag } from "@openma/matter-orchestration";
-import { createOpenMatter } from "@openma/matter-runtime";
-import type { OpenMatterStore } from "@openma/matter-store";
+import { createOpenMatter } from "@openma/matter/runtime";
+import type { OpenMatterStore } from "@openma/matter/store";
 import { Effect } from "effect";
 
 interface ApplicationPorts {

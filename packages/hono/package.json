@@ -1,6 +1,7 @@
 {
   "name": "@openma/matter-hono",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,7 +17,7 @@
     }
   },
   "dependencies": {
-    "@openma/matter-http": "workspace:*"
+    "@openma/matter": "workspace:*"
   },
   "peerDependencies": {
     "hono": "^4.13.3"

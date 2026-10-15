@@ -93,7 +93,7 @@ code. A credential store plugs in through the provider-neutral authority
 resolver:
 
 ```ts
-import { makeCredentialResolver } from "@openma/matter-credentials";
+import { makeCredentialResolver } from "@openma/matter/credentials";
 
 const slack = makeSlackIntegration({
   credentials: makeCredentialResolver(({ authority }) =>
@@ -288,7 +288,7 @@ between these hosts does not alter the WorkEvent, Scope, Session, or Reaction
 model.
 
 `@openma/matter-inbox-sqlite` is the embedded Node adapter; another database or
-queue can implement the same `@openma/matter-inbox` port. Completed inbox rows are
+queue can implement the same `@openma/matter/inbox` port. Completed inbox rows are
 retained for provider-envelope deduplication. The transport inbox does not
 replace `OpenMatterStore`: a crash-safe standalone service needs both on durable
 storage. Slack Web API Effects remain at-least-once where Slack exposes no

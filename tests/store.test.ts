@@ -1,5 +1,5 @@
-import { createOpenMAEvent, type OpenMAEvent } from "@openma/matter-agent";
-import type { Reaction, Turn, WorkEffect } from "@openma/matter-core";
+import { createOpenMAEvent, type OpenMAEvent } from "@openma/matter/agent";
+import type { Reaction, Turn, WorkEffect } from "@openma/matter";
 import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";

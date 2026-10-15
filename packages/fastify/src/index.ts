@@ -1,4 +1,4 @@
-import type { HttpEndpoint } from "@openma/matter-http";
+import type { HttpEndpoint } from "@openma/matter/http";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 
 export interface OpenMatterFastifyOptions {
@@ -72,4 +72,4 @@ export const openMatter =
     }
   };
 
-export type { HttpEndpoint, HttpMethod } from "@openma/matter-http";
+export type { HttpEndpoint, HttpMethod } from "@openma/matter/http";

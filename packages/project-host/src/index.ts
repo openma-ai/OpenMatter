@@ -44,7 +44,7 @@ import { makeSqliteInbox } from "@openma/matter-inbox-sqlite";
 import {
   createOpenMatter,
   type OpenMatterApplication,
-} from "@openma/matter-runtime";
+} from "@openma/matter/runtime";
 import {
   coordinatorLoop,
   type CoordinatorAssociation,
@@ -57,9 +57,9 @@ import {
   PROJECT_WORK_EVENT_TYPES,
   ProjectControlError,
 } from "@openma/matter-project";
-import type { AgentDriver } from "@openma/matter-agent";
-import type { WorkEvent, JsonValue, ThreadGoal } from "@openma/matter-core";
-import type { InboxClaim } from "@openma/matter-inbox";
+import type { AgentDriver } from "@openma/matter/agent";
+import type { WorkEvent, JsonValue, ThreadGoal } from "@openma/matter";
+import type { InboxClaim } from "@openma/matter/inbox";
 import type {
   ProjectWorkConfig,
   ProjectWorkCommand,

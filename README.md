@@ -83,7 +83,7 @@ TypeScript. The definition can be inspected, versioned, generated, and later
 visualized without pretending arbitrary application logic is serializable.
 
 ```ts
-import { defineLoop } from "@openma/matter-runtime";
+import { defineLoop } from "@openma/matter/runtime";
 
 const issueTriage = defineLoop(
   {
@@ -217,15 +217,15 @@ other implicitly. Read the [identity model](docs/IDENTITY_MODEL.md).
 
 ## Packages
 
-| Group              | Packages                                                                         |
-| ------------------ | -------------------------------------------------------------------------------- |
-| Foundation         | `@openma/matter-core`, `store`, `integration`, `agent`, `runtime`, `credentials` |
-| Reference adapters | `store-memory`, `integration-mock`, `agent-mock`                                 |
-| Work platforms     | `integration-slack`, `integration-github`, `integration-linear`                  |
-| Agent bridge       | `agent-claude`                                                                   |
-| Orchestration      | `orchestration`                                                                  |
-| HTTP and hosts     | `http`, `fastify`, `hono`, `host-cloudflare`, `host-local`                       |
-| Ingress durability | `inbox`, `inbox-sqlite`                                                          |
+| Package                 | Contents                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `@openma/matter`        | The kernel. Subpaths: `.` (core Schemas), `/credentials`, `/bond`, `/store`, `/inbox`, `/integration`, `/agent`, `/runtime`, `/http` |
+| `@openma/matter-gitlab` | GitLab Bond provider (`/bond`)                                                                                                       |
+
+Reference adapters (`store-memory`, `store-sqlite`, `store-mysql`,
+`inbox-sqlite`, `*-mock`), the Slack, GitHub, and Linear integrations,
+`orchestration`, the Projects packages, hosts, and the Fastify/Hono components
+live in this repository as private workspace packages.
 
 The dependency direction and ownership of every package are documented in
 [Project structure](docs/PROJECT_STRUCTURE.md).

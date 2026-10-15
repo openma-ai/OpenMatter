@@ -1,6 +1,6 @@
 import { makeMockAgentDriver } from "@openma/matter-agent-mock";
 import { makeMockIntegration } from "@openma/matter-integration-mock";
-import { createOpenMatter } from "@openma/matter-runtime";
+import { createOpenMatter } from "@openma/matter/runtime";
 import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 

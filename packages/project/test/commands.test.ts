@@ -1,4 +1,4 @@
-import type { WorkEvent } from "@openma/matter-core";
+import type { WorkEvent } from "@openma/matter";
 import { makeMemoryInbox } from "./memory-inbox.js";
 import {
   associateProjectEvent,

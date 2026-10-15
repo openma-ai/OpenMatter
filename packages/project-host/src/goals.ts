@@ -1,14 +1,10 @@
-import type {
-  ContextProjection,
-  ThreadGoal,
-  JsonValue,
-} from "@openma/matter-core";
-import type { AgentTurnResult } from "@openma/matter-runtime";
+import type { ContextProjection, ThreadGoal, JsonValue } from "@openma/matter";
+import type { AgentTurnResult } from "@openma/matter/runtime";
 import type { SqliteStore } from "@openma/matter-store-sqlite";
 import { Effect } from "effect";
 import type { DatabaseSync } from "node:sqlite";
 
-export type { ThreadGoal } from "@openma/matter-core";
+export type { ThreadGoal } from "@openma/matter";
 export interface ProjectGoalInput {
   projectId: string;
   workThreadId: string;

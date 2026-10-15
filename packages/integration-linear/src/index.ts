@@ -1,4 +1,4 @@
-import { IntegrationError } from "@openma/matter-integration";
+import { IntegrationError } from "@openma/matter/integration";
 import { Effect } from "effect";
 import { makeLinearContextReader } from "./context.js";
 import { makeLinearCredentialsFor } from "./credentials.js";

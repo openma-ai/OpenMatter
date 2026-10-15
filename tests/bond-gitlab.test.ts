@@ -5,7 +5,7 @@ import {
   makeBond,
   makeMemoryBondStore,
   type ProviderAppConfig,
-} from "../packages/bond/src/index.js";
+} from "../packages/matter/src/bond/index.js";
 import {
   assistedByTrailer,
   authorizationUrl,
@@ -33,7 +33,7 @@ import {
   type GitLabUser,
   type PushPolicy,
   type ReceivePackHead,
-} from "../packages/bond-gitlab/src/index.js";
+} from "../packages/gitlab/src/bond/index.js";
 
 const ORIGIN = "https://gitlab.example.com";
 const run = <A, E>(e: Effect.Effect<A, E>) => Effect.runPromise(e);

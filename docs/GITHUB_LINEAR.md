@@ -59,7 +59,7 @@ credential authority; repository owner/name is Resource location, not the
 security boundary.
 
 ```ts
-import { makeCredentialResolver } from "@openma/matter-credentials";
+import { makeCredentialResolver } from "@openma/matter/credentials";
 import {
   makeGitHubHttpEndpoint,
   makeGitHubIntegration,
@@ -94,7 +94,7 @@ rejects stale deliveries, and uses `Linear-Delivery` as delivery identity.
 authentication; personal API keys use Linear's raw Authorization value.
 
 ```ts
-import { makeCredentialResolver } from "@openma/matter-credentials";
+import { makeCredentialResolver } from "@openma/matter/credentials";
 import {
   makeLinearHttpEndpoint,
   makeLinearIntegration,

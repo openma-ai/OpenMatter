@@ -1,6 +1,7 @@
 {
   "name": "@openma/matter-project-host",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,15 +17,11 @@
     }
   },
   "dependencies": {
-    "@openma/matter-core": "workspace:*",
-    "@openma/matter-store": "workspace:*",
-    "@openma/matter-store-sqlite": "workspace:*",
-    "@openma/matter-agent": "workspace:*",
-    "@openma/matter-runtime": "workspace:*",
+    "@openma/matter": "workspace:*",
+    "@openma/matter-inbox-sqlite": "workspace:*",
     "@openma/matter-orchestration": "workspace:*",
     "@openma/matter-project": "workspace:*",
-    "@openma/matter-inbox": "workspace:*",
-    "@openma/matter-inbox-sqlite": "workspace:*"
+    "@openma/matter-store-sqlite": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

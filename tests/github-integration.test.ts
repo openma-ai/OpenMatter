@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
-import type { WorkIntegration } from "@openma/matter-integration";
-import type { ContextItem } from "@openma/matter-core";
-import { makeCredentialResolver } from "@openma/matter-credentials";
+import type { WorkIntegration } from "@openma/matter/integration";
+import type { ContextItem } from "@openma/matter";
+import { makeCredentialResolver } from "@openma/matter/credentials";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 

@@ -12,37 +12,29 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "paths": {
-      "@openma/matter-core": ["./packages/core/src/index.ts"],
-      "@openma/matter-credentials": ["./packages/credentials/src/index.ts"],
-      "@openma/matter-bond": ["./packages/bond/src/index.ts"],
-      "@openma/matter-bond-gitlab": ["./packages/bond-gitlab/src/index.ts"],
-      "@openma/matter-store": ["./packages/store/src/index.ts"],
-      "@openma/matter-store-memory": ["./packages/store-memory/src/index.ts"],
-      "@openma/matter-store-sqlite": ["./packages/store-sqlite/src/index.ts"],
-      "@openma/matter-store-mysql": ["./packages/store-mysql/src/index.ts"],
-      "@openma/matter-inbox": ["./packages/inbox/src/index.ts"],
+      "@openma/matter": ["./packages/matter/src/index.ts"],
+      "@openma/matter/*": ["./packages/matter/src/*/index.ts"],
+      "@openma/matter-gitlab/bond": ["./packages/gitlab/src/bond/index.ts"],
+      "@openma/matter-agent-mock": ["./packages/agent-mock/src/index.ts"],
+      "@openma/matter-fastify": ["./packages/fastify/src/index.ts"],
+      "@openma/matter-hono": ["./packages/hono/src/index.ts"],
+      "@openma/matter-host-cloudflare": [
+        "./packages/host-cloudflare/src/index.ts"
+      ],
+      "@openma/matter-host-local": ["./packages/host-local/src/index.ts"],
       "@openma/matter-inbox-sqlite": ["./packages/inbox-sqlite/src/index.ts"],
-      "@openma/matter-integration": ["./packages/integration/src/index.ts"],
-      "@openma/matter-integration-mock": [
-        "./packages/integration-mock/src/index.ts"
-      ],
-      "@openma/matter-integration-slack": [
-        "./packages/integration-slack/src/index.ts"
-      ],
       "@openma/matter-integration-github": [
         "./packages/integration-github/src/index.ts"
       ],
       "@openma/matter-integration-linear": [
         "./packages/integration-linear/src/index.ts"
       ],
-      "@openma/matter-agent": ["./packages/agent/src/index.ts"],
-      "@openma/matter-agent-claude": ["./packages/agent-claude/src/index.ts"],
-      "@openma/matter-agent-mock": ["./packages/agent-mock/src/index.ts"],
-      "@openma/matter-runtime": ["./packages/runtime/src/index.ts"],
-      "@openma/matter-host-cloudflare": [
-        "./packages/host-cloudflare/src/index.ts"
+      "@openma/matter-integration-mock": [
+        "./packages/integration-mock/src/index.ts"
       ],
-      "@openma/matter-host-local": ["./packages/host-local/src/index.ts"],
+      "@openma/matter-integration-slack": [
+        "./packages/integration-slack/src/index.ts"
+      ],
       "@openma/matter-orchestration": ["./packages/orchestration/src/index.ts"],
       "@openma/matter-project": ["./packages/project/src/index.ts"],
       "@openma/matter-project-host": ["./packages/project-host/src/index.ts"],
@@ -50,9 +42,9 @@
       "@openma/matter-project-worker": [
         "./packages/project-worker/src/index.ts"
       ],
-      "@openma/matter-http": ["./packages/http/src/index.ts"],
-      "@openma/matter-fastify": ["./packages/fastify/src/index.ts"],
-      "@openma/matter-hono": ["./packages/hono/src/index.ts"]
+      "@openma/matter-store-memory": ["./packages/store-memory/src/index.ts"],
+      "@openma/matter-store-mysql": ["./packages/store-mysql/src/index.ts"],
+      "@openma/matter-store-sqlite": ["./packages/store-sqlite/src/index.ts"]
     },
     "types": ["node", "vitest/globals"]
   },

@@ -3,7 +3,7 @@ import {
   type JsonValue,
   type SourceAnchor,
   type WorkEvent,
-} from "@openma/matter-core";
+} from "@openma/matter";
 import { Schema } from "effect";
 import type { LinearWebhookInput } from "./http.js";
 

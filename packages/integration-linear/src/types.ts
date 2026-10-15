@@ -1,9 +1,9 @@
-import type { ContextItem } from "@openma/matter-core";
-import type { CredentialResolver } from "@openma/matter-credentials";
+import type { ContextItem } from "@openma/matter";
+import type { CredentialResolver } from "@openma/matter/credentials";
 import type {
   IntegrationError,
   WorkIntegration,
-} from "@openma/matter-integration";
+} from "@openma/matter/integration";
 import type { Effect } from "effect";
 
 export interface LinearOAuthCredentials {

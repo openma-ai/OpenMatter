@@ -1,7 +1,7 @@
 # Bond: linked provider accounts and execution principals
 
-**Status:** proposed (2026-10-12). The kernel `@openma/matter-bond` and the
-GitLab binding `@openma/matter-bond-gitlab` are implemented; the GitHub binding
+**Status:** proposed (2026-10-12). The kernel `@openma/matter/bond` and the
+GitLab binding `@openma/matter-gitlab/bond` are implemented; the GitHub binding
 is not.
 **Decision:** OpenMatter provides Bond, an optional, storage-free kernel that
 links work-platform accounts, selects an explicit `ExecutionPrincipal`, and
@@ -14,7 +14,7 @@ Work agents need two things from OpenMatter:
 
 | Module | Answers                                                                                                      | Packages                                                                          |
 | ------ | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| Bond   | who acts, and with which credential: installations, user links, link methods, principal selection, freshness | `@openma/matter-bond`, `@openma/matter-bond-github`, `@openma/matter-bond-gitlab` |
+| Bond   | who acts, and with which credential: installations, user links, link methods, principal selection, freshness | `@openma/matter/bond`, `@openma/matter-github/bond`, `@openma/matter-gitlab/bond` |
 | Loop   | when the agent acts, and what it does: event and schedule sources, continuity, context, Reactions            | [Loops](LOOPS.md) and `@openma/matter-integration-*`                              |
 
 Comparable products split the same way. Devin separates Integrations (an
@@ -104,7 +104,7 @@ Not in scope, and deliberately left to applications:
 
 This keeps the commitments in [README](../README.md) and
 [Credential resolution](CREDENTIALS.md): OpenMatter owns no mandatory
-credential service, and `@openma/matter-credentials` remains a resolver port.
+credential service, and `@openma/matter/credentials` remains a resolver port.
 [Work Profiles](INTEGRATIONS.md) already allows "OAuth installation
 callbacks" as explicit, independently packageable custom bindings. These
 packages are that kind of binding.
@@ -119,19 +119,19 @@ packages are that kind of binding.
         GitHub binding: install-and-authorize, repository intersection,
         repository-scoped installation tokens, attribution helpers
                 │
-@openma/matter-bond
+@openma/matter/bond
         kernel: link state machine, token freshness, principal selection,
         audit facts, ports, conformance suite, memory adapter (tests only)
                 │  produces
-@openma/matter-credentials  CredentialResolver (unchanged port, extended request)
+@openma/matter/credentials  CredentialResolver (unchanged port, extended request)
 ────────────────────────────────────────────── application layer
 open-managed-agents   SQL adapter, purpose cipher/KMS, routes, console
 Backchat              SQLite metadata + OS keychain, device flow UI
 self-hosted hosts     their own store, routes, and key custody
 ```
 
-The Bond packages depend only on `effect`, `@openma/matter-credentials`,
-and Octokit. They do not depend on `@openma/matter-core` or the runtime, so a
+The Bond packages depend only on `effect`, `@openma/matter/credentials`,
+and Octokit. They do not depend on `@openma/matter` or the runtime, so a
 control plane can adopt them without adopting the Loop.
 
 Provider protocol code is not reimplemented. OpenMA currently hand-writes App
@@ -487,7 +487,7 @@ Invariants every application adapter must satisfy:
 
 ## Conformance suite
 
-`@openma/matter-bond` exports `bondStoreConformanceCases({ makeStore })`. It
+`@openma/matter/bond` exports `bondStoreConformanceCases({ makeStore })`. It
 returns framework-neutral cases that throw on failure, so each application
 runs them in its own test runner, against its real adapter and database. The
 suite covers idempotent upserts, ciphertext stored with its key id, tenant
@@ -597,7 +597,7 @@ granted per Turn like any other.
 
 ## GitLab binding
 
-`@openma/matter-bond-gitlab` covers gitlab.com and self-managed GitLab.
+`@openma/matter-gitlab/bond` covers gitlab.com and self-managed GitLab.
 By default it uses no bot, and every operation runs as the linking user.
 Project access tokens, group access tokens, and service accounts each create
 a bot user. An administrator may still register one of them as the
@@ -765,14 +765,14 @@ commit SHA, matching how Backchat consumes OpenMatter and how OMA consumes
 openma-common:
 
 ```jsonc
-"@openma/matter-bond":
-  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/bond",
-"@openma/matter-bond-gitlab":
-  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/bond-gitlab"
+"@openma/matter":
+  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/matter",
+"@openma/matter-gitlab":
+  "github:openma-ai/OpenMatter#<tag-or-sha>&path:/packages/gitlab"
 ```
 
-All `@openma/matter-*` packages in one consumer use the same tag or SHA,
-including `@openma/matter-credentials`. A bump is a reviewed lockfile change in
+`@openma/matter` and every `@openma/matter-*` package in one consumer use the
+same tag or SHA. A bump is a reviewed lockfile change in
 the consumer.
 
 ## Security notes

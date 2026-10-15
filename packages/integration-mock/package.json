@@ -1,6 +1,7 @@
 {
   "name": "@openma/matter-integration-mock",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,8 +17,7 @@
     }
   },
   "dependencies": {
-    "@openma/matter-core": "workspace:*",
-    "@openma/matter-integration": "workspace:*"
+    "@openma/matter": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

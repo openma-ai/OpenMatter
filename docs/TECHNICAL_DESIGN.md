@@ -59,16 +59,16 @@ claim token, or fencing token.
 ## 3. Package boundaries
 
 ```text
-@openma/matter-core              immutable records and Effect Schemas
-@openma/matter-store             durable Store port
+@openma/matter              immutable records and Effect Schemas
+@openma/matter/store             durable Store port
 @openma/matter-store-memory      in-process reference Store
-@openma/matter-inbox             durable transport-envelope port
+@openma/matter/inbox             durable transport-envelope port
 @openma/matter-inbox-sqlite      embedded Node inbox adapter
-@openma/matter-integration       WorkIntegration port
+@openma/matter/integration       WorkIntegration port
 @openma/matter-integration-mock  reference work adapter
-@openma/matter-agent             AgentDriver and OpenMAEvent port
+@openma/matter/agent             AgentDriver and OpenMAEvent port
 @openma/matter-agent-mock        reference agent adapter
-@openma/matter-runtime           lifecycle orchestration
+@openma/matter/runtime           lifecycle orchestration
 @openma/matter-integration-slack signed Slack ingress and semantic operations
 @openma/matter-orchestration     built-in code-first Loops
 @openma/matter-host-cloudflare   Worker HTTP/Queue host binding

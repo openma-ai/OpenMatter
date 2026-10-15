@@ -1,6 +1,7 @@
 {
   "name": "@openma/matter-project-worker",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,14 +17,11 @@
     }
   },
   "dependencies": {
-    "@openma/matter-agent": "workspace:*",
-    "@openma/matter-core": "workspace:*",
+    "@openma/matter": "workspace:*",
     "@openma/matter-orchestration": "workspace:*",
     "@openma/matter-project": "workspace:*",
     "@openma/matter-project-host": "workspace:*",
     "@openma/matter-project-mcp": "workspace:*",
-    "@openma/matter-runtime": "workspace:*",
-    "@openma/matter-store": "workspace:*",
     "@openma/matter-store-mysql": "workspace:*",
     "@openma/matter-store-sqlite": "workspace:*",
     "mysql2": "3.15.3"

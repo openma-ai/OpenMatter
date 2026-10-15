@@ -1,11 +1,11 @@
 import { DatabaseSync } from "node:sqlite";
-import { JsonValueSchema, type JsonValue } from "@openma/matter-core";
+import { JsonValueSchema, type JsonValue } from "@openma/matter";
 import {
   InboxError,
   type DurableInbox,
   type InboxClaim,
   type InboxItem,
-} from "@openma/matter-inbox";
+} from "@openma/matter/inbox";
 import { Effect, Schema } from "effect";
 
 export interface SqliteInboxOptions {

@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { makeCredentialResolver } from "../packages/credentials/src/index.js";
+import { makeCredentialResolver } from "../packages/matter/src/credentials/index.js";
 import {
   makeLinearHttpEndpoint,
   makeLinearIntegration,

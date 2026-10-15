@@ -1,5 +1,5 @@
-import type { ContextItem, JsonValue } from "@openma/matter-core";
-import { IntegrationError } from "@openma/matter-integration";
+import type { ContextItem, JsonValue } from "@openma/matter";
+import { IntegrationError } from "@openma/matter/integration";
 import { Effect } from "effect";
 import type { SlackProviderClient } from "./provider-client.js";
 import { isRecord } from "./shared.js";

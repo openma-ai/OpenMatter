@@ -439,13 +439,13 @@ What operations, events, Resources, interactions, capabilities, and bindings exi
 ## Initial packages
 
 ```text
-@openma/matter-core              domain records and JSON schemas
-@openma/matter-runtime           handler, scheduling, and orchestration loop
-@openma/matter-integration       WorkIntegration contracts and Layer
+@openma/matter              domain records and JSON schemas
+@openma/matter/runtime           handler, scheduling, and orchestration loop
+@openma/matter/integration       WorkIntegration contracts and Layer
 @openma/matter-integration-mock  bidirectional mock work platform
-@openma/matter-agent             AgentDriver, OpenMAEvent, and Layer
+@openma/matter/agent             AgentDriver, OpenMAEvent, and Layer
 @openma/matter-agent-mock        deterministic mock agent runtime
-@openma/matter-store             durable storage contract and Layer
+@openma/matter/store             durable storage contract and Layer
 @openma/matter-store-memory      process-local reference adapter
 @openma/matter-agent-acp         ACP binding
 @openma/matter-harness           black-box conformance suites
