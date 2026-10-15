@@ -4,10 +4,14 @@
 // cross the store boundary as `Sealed` values produced by the application's
 // SecretCipher.
 
-export type ProviderKind = "github" | "gitlab";
+export type ProviderKind = "github" | "gitlab" | "feishu";
 
-/** How a user linked: provider authorization or a pasted personal access token. */
-export type LinkMethod = "oauth" | "pat";
+/**
+ * How a user linked: provider authorization by redirect (`oauth`) or by the
+ * OAuth device authorization flow, RFC 8628 (`device`), or a pasted personal
+ * access token (`pat`).
+ */
+export type LinkMethod = "oauth" | "device" | "pat";
 
 export type LinkMethodPolicy = "pat_only" | "oauth_only" | "oauth_preferred";
 

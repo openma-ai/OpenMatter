@@ -1,7 +1,9 @@
 import { Data, type Effect } from "effect";
 import type {
   Installation,
+  LinkMethod,
   ProviderAppConfig,
+  ProviderKind,
   RefreshLease,
   Sealed,
   SealedTokens,
@@ -192,7 +194,7 @@ export interface TokenGrant {
 
 /** Provider-specific protocol, implemented by the GitHub and GitLab Bond providers. */
 export interface BondProvider {
-  readonly provider: "github" | "gitlab";
+  readonly provider: ProviderKind;
   /**
    * Whether user-principal output carries a provider-native delegation
    * marker, such as GitHub's "with App". Without one, user-principal writes
@@ -212,7 +214,7 @@ export interface BondProvider {
   readonly revokeUserToken: (
     config: ProviderAppConfig,
     tokens: {
-      readonly method: "oauth" | "pat";
+      readonly method: LinkMethod;
       readonly accessToken: string;
       readonly refreshToken?: string;
     },
