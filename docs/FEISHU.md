@@ -267,14 +267,14 @@ token. The agent never sees `app_secret` or a raw token.
 
 ### 4.4 Token endpoints (credentials port, not Effects)
 
-| Call                                                                         | Model       | Notes                                                                                                                      |
-| ---------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `POST /auth/v3/tenant_access_token/internal` `{ app_id, app_secret }`        | self-built  | ≤ 2 h; a new token is issued when < 30 min remain; cache until 5 min before `expire`                                       |
-| `POST /auth/v3/app_access_token` `{ app_id, app_secret, app_ticket }`        | marketplace | ≤ 2 h ([doc](https://open.feishu.cn/document/server-docs/authentication-management/access-token/app_access_token))         |
-| `POST /auth/v3/tenant_access_token` `{ app_access_token, tenant_key }`       | marketplace | per tenant ([doc](https://open.feishu.cn/document/server-docs/authentication-management/access-token/tenant_access_token)) |
-| `POST /auth/v3/app_ticket/resend` `{ app_id, app_secret }`                   | marketplace | when no ticket is stored (cold start)                                                                                      |
-| `POST /authen/v2/oauth/token` `grant_type=authorization_code\|refresh_token` | user link   | §5.4                                                                                                                       |
-| `GET /bot/v3/info`                                                           | all         | bot `open_id` for mention detection, cached on the installation **(verify path)**                                          |
+| Call                                                                                               | Model       | Notes                                                                                                                      |
+| -------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/v3/tenant_access_token/internal` `{ app_id, app_secret }`                              | self-built  | ≤ 2 h; a new token is issued when < 30 min remain; cache until 5 min before `expire`                                       |
+| `POST /auth/v3/app_access_token` `{ app_id, app_secret, app_ticket }`                              | marketplace | ≤ 2 h ([doc](https://open.feishu.cn/document/server-docs/authentication-management/access-token/app_access_token))         |
+| `POST /auth/v3/tenant_access_token` `{ app_access_token, tenant_key }`                             | marketplace | per tenant ([doc](https://open.feishu.cn/document/server-docs/authentication-management/access-token/tenant_access_token)) |
+| `POST /auth/v3/app_ticket/resend` `{ app_id, app_secret }`                                         | marketplace | when no ticket is stored (cold start)                                                                                      |
+| `POST accounts…/oauth/v3/token` (form) `grant_type=authorization_code\|refresh_token\|device_code` | user link   | §6.4; client credentials in the body only (a Basic header as well answers 20070)                                           |
+| `GET /bot/v3/info`                                                                                 | all         | bot `open_id` for mention detection, cached on the installation **(verify path)**                                          |
 
 ## 5. App models
 
@@ -410,12 +410,16 @@ Binding; the host persists the result as a `self_built` ProviderApp with
 ### 6.2 Manifest
 
 `feishuManifest: BondManifest` with `provider: "feishu"`, `setupSchema` =
-`FeishuAppConfig` (secrets `x-secret`), `linkMethods: ["oauth"]`, and:
+`FeishuAppConfig` (secrets `x-secret`), `linkMethods: ["device", "oauth"]`, and:
 
 | Resource kind | Id               | Operations (access)                                                        | Principal        |
 | ------------- | ---------------- | -------------------------------------------------------------------------- | ---------------- |
-| `chat`        | `chat:<chat_id>` | `im.read` (read), `im.send` (write), `im.react` (write), `im.card` (write) | app              |
-| `doc`         | `doc:<token>`    | `docs.read` (read)                                                         | requester (user) |
+| `chat`        | `chat:<chat_id>` | `im_read` (read), `im_send` (write), `im_react` (write), `im_card` (write) | app              |
+| `doc`         | `doc:<token>`    | `docs_read` (read)                                                         | requester (user) |
+
+Operation names use underscores because the kernel requires
+`^[a-z][a-z0-9_]*$`. The first release declares only `chat`; `doc` follows
+with the user-principal reads.
 
 `chat_id` (`oc_…`) is stable across renames, as BONDS.md requires for
 resource ids. `chat:*` in a grant covers every chat the bot is in.
@@ -556,7 +560,7 @@ export const feishuMention = defineLoop(
       reaction: "effects",
     },
     runAs: "requester", // falls back to app per policy
-    requiredBonds: [{ provider: "feishu", operations: ["im.read", "im.send"] }],
+    requiredBonds: [{ provider: "feishu", operations: ["im_read", "im_send"] }],
     configSchema: {
       type: "object",
       properties: { agentId: agentField, chats: chatsField },

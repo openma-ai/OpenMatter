@@ -105,6 +105,15 @@ importers:
         specifier: 5.12.1
         version: 5.12.1
 
+  packages/feishu:
+    dependencies:
+      "@openma/matter":
+        specifier: workspace:*
+        version: link:../matter
+      "@openma/matter-loop":
+        specifier: workspace:*
+        version: link:../loop
+
   packages/github:
     dependencies:
       "@openma/matter":

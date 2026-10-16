@@ -27,6 +27,8 @@ packages/
 ├── loop                 @openma/matter-loop — dependency-free guest SDK for Loops run in an isolate
 ├── gitlab               @openma/matter-gitlab — ./bond: GitLab Bond provider, webhook
 │                        ingest, note Effects, HTTP decoder, and Loop templates
+├── feishu               @openma/matter-feishu — ./bond: Feishu/Lark Bond provider for
+│                        self-built apps, device and OAuth user links, chat catalog
 │
 │   One package per provider, @openma/matter-<provider>. ./bond holds the
 │   Binding and the Integration; the Integration depends only on the
