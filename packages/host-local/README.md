@@ -34,6 +34,9 @@ expired items, renews their leases during long Agent Turns, and completes or
 durably reschedules them. Graceful shutdown stops accepting envelopes,
 interrupts owned Fibers, and releases their items for replay.
 
+Feishu and Lark ship their source in `@openma/matter-feishu/long-connection`
+(`makeFeishuLongConnectionSource`); pass it as `source`.
+
 ## Slack Socket Mode
 
 `makeLocalSlackRuntime` adapts Slack's Socket Mode client with

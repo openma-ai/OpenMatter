@@ -166,18 +166,25 @@ Proposed exports:
   normalizeFeishuEvents(input) → WorkEvent[]
   makeFeishuIntegration({ credentials }) → { integration, context, tools }
 @openma/matter-feishu/long-connection   Node only, optional peer @larksuiteoapi/node-sdk
-  startFeishuLongConnection({ appId, appSecret, authority, eventTypes, submit, onState }) → { stop }
+  makeFeishuLongConnectionSource({ baseUrl, appId, appSecret, authority, botOpenId?,
+    cardActionResponse?, onState? }) → LongConnectionSource (host-local runtime)
 ```
 
 Both transports produce the same `FeishuEventInput` (`{ kind: "feishu.event",
 authority, transport, botOpenId?, envelope }`; `botOpenId` comes from
 `inspectFeishuApp` and decides mentions), and `ingest` never knows which one
-delivered it. `startFeishuLongConnection` rebuilds the full v2 envelope (OMA
-drops everything except `sender`/`message`/`chat`,
-`OMA ws-feishu-runner.ts:491-506`) and **awaits `submit`** before its handler
-returns, so the SDK acks only after the DurableInbox stored the envelope —
-the ack-after-enqueue rule of `host-local` (`packages/host-local/src/index.ts:34`).
-The 3 s budget therefore covers one inbox write only.
+delivered it. The long-connection source hands the SDK's full v2 envelope
+over unparsed (OMA drops everything except `sender`/`message`/`chat`,
+`OMA ws-feishu-runner.ts:491-506`) and answers Feishu only after the host
+runtime stored the event and called `ack`; otherwise it throws and Feishu
+redelivers. The 3 s budget therefore covers one inbox write only.
+
+Two ids, on purpose: the inbox item id is per delivery
+(`feishuDeliveryId`, `feishu:<authority>:event:<event_id>`) and the Event id
+is per message (`feishuEventId`, `feishu:<authority>:<message_id>`). Feishu
+may push one message under several event ids with different envelopes; an
+inbox refuses a reused key with a different body, so each delivery is
+stored once and the runtime claims the Event once.
 
 **Recommendation:** long connection is the default for self-built Bonds
 (models 2 and 3, today's OMA behavior, no public URL); webhook is required
@@ -639,7 +646,7 @@ packages/feishu/                         @openma/matter-feishu (public, Apache-2
       templates.ts                       feishu-chat, feishu-mention (import only @openma/matter-loop)
       shared.ts                          guards, withoutFeishuCredentials, feishuSource
       integration.ts / index.ts
-  src/long-connection/index.ts           startFeishuLongConnection (Node only)
+  src/long-connection/index.ts           makeFeishuLongConnectionSource (Node only)
 ```
 
 Exports `./bond` and `./long-connection`. Dependencies: `@openma/matter`,
@@ -663,7 +670,7 @@ user link, resource catalog` (model 2 paste + user OAuth/device flow).
 tools, feishu-chat`. Parity fixtures recorded from OMA's
    `parse.test.ts` and live events.
 3. OMA: register the Feishu provider; the host runs
-   `startFeishuLongConnection` per installation under a lease and the
+   `makeFeishuLongConnectionSource` per installation under a lease and the
    generic `/v1/oma/bonds/{bondId}/events` route for webhooks.
 4. OMA: migrate `feishu_publications` → Bond ProviderApp + Installation
    (`kind: "self_built"`, `ingress: "long_connection"`) + a `feishu-chat`
@@ -675,7 +682,7 @@ tools, feishu-chat`. Parity fixtures recorded from OMA's
 | OMA today                                                                           | Replaced by                                                |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `packages/feishu/*` (client, parse, signature, scope, config, credentials)          | `@openma/matter-feishu/bond`                               |
-| `ws-feishu-runner.ts`                                                               | `startFeishuLongConnection` + OMA host lease runner        |
+| `ws-feishu-runner.ts`                                                               | `makeFeishuLongConnectionSource` + OMA host lease runner   |
 | `feishu-egress-writer.ts`                                                           | `feishu-chat` Loop + `message.reply` Effect with a receipt |
 | `feishu-agent-tools.ts`                                                             | Integration `tools`, gated by `bond_grants`                |
 | `feishu_webhook_events` dedup                                                       | WorkEvent idempotency key in the OpenMatter store          |
@@ -684,7 +691,7 @@ tools, feishu-chat`. Parity fixtures recorded from OMA's
 | Feishu console pages, `feishu_*` tables, CF adapters                                | generic Matter pages, `bond_*`, `loop_*`, `matter_*`       |
 
 Stays in OMA: SQL storage and sealing of Bond secrets, the lease runner that
-calls `startFeishuLongConnection`, routes, console, the one-off migration,
+runs `makeFeishuLongConnectionSource`, routes, console, the one-off migration,
 and the generic MCP OAuth (`OMA apps/main/src/routes/oauth.ts:349-364`)
 until the Feishu user link replaces it (§10 item 7).
 

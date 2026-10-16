@@ -29,7 +29,8 @@ packages/
 │                        ingest, note Effects, HTTP decoder, and Loop templates
 ├── feishu               @openma/matter-feishu — ./bond: Feishu/Lark Bond provider for
 │                        self-built apps, device and OAuth user links, chat catalog,
-│                        encrypted webhook decoder, and event normalization
+│                        encrypted webhook decoder, and event normalization;
+│                        ./long-connection: Node long-connection source
 │
 │   One package per provider, @openma/matter-<provider>. ./bond holds the
 │   Binding and the Integration; the Integration depends only on the
