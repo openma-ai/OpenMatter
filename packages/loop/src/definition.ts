@@ -8,10 +8,16 @@ import { frozenJson, isJsonValue, type JsonValue } from "./json.js";
  */
 export type LoopRunAs = "app" | "requester";
 
-/** A provider account the Loop needs, and the operations it performs there. */
+/**
+ * A provider account the Loop needs, and the operations it performs there.
+ * `runAs` overrides the Loop's `runAs` for this Bond: one value for every
+ * operation, or a value per operation. A bug-triage Loop, for example, reads
+ * GitLab as the requester and replies in chat as the app.
+ */
 export interface LoopRequiredBond {
   readonly provider: string;
   readonly operations: readonly string[];
+  readonly runAs?: LoopRunAs | { readonly [operation: string]: LoopRunAs };
 }
 
 /** The portable, inspectable half of a Loop. Plain JSON. */
@@ -31,6 +37,9 @@ export interface LoopDefinition {
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
+const isRunAs = (value: unknown): value is LoopRunAs =>
+  value === "app" || value === "requester";
+
 const requiredBondsProblem = (value: unknown): string | undefined => {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) return "requiredBonds must be a list";
@@ -42,12 +51,50 @@ const requiredBondsProblem = (value: unknown): string | undefined => {
       !Array.isArray((bond as LoopRequiredBond).operations) ||
       (bond as LoopRequiredBond).operations.length === 0 ||
       !(bond as LoopRequiredBond).operations.every(isNonEmptyString) ||
-      Object.keys(bond).some((k) => k !== "provider" && k !== "operations")
+      Object.keys(bond).some(
+        (k) => k !== "provider" && k !== "operations" && k !== "runAs",
+      )
     ) {
       return "each requiredBonds entry needs a provider and a non-empty list of operations";
     }
+    const { provider, operations, runAs } = bond as LoopRequiredBond;
+    if (runAs === undefined || isRunAs(runAs)) continue;
+    if (typeof runAs !== "object" || runAs === null || Array.isArray(runAs)) {
+      return `requiredBonds ${provider}.runAs must be app, requester, or a map of operations`;
+    }
+    for (const [operation, value] of Object.entries(runAs)) {
+      if (!operations.includes(operation)) {
+        return `requiredBonds ${provider}.runAs names ${operation}, which is not in its operations`;
+      }
+      if (!isRunAs(value)) {
+        return `requiredBonds ${provider}.runAs.${operation} must be app or requester`;
+      }
+    }
   }
   return undefined;
+};
+
+/**
+ * Whose identity one provider operation of the Loop uses: the operation's
+ * own `runAs`, then its Bond's, then the Loop's, then `app`. The host turns
+ * the answer into a Bond principal request. `requester` takes effect only
+ * for attended Events; Bond refuses it for an unattended one rather than
+ * borrowing a person's link (docs/LOOPS.md, "Execution principal").
+ */
+export const loopRunAs = (
+  definition: Pick<LoopDefinition, "requiredBonds" | "runAs">,
+  provider: string,
+  operation: string,
+): LoopRunAs => {
+  const bonds = (definition.requiredBonds ?? []).filter(
+    (b) => b.provider === provider,
+  );
+  const bond = bonds.find((b) => b.operations.includes(operation)) ?? bonds[0];
+  const declared = bond?.runAs;
+  if (isRunAs(declared)) return declared;
+  const perOperation = declared?.[operation];
+  if (isRunAs(perOperation)) return perOperation;
+  return definition.runAs ?? "app";
 };
 
 /**
