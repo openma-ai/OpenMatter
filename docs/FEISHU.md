@@ -217,6 +217,19 @@ export const FEISHU_OPERATIONS = [
 export type FeishuEffectOperation = (typeof FEISHU_OPERATIONS)[number];
 ```
 
+**Implemented in v1** (`makeFeishuIntegration`, `makeFeishuDelivery`):
+`message.send` `{ chatId, text | card }`, `message.reply`
+`{ messageId, text | card, inThread? }`, `reaction.add`
+`{ messageId, emoji }`, and `card.update` `{ messageId, card }`. A send or
+reply takes exactly one of `text` and `card`, so `card.send` and
+`card.reply` are not separate operations; `feishuMarkdownCard(markdown)`
+wraps an Agent reply in a Card JSON 2.0 markdown card. The uuid is the first
+32 hex digits of SHA-256 of the idempotency key. Ids are checked against
+`oc_` / `om_` and `[A-Za-z0-9_-]` before any call. All run as the bot;
+`openId` targets, `message.update`, `message.recall`, `reaction.remove`, and
+callback-token card updates follow later. The table below is the full
+design.
+
 Every input carries `authority`; `principal` is optional (`"app"` default,
 or `"requester"` when the Loop runs as the requester, resolved by Bond).
 
