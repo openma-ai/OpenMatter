@@ -343,6 +343,49 @@ const byEvent = (
 };
 
 /**
+ * The Event id (and idempotency key) `normalizeFeishuEvents` gives an
+ * envelope: `feishu:<authority>:<message_id>` for a received message and
+ * `feishu:<authority>:event:<event_id>` otherwise. Transports use it as the
+ * inbox item id so a redelivery is stored once. Undefined for an envelope
+ * without a v2 header.
+ */
+export const feishuEventId = (
+  authority: string,
+  envelope: unknown,
+): string | undefined => {
+  if (!isRecord(envelope) || !isRecord(envelope.header)) return undefined;
+  const head = envelope.header;
+  if (!nonEmptyString(head.event_id) || !nonEmptyString(head.event_type))
+    return undefined;
+  const messageId =
+    head.event_type === "im.message.receive_v1" &&
+    isRecord(envelope.event) &&
+    isRecord(envelope.event.message)
+      ? str(envelope.event.message.message_id)
+      : undefined;
+  return `feishu:${authority}:${messageId ?? `event:${head.event_id}`}`;
+};
+
+/**
+ * The id of one delivery, `feishu:<authority>:event:<event_id>`, for a
+ * transport inbox. It differs from `feishuEventId`: Feishu may push the same
+ * message under several event ids, each with a different envelope, and an
+ * inbox refuses a reused key with a different body. Each delivery is stored
+ * once; deliveries of one message normalize to one Event id, which the
+ * runtime processes once.
+ */
+export const feishuDeliveryId = (
+  authority: string,
+  envelope: unknown,
+): string | undefined =>
+  isRecord(envelope) &&
+  isRecord(envelope.header) &&
+  nonEmptyString(envelope.header.event_id) &&
+  nonEmptyString(envelope.header.event_type)
+    ? `feishu:${authority}:event:${envelope.header.event_id}`
+    : undefined;
+
+/**
  * Normalizes one `FeishuEventInput`. Event ids are
  * `feishu:<authority>:<message_id>` for received messages (Feishu redelivers
  * a message under a new event id) and `feishu:<authority>:event:<event_id>`

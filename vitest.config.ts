@@ -20,6 +20,10 @@ export default defineConfig({
         replacement: fromRoot("./packages") + "/$1/src/bond/index.ts",
       },
       {
+        find: /^@openma\/matter-feishu\/long-connection$/,
+        replacement: fromRoot("./packages/feishu/src/long-connection/index.ts"),
+      },
+      {
         find: /^@openma\/matter-loop$/,
         replacement: fromRoot("./packages/loop/src/index.ts"),
       },

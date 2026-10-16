@@ -1,7 +1,7 @@
 {
   "name": "@openma/matter-feishu",
   "version": "0.2.0",
-  "description": "Feishu and Lark for OpenMatter: the Bond provider for customer self-built apps, user links by device flow or OAuth with PKCE, and the chat resource catalog.",
+  "description": "Feishu and Lark for OpenMatter: the Bond provider for customer self-built apps, user links by device flow or OAuth with PKCE, the chat resource catalog, the encrypted webhook endpoint, event normalization, and the long-connection source.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -17,6 +17,10 @@
     "./bond": {
       "types": "./dist/bond/index.d.ts",
       "import": "./dist/bond/index.js"
+    },
+    "./long-connection": {
+      "types": "./dist/long-connection/index.d.ts",
+      "import": "./dist/long-connection/index.js"
     }
   },
   "publishConfig": {
@@ -28,6 +32,15 @@
     "@openma/matter-loop": "workspace:*"
   },
   "peerDependencies": {
+    "@larksuiteoapi/node-sdk": "^1.76.0",
     "effect": "^3.22.1"
+  },
+  "peerDependenciesMeta": {
+    "@larksuiteoapi/node-sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@larksuiteoapi/node-sdk": "1.76.0"
   }
 }
