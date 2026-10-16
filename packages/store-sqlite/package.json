@@ -1,6 +1,7 @@
 {
-  "name": "@openmatter/store-sqlite",
+  "name": "@openma/matter-store-sqlite",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,8 +17,7 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/store": "workspace:*"
+    "@openma/matter": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

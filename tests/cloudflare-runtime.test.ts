@@ -3,12 +3,12 @@ import {
   createOpenMatter,
   EventBusyError,
   type OpenMatterApplication,
-} from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
+} from "@openma/matter/runtime";
+import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { makeCloudflareRuntime } from "../packages/host-cloudflare/src/index.js";
-import { makeSlackIntegration } from "../packages/integration-slack/src/index.js";
+import { makeSlackIntegration } from "../packages/slack/src/bond/index.js";
 
 const signedRequest = (body: string, timestamp = "1787210400") =>
   new Request("https://agent.example.com/slack/events", {

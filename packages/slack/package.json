@@ -1,0 +1,22 @@
+{
+  "name": "@openma/matter-slack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./bond": {
+      "types": "./dist/bond/index.d.ts",
+      "import": "./dist/bond/index.js"
+    }
+  },
+  "dependencies": {
+    "@openma/matter": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^3.22.1"
+  }
+}

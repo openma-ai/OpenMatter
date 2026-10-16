@@ -2,7 +2,7 @@ import {
   makeMutationStore,
   type MutationRecord,
   type ObservedState,
-} from "@openmatter/store";
+} from "@openma/matter/store";
 
 export const makeMemoryMutationStore = () => {
   let states = new Map<string, ObservedState>();

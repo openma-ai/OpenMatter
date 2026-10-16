@@ -1,6 +1,6 @@
-import { createOpenMatter, SessionBusyError } from "@openmatter/runtime";
-import type { OpenMatterApplication } from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
+import { createOpenMatter, SessionBusyError } from "@openma/matter/runtime";
+import type { OpenMatterApplication } from "@openma/matter/runtime";
+import { makeMemoryStore } from "@openma/matter-store-memory";
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeLocalSlackRuntime } from "../packages/host-local/src/index.js";
@@ -8,7 +8,7 @@ import {
   makeSqliteInbox,
   type SqliteInbox,
 } from "../packages/inbox-sqlite/src/index.js";
-import { makeSlackIntegration } from "../packages/integration-slack/src/index.js";
+import { makeSlackIntegration } from "../packages/slack/src/bond/index.js";
 
 type SocketListener = (event: {
   readonly type: string;

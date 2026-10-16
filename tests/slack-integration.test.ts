@@ -1,13 +1,13 @@
 import { createHmac } from "node:crypto";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { makeCredentialResolver } from "../packages/credentials/src/index.js";
+import { makeCredentialResolver } from "../packages/matter/src/credentials/index.js";
 import {
   decodeSlackHttpRequest,
   makeSlackIntegration,
   makeSlackHttpEndpoint,
   verifySlackRequest,
-} from "../packages/integration-slack/src/index.js";
+} from "../packages/slack/src/bond/index.js";
 
 const signedSlackRequest = (
   body: string,

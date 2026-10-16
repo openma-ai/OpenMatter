@@ -1,10 +1,10 @@
-import type { ContextItem } from "@openmatter/core";
+import type { ContextItem } from "@openma/matter";
 import {
   defineLoop,
   type Loop,
   type OpenMatterApplication,
   type WorkContext,
-} from "@openmatter/runtime";
+} from "@openma/matter/runtime";
 import { Effect } from "effect";
 
 export {

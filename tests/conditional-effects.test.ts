@@ -1,18 +1,18 @@
 import { Effect } from "effect";
 import { expect, it } from "vitest";
-import { createOpenMatter } from "@openmatter/runtime";
+import { createOpenMatter } from "@openma/matter/runtime";
 import {
   makeMemoryStore,
   makeMemoryMutationStore,
-} from "@openmatter/store-memory";
-import { makeMockIntegration } from "@openmatter/integration-mock";
+} from "@openma/matter-store-memory";
+import { makeMockIntegration } from "@openma/matter-integration-mock";
 import {
   IntegrationError,
   type WorkIntegration,
-} from "@openmatter/integration";
-import type { StateObservation, WorkEvent } from "@openmatter/core";
-import { StoreError } from "@openmatter/store";
-import { makeSqliteStore } from "@openmatter/store-sqlite";
+} from "@openma/matter/integration";
+import type { StateObservation, WorkEvent } from "@openma/matter";
+import { StoreError } from "@openma/matter/store";
+import { makeSqliteStore } from "@openma/matter-store-sqlite";
 
 const event: WorkEvent = {
   schemaVersion: "0.1",

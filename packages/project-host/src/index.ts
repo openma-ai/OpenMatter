@@ -42,17 +42,17 @@ import { Effect } from "effect";
 import {
   makeSqliteStore,
   makeSqliteMutationStore,
-} from "@openmatter/store-sqlite";
-import type { MutationStore } from "@openmatter/store";
-import { makeSqliteInbox } from "@openmatter/inbox-sqlite";
+} from "@openma/matter-store-sqlite";
+import type { MutationStore } from "@openma/matter/store";
+import { makeSqliteInbox } from "@openma/matter-inbox-sqlite";
 import {
   createOpenMatter,
   type OpenMatterApplication,
-} from "@openmatter/runtime";
+} from "@openma/matter/runtime";
 import {
   coordinatorLoop,
   type CoordinatorAssociation,
-} from "@openmatter/orchestration";
+} from "@openma/matter-orchestration";
 import {
   makeProjectControl,
   makeProjectIntegration,
@@ -60,10 +60,10 @@ import {
   associateProjectEvent,
   PROJECT_WORK_EVENT_TYPES,
   ProjectControlError,
-} from "@openmatter/project";
-import type { AgentDriver } from "@openmatter/agent";
-import type { WorkEvent, JsonValue, ThreadGoal } from "@openmatter/core";
-import type { InboxClaim } from "@openmatter/inbox";
+} from "@openma/matter-project";
+import type { AgentDriver } from "@openma/matter/agent";
+import type { WorkEvent, JsonValue, ThreadGoal } from "@openma/matter";
+import type { InboxClaim } from "@openma/matter/inbox";
 import type {
   ProjectWorkConfig,
   ProjectWorkCommand,

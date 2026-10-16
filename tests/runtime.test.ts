@@ -1,25 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { makeMockAgentDriver } from "@openmatter/agent-mock";
+import { makeMockAgentDriver } from "@openma/matter-agent-mock";
 import {
   AgentDriverError,
   AgentSessionUnavailableError,
   createOpenMAEvent,
   isPermissionRequestEvent,
   type OpenMAEvent,
-} from "@openmatter/agent";
-import { makeMockIntegration } from "@openmatter/integration-mock";
+} from "@openma/matter/agent";
+import { makeMockIntegration } from "@openma/matter-integration-mock";
 import {
   IntegrationError,
   type WorkIntegration,
-} from "@openmatter/integration";
-import { createOpenMatter } from "@openmatter/runtime";
-import { makeMemoryStore } from "@openmatter/store-memory";
-import { StoreError } from "@openmatter/store";
-import type {
-  ContextProjection,
-  WorkEffect,
-  WorkEvent,
-} from "@openmatter/core";
+} from "@openma/matter/integration";
+import { createOpenMatter } from "@openma/matter/runtime";
+import { makeMemoryStore } from "@openma/matter-store-memory";
+import { StoreError } from "@openma/matter/store";
+import type { ContextProjection, WorkEffect, WorkEvent } from "@openma/matter";
 import { Deferred, Effect, Fiber, Stream } from "effect";
 
 const messageEvent = (id: string): WorkEvent => ({

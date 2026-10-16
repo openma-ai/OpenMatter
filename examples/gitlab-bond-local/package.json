@@ -1,0 +1,11 @@
+{
+  "name": "@openma/matter-example-gitlab-bond-local",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@openma/matter": "workspace:*",
+    "@openma/matter-gitlab": "workspace:*",
+    "effect": "3.22.1"
+  }
+}

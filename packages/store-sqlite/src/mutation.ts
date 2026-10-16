@@ -3,7 +3,7 @@ import {
   makeMutationStore,
   type MutationRecord,
   type ObservedState,
-} from "@openmatter/store";
+} from "@openma/matter/store";
 
 export type SqliteMutationStoreOptions = (
   { readonly filename: string } | { readonly database: DatabaseSync }

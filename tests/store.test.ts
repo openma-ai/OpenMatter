@@ -1,6 +1,7 @@
-import { createOpenMAEvent, type OpenMAEvent } from "@openmatter/agent";
-import type { Reaction, Turn, WorkEffect } from "@openmatter/core";
-import { makeMemoryStore } from "@openmatter/store-memory";
+import { createOpenMAEvent, type OpenMAEvent } from "@openma/matter/agent";
+import type { Reaction, Turn, WorkEffect } from "@openma/matter";
+import { makeMemoryStore } from "@openma/matter-store-memory";
+import { storeConformanceCases } from "@openma/matter/store";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
@@ -307,4 +308,12 @@ describe("memory store durability contract", () => {
       expect.objectContaining({ state: "completed" }),
     ]);
   });
+});
+
+describe("memory store conformance", () => {
+  for (const c of storeConformanceCases({
+    makeStore: () => makeMemoryStore(),
+  })) {
+    it(c.name, c.run);
+  }
 });

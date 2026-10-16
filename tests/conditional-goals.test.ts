@@ -7,8 +7,8 @@ import {
   createOpenMAEvent,
   type AgentDriver,
   type AgentTurnInput,
-} from "@openmatter/agent";
-import { makeMockAgentDriver } from "@openmatter/agent-mock";
+} from "@openma/matter/agent";
+import { makeMockAgentDriver } from "@openma/matter-agent-mock";
 import { ProjectWorkService } from "../packages/project-host/src/index.js";
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport } from "@modelcontextprotocol/server";

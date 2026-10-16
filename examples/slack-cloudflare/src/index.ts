@@ -1,13 +1,13 @@
-import type { AgentDriver } from "@openmatter/agent";
+import type { AgentDriver } from "@openma/matter/agent";
 import {
   makeCloudflareRuntime,
   type CloudflareQueueBatch,
   type CloudflareQueuePort,
-} from "@openmatter/host-cloudflare";
-import { makeSlackIntegration } from "@openmatter/integration-slack";
-import { claudeTag } from "@openmatter/orchestration";
-import { createOpenMatter } from "@openmatter/runtime";
-import type { OpenMatterStore } from "@openmatter/store";
+} from "@openma/matter-host-cloudflare";
+import { makeSlackIntegration } from "@openma/matter-slack/bond";
+import { claudeTag } from "@openma/matter-orchestration";
+import { createOpenMatter } from "@openma/matter/runtime";
+import type { OpenMatterStore } from "@openma/matter/store";
 
 export interface Environment {
   readonly SLACK_BOT_TOKEN: string;

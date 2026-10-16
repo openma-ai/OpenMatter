@@ -4,8 +4,8 @@ import type {
   ThreadGoal,
   Turn,
   WorkEvent,
-} from "@openmatter/core";
-import type { OpenMAEvent } from "@openmatter/agent";
+} from "@openma/matter";
+import type { OpenMAEvent } from "@openma/matter/agent";
 import type { ProjectWorkView } from "./types.js";
 
 export interface ProjectStatusQuery {

@@ -1,6 +1,7 @@
 {
-  "name": "@openmatter/host-cloudflare",
+  "name": "@openma/matter-host-cloudflare",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -16,9 +17,8 @@
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/integration-slack": "workspace:*",
-    "@openmatter/runtime": "workspace:*"
+    "@openma/matter": "workspace:*",
+    "@openma/matter-slack": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"

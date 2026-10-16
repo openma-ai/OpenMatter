@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import * as memory from "@openmatter/store-memory";
-import * as sqlite from "@openmatter/store-sqlite";
-import type { MutationIntent, MutationStore } from "@openmatter/store";
+import * as memory from "@openma/matter-store-memory";
+import * as sqlite from "@openma/matter-store-sqlite";
+import type { MutationIntent, MutationStore } from "@openma/matter/store";
 
 const run = Effect.runPromise;
 const intent = (

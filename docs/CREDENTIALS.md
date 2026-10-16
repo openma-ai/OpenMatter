@@ -1,14 +1,14 @@
 # Credential resolution
 
-`@openmatter/credentials` is the runtime boundary between a Work Integration
+`@openma/matter/credentials` is the runtime boundary between a Work Integration
 and credential ownership. It resolves one provider installation without
 requiring the integration to know whether the credential came from an
 environment variable, encrypted database, OAuth service, or managed control
 plane.
 
 ```ts
-import { makeCredentialResolver } from "@openmatter/credentials";
-import { makeSlackIntegration } from "@openmatter/integration-slack";
+import { makeCredentialResolver } from "@openma/matter/credentials";
+import { makeSlackIntegration } from "@openma/matter-slack/bond";
 
 const credentials = makeCredentialResolver(async (request) => {
   return credentialVault.resolve(request.integrationId, request.authority);
@@ -41,6 +41,13 @@ Those are deployment/control-plane responsibilities. An OAuth implementation
 can expose its current installation token through the same resolver, so a
 self-hosted service and a managed service remain interchangeable without
 changing the Work Integration.
+
+The proposed optional `@openma/matter/bond` packages
+([Bond](BONDS.md)) implement account linking and explicit
+execution principals on top of this port. They are storage-free: the
+application still owns persistence, key custody, and routes. The proposal adds
+one optional `principal` field to `CredentialRequest`. When it is absent, the
+request keeps its current meaning.
 
 Credential values are opaque live application data. OpenMatter does not place
 them in WorkEvents, Context, Agent input, receipts, profiles, or logs, and the

@@ -16,7 +16,7 @@ The examples below are directional v0 API design, not a compatibility promise.
 ## Compile from OpenAPI
 
 ```ts
-import { compileWorkProfile, openapi, overlay } from "@openmatter/compiler";
+import { compileWorkProfile, openapi, overlay } from "@openma/matter-compiler";
 
 const result = await compileWorkProfile({
   sources: [openapi("./work-api.yaml")],
@@ -50,7 +50,7 @@ import {
   operation,
   resource,
   select,
-} from "@openmatter/profile";
+} from "@openma/matter-profile";
 
 export default defineWorkProfile({
   source: openapi("./work-api.yaml"),
@@ -439,19 +439,19 @@ What operations, events, Resources, interactions, capabilities, and bindings exi
 ## Initial packages
 
 ```text
-@openmatter/core              domain records and JSON schemas
-@openmatter/runtime           handler, scheduling, and orchestration loop
-@openmatter/integration       WorkIntegration contracts and Layer
-@openmatter/integration-mock  bidirectional mock work platform
-@openmatter/agent             AgentDriver, OpenMAEvent, and Layer
-@openmatter/agent-mock        deterministic mock agent runtime
-@openmatter/store             durable storage contract and Layer
-@openmatter/store-memory      process-local reference adapter
-@openmatter/agent-acp         ACP binding
-@openmatter/harness           black-box conformance suites
-@openmatter/visualizer        manifests, topology, and trace visualization
+@openma/matter              domain records and JSON schemas
+@openma/matter/runtime           handler, scheduling, and orchestration loop
+@openma/matter/integration       WorkIntegration contracts and Layer
+@openma/matter-integration-mock  bidirectional mock work platform
+@openma/matter/agent             AgentDriver, OpenMAEvent, and Layer
+@openma/matter-agent-mock        deterministic mock agent runtime
+@openma/matter/store             durable storage contract and Layer
+@openma/matter-store-memory      process-local reference adapter
+@openma/matter-agent-acp         ACP binding
+@openma/matter-harness           black-box conformance suites
+@openma/matter-visualizer        manifests, topology, and trace visualization
 ```
 
-These are the physical v0 packages. A public `@openmatter/sdk` façade and
+These are the physical v0 packages. A public `@openma/matter-sdk` façade and
 independently versioned compiler, storage, or provider packages are added only
 after their entry points need independent release cycles.

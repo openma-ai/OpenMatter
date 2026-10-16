@@ -23,15 +23,15 @@ Slack native input
 This is the smallest realistic composition. The Store, credential source, and Agent Driver remain injected ports.
 
 ```ts title="application.ts"
-import type { AgentDriver } from "@openmatter/agent";
-import { makeCredentialResolver } from "@openmatter/credentials";
+import type { AgentDriver } from "@openma/matter/agent";
+import { makeCredentialResolver } from "@openma/matter/credentials";
 import {
   makeSlackIntegration,
   type SlackCredentials,
-} from "@openmatter/integration-slack";
-import { claudeTag } from "@openmatter/orchestration";
-import { createOpenMatter } from "@openmatter/runtime";
-import type { OpenMatterStore } from "@openmatter/store";
+} from "@openma/matter-slack/bond";
+import { claudeTag } from "@openma/matter-orchestration";
+import { createOpenMatter } from "@openma/matter/runtime";
+import type { OpenMatterStore } from "@openma/matter/store";
 import { Effect } from "effect";
 
 interface ApplicationPorts {
@@ -111,7 +111,7 @@ The application above is unchanged across deployment shapes.
 1. **Local Node and Socket Mode**
 
    ```ts
-   import { makeLocalSlackRuntime } from "@openmatter/host-local";
+   import { makeLocalSlackRuntime } from "@openma/matter-host-local";
 
    const service = makeLocalSlackRuntime({
      appToken: process.env.SLACK_APP_TOKEN!,

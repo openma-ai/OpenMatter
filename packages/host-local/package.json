@@ -1,6 +1,7 @@
 {
-  "name": "@openmatter/host-local",
+  "name": "@openma/matter-host-local",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -13,12 +14,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
     }
   },
   "dependencies": {
-    "@openmatter/core": "workspace:*",
-    "@openmatter/inbox": "workspace:*",
-    "@openmatter/runtime": "workspace:*",
+    "@openma/matter": "workspace:*",
     "@slack/socket-mode": "3.0.0",
     "undici": "7.29.0"
   },

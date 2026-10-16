@@ -12,7 +12,7 @@ execution records.
 
 ## Identity, observation, and intent
 
-`@openmatter/core` defines portable schemas:
+`@openma/matter` defines portable schemas:
 
 - `StateObservation`: `authority`, `resourceId`, and opaque `revision`.
 - `MutationIntent`: `authority`, `operationId`, `operation`, `input`, and
@@ -38,13 +38,13 @@ Conflicts also have saved results; a new decision needs a new operation id.
 
 ## Embedded tools without the Loop runtime
 
-Conditional submission belongs to the existing `@openmatter/store` API. Core
+Conditional submission belongs to the existing `@openma/matter/store` API. The kernel
 owns its portable schemas, and the existing storage adapters implement it.
 Applications do not need a separate package or the Loop runtime:
 
 ```ts
 import { Effect } from "effect";
-import { makeSqliteMutationStore } from "@openmatter/store-sqlite";
+import { makeSqliteMutationStore } from "@openma/matter-store-sqlite";
 
 const state = makeSqliteMutationStore({ filename: "agent-state.db" });
 const observed = await Effect.runPromise(

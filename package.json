@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "build:projects": "tsdown --filter @openmatter/project --filter @openmatter/project-host --filter @openmatter/project-mcp --filter @openmatter/store-sqlite --filter @openmatter/store-mysql --filter @openmatter/project-worker",
+    "build:projects": "tsdown --filter @openma/matter-project --filter @openma/matter-project-host --filter @openma/matter-project-mcp --filter @openma/matter-store-sqlite --filter @openma/matter-store-mysql --filter @openma/matter-project-worker",
     "check": "pnpm format:check && pnpm test && pnpm typecheck && pnpm build",
     "format": "prettier --write packages tests examples *.json *.ts *.yaml README.md docs/*.md",
     "format:check": "prettier --check packages tests examples *.json *.ts *.yaml README.md docs/*.md",
@@ -18,14 +18,15 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@types/node": "26.2.0",
     "effect": "3.22.1",
     "prettier": "3.9.6",
     "tsdown": "0.22.14",
     "typescript": "6.0.3",
     "unrun": "0.3.1",
-    "vitest": "4.1.11",
-    "@modelcontextprotocol/client": "2.0.0",
-    "@modelcontextprotocol/server": "2.0.0"
-  }
+    "vitest": "4.1.11"
+  },
+  "license": "Apache-2.0"
 }

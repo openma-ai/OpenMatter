@@ -1,12 +1,12 @@
 import {
   makeMemoryProjectCommandSink,
   makeProjectControl,
-} from "@openmatter/project";
+} from "@openma/matter-project";
 import {
   THREAD_GOAL_INSTRUCTIONS,
   makeProjectMcpServer,
-} from "@openmatter/project-mcp";
-import type { ThreadGoal } from "@openmatter/core";
+} from "@openma/matter-project-mcp";
+import type { ThreadGoal } from "@openma/matter";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
@@ -53,7 +53,7 @@ describe("project MCP", () => {
           return {
             status: "committed" as const,
             operationId: input.operationId,
-            value: current as unknown as import("@openmatter/core").JsonValue,
+            value: current as unknown as import("@openma/matter").JsonValue,
             observations: [],
           };
         },

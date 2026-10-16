@@ -1,6 +1,7 @@
 {
-  "name": "@openmatter/project-mcp",
+  "name": "@openma/matter-project-mcp",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -17,9 +18,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
-    "@openmatter/core": "workspace:*",
-    "@openmatter/project": "workspace:*",
-    "@openmatter/project-host": "workspace:*",
+    "@openma/matter": "workspace:*",
+    "@openma/matter-project": "workspace:*",
+    "@openma/matter-project-host": "workspace:*",
     "zod": "4.6.5"
   },
   "peerDependencies": {

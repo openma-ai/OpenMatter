@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
-import type { WorkIntegration } from "@openmatter/integration";
-import type { ContextItem } from "@openmatter/core";
-import { makeCredentialResolver } from "@openmatter/credentials";
+import type { WorkIntegration } from "@openma/matter/integration";
+import type { ContextItem } from "@openma/matter";
+import { makeCredentialResolver } from "@openma/matter/credentials";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
@@ -31,7 +31,7 @@ const signedGitHubRequest = (
 
 describe("GitHub WorkIntegration", () => {
   it("verifies the exact webhook bytes and submits provider metadata", async () => {
-    const github = await import("../packages/integration-github/src/index.js");
+    const github = await import("../packages/github/src/bond/index.js");
     const submitted: unknown[] = [];
     const rawBody = '{ "action": "opened", "note": "修复 🚀" }';
     const endpoint = github.makeGitHubHttpEndpoint({
@@ -60,7 +60,7 @@ describe("GitHub WorkIntegration", () => {
   });
 
   it("rejects an invalid signature without submitting work", async () => {
-    const github = await import("../packages/integration-github/src/index.js");
+    const github = await import("../packages/github/src/bond/index.js");
     let submissions = 0;
     const endpoint = github.makeGitHubHttpEndpoint({
       webhookSecret: "different-secret",
@@ -78,7 +78,7 @@ describe("GitHub WorkIntegration", () => {
   });
 
   it("rejects a signed non-object webhook instead of acknowledging dropped work", async () => {
-    const github = await import("../packages/integration-github/src/index.js");
+    const github = await import("../packages/github/src/bond/index.js");
     let submissions = 0;
     const endpoint = github.makeGitHubHttpEndpoint({
       webhookSecret: "webhook-secret",
@@ -97,7 +97,7 @@ describe("GitHub WorkIntegration", () => {
 
   it("normalizes an issue event under its GitHub App installation authority and redacts secrets", async () => {
     const github =
-      (await import("../packages/integration-github/src/index.js")) as unknown as {
+      (await import("../packages/github/src/bond/index.js")) as unknown as {
         readonly makeGitHubIntegration: (options: {
           readonly token: string;
           readonly clock: () => string;
@@ -263,7 +263,7 @@ describe("GitHub WorkIntegration", () => {
       wantMessage,
     }) => {
       const github =
-        (await import("../packages/integration-github/src/index.js")) as unknown as {
+        (await import("../packages/github/src/bond/index.js")) as unknown as {
           readonly makeGitHubIntegration: (options: {
             readonly token: string;
             readonly fetch: typeof globalThis.fetch;
@@ -394,7 +394,7 @@ describe("GitHub WorkIntegration", () => {
     "keeps $eventName resource identity separate from its parent work item",
     async ({ eventName, resource, wantPayload, wantResourceKey }) => {
       const github =
-        (await import("../packages/integration-github/src/index.js")) as unknown as {
+        (await import("../packages/github/src/bond/index.js")) as unknown as {
           readonly makeGitHubIntegration: (options: {
             readonly token: string;
             readonly fetch: typeof globalThis.fetch;
@@ -429,7 +429,7 @@ describe("GitHub WorkIntegration", () => {
 
   it("preserves an unknown webhook as a generic observation", async () => {
     const github =
-      (await import("../packages/integration-github/src/index.js")) as unknown as {
+      (await import("../packages/github/src/bond/index.js")) as unknown as {
         readonly makeGitHubIntegration: (options: {
           readonly token: string;
           readonly fetch: typeof globalThis.fetch;
@@ -477,7 +477,7 @@ describe("GitHub WorkIntegration", () => {
 
   it("normalizes installation repository lifecycle without importing activation policy", async () => {
     const github =
-      (await import("../packages/integration-github/src/index.js")) as unknown as {
+      (await import("../packages/github/src/bond/index.js")) as unknown as {
         readonly makeGitHubIntegration: (options: {
           readonly token: string;
           readonly fetch: typeof globalThis.fetch;
@@ -529,7 +529,7 @@ describe("GitHub WorkIntegration", () => {
     const calls: Array<{ readonly url: string; readonly init?: RequestInit }> =
       [];
     const github =
-      (await import("../packages/integration-github/src/index.js")) as unknown as {
+      (await import("../packages/github/src/bond/index.js")) as unknown as {
         readonly makeGitHubIntegration: (options: {
           readonly credentials: (installationId: string) => {
             readonly token: string;
@@ -634,7 +634,7 @@ describe("GitHub WorkIntegration", () => {
     const calls: Array<{ readonly url: string; readonly init?: RequestInit }> =
       [];
     const github =
-      (await import("../packages/integration-github/src/index.js")) as unknown as {
+      (await import("../packages/github/src/bond/index.js")) as unknown as {
         readonly makeGitHubIntegration: (options: {
           readonly credentials: (installationId: string) => {
             readonly token: string;
@@ -695,7 +695,7 @@ describe("GitHub WorkIntegration", () => {
       readonly authority: string;
     }> = [];
     const github =
-      (await import("../packages/integration-github/src/index.js")) as unknown as {
+      (await import("../packages/github/src/bond/index.js")) as unknown as {
         readonly makeGitHubIntegration: (options: {
           readonly credentials: ReturnType<
             typeof makeCredentialResolver<{
@@ -741,7 +741,7 @@ describe("GitHub WorkIntegration", () => {
   it("rejects arbitrary REST effects before any provider call", async () => {
     let calls = 0;
     const github =
-      (await import("../packages/integration-github/src/index.js")) as unknown as {
+      (await import("../packages/github/src/bond/index.js")) as unknown as {
         readonly makeGitHubIntegration: (options: {
           readonly token: string;
           readonly fetch: typeof globalThis.fetch;
@@ -863,7 +863,7 @@ describe("GitHub WorkIntegration", () => {
     async ({ reader, input, url, response, kind, valueKey }) => {
       const calls: string[] = [];
       const github =
-        (await import("../packages/integration-github/src/index.js")) as unknown as {
+        (await import("../packages/github/src/bond/index.js")) as unknown as {
           readonly makeGitHubIntegration: (options: {
             readonly token: string;
             readonly fetch: typeof globalThis.fetch;
@@ -1045,7 +1045,7 @@ describe("GitHub WorkIntegration", () => {
         readonly init?: RequestInit;
       }> = [];
       const github =
-        (await import("../packages/integration-github/src/index.js")) as unknown as {
+        (await import("../packages/github/src/bond/index.js")) as unknown as {
           readonly makeGitHubIntegration: (options: {
             readonly token: string;
             readonly fetch: typeof globalThis.fetch;
@@ -1129,7 +1129,7 @@ describe("GitHub WorkIntegration", () => {
     "classifies $name without retrying terminal authorization errors",
     async ({ status, headers, retryable, retryAt }) => {
       const github =
-        (await import("../packages/integration-github/src/index.js")) as unknown as {
+        (await import("../packages/github/src/bond/index.js")) as unknown as {
           readonly makeGitHubIntegration: (options: {
             readonly token: string;
             readonly clock: () => string;
@@ -1181,7 +1181,7 @@ describe("GitHub WorkIntegration", () => {
 
   it("preserves rate-limit retry metadata when GitHub returns malformed JSON", async () => {
     const github =
-      (await import("../packages/integration-github/src/index.js")) as unknown as {
+      (await import("../packages/github/src/bond/index.js")) as unknown as {
         readonly makeGitHubIntegration: (options: {
           readonly token: string;
           readonly fetch: typeof globalThis.fetch;

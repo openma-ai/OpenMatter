@@ -66,8 +66,8 @@ git clone https://github.com/openma-ai/OpenMatter.git
 cd OpenMatter
 pnpm install
 pnpm check
-pnpm --filter @openmatter/example-basic build
-pnpm --filter @openmatter/example-basic start
+pnpm --filter @openma/matter-example-basic build
+pnpm --filter @openma/matter-example-basic start
 ```
 
 The basic example uses the Memory Store and mock adapters, then executes the
@@ -83,7 +83,7 @@ TypeScript. The definition can be inspected, versioned, generated, and later
 visualized without pretending arbitrary application logic is serializable.
 
 ```ts
-import { defineLoop } from "@openmatter/runtime";
+import { defineLoop } from "@openma/matter/runtime";
 
 const issueTriage = defineLoop(
   {
@@ -112,7 +112,7 @@ For Slack, the built-in `claudeTag()` Loop already defines mention, direct
 message, slash-command, Scope, WorkThread, Session, and reply behavior:
 
 ```ts
-import { claudeTag } from "@openmatter/orchestration";
+import { claudeTag } from "@openma/matter-orchestration";
 
 app.loop(
   claudeTag({
@@ -127,7 +127,7 @@ for the complete composition.
 
 ## What belongs where
 
-Agent tools can use the native conditional-write APIs in `@openmatter/store`
+Agent tools can use the native conditional-write APIs in `@openma/matter/store`
 and its memory/SQLite adapters without installing the Loop runtime. They preserve
 original read conditions and idempotent operation receipts. Guarded WorkEffects
 carry those conditions through the outbox; integrations must declare their actual
@@ -224,15 +224,18 @@ other implicitly. Read the [identity model](docs/IDENTITY_MODEL.md).
 
 ## Packages
 
-| Group              | Packages                                                                      |
-| ------------------ | ----------------------------------------------------------------------------- |
-| Foundation         | `@openmatter/core`, `store`, `integration`, `agent`, `runtime`, `credentials` |
-| Reference adapters | `store-memory`, `integration-mock`, `agent-mock`                              |
-| Work platforms     | `integration-slack`, `integration-github`, `integration-linear`               |
-| Agent bridge       | `agent-claude`                                                                |
-| Orchestration      | `orchestration`                                                               |
-| HTTP and hosts     | `http`, `fastify`, `hono`, `host-cloudflare`, `host-local`                    |
-| Ingress durability | `inbox`, `inbox-sqlite`                                                       |
+| Package                 | Contents                                                                                                                                                                                                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@openma/matter`        | The kernel. Subpaths: `.` (core Schemas), `/credentials`, `/bond`, `/store`, `/inbox`, `/integration`, `/agent`, `/runtime`, `/http`                                                                                                                                                               |
+| `@openma/matter-loop`   | The Loop guest SDK: `defineLoop` and the host capability protocol. No dependencies                                                                                                                                                                                                                 |
+| `@openma/matter-gitlab` | GitLab (`/bond`): the Bond provider, webhook ingest, merge request and issue note delivery, and the `gitlab-mr-review` and `gitlab-mention` Loop templates                                                                                                                                         |
+| `@openma/matter-feishu` | Feishu and Lark (`/bond`): the Bond provider for customer self-built apps, device-flow and OAuth user links, the chat resource catalog, the encrypted webhook endpoint, event normalization, message, reply, reaction, and card delivery, and the Node long-connection source (`/long-connection`) |
+
+Reference adapters (`store-memory`, `store-sqlite`, `store-mysql`,
+`inbox-sqlite`, `*-mock`), the Slack, GitHub, and Linear providers
+(`@openma/matter-<provider>/bond`, like GitLab),
+`orchestration`, the Projects packages, hosts, and the Fastify/Hono components
+live in this repository as private workspace packages.
 
 The dependency direction and ownership of every package are documented in
 [Project structure](docs/PROJECT_STRUCTURE.md).

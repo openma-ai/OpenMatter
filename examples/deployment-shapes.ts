@@ -1,8 +1,8 @@
-import type { AgentDriver } from "@openmatter/agent";
-import type { WorkEvent } from "@openmatter/core";
-import type { WorkIntegration } from "@openmatter/integration";
-import { createOpenMatter } from "@openmatter/runtime";
-import type { OpenMatterStore } from "@openmatter/store";
+import type { AgentDriver } from "@openma/matter/agent";
+import type { WorkEvent } from "@openma/matter";
+import type { WorkIntegration } from "@openma/matter/integration";
+import { createOpenMatter } from "@openma/matter/runtime";
+import type { OpenMatterStore } from "@openma/matter/store";
 import { Effect } from "effect";
 
 export interface ApplicationPorts {

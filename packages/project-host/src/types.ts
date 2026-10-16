@@ -1,4 +1,4 @@
-import type { StoreSnapshot } from "@openmatter/store";
+import type { StoreSnapshot } from "@openma/matter/store";
 export interface ProjectWorkConfig {
   projectId: string;
   /** New threads start here; existing workspaces retain their original base. */

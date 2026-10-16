@@ -12,7 +12,7 @@ lifecycle and no automatic version refresh.
 
 ```ts
 import { Effect } from "effect";
-import { makeSqliteMutationStore } from "@openmatter/store-sqlite";
+import { makeSqliteMutationStore } from "@openma/matter-store-sqlite";
 
 const store = makeSqliteMutationStore({ filename: "state.db" });
 const observed = await Effect.runPromise(store.read("acme", "task:42"));
@@ -83,7 +83,7 @@ OpenMatter does not rerun the original Turn or modify its terminal Reaction.
 
 ## Current coverage
 
-The native `@openmatter/store` conditional-write API has memory and SQLite
+The native `@openma/matter/store` conditional-write API has memory and SQLite
 storage adapters. It works without the Loop runtime. Project MCP `update_goal`
 uses this contract with the Agent-observed goal id/revision and operation id.
 Other existing tools have not all migrated, and async delivery conflicts do
