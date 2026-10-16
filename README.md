@@ -217,12 +217,12 @@ other implicitly. Read the [identity model](docs/IDENTITY_MODEL.md).
 
 ## Packages
 
-| Package                 | Contents                                                                                                                                                   |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@openma/matter`        | The kernel. Subpaths: `.` (core Schemas), `/credentials`, `/bond`, `/store`, `/inbox`, `/integration`, `/agent`, `/runtime`, `/http`                       |
-| `@openma/matter-loop`   | The Loop guest SDK: `defineLoop` and the host capability protocol. No dependencies                                                                         |
-| `@openma/matter-gitlab` | GitLab (`/bond`): the Bond provider, webhook ingest, merge request and issue note delivery, and the `gitlab-mr-review` and `gitlab-mention` Loop templates |
-| `@openma/matter-feishu` | Feishu and Lark (`/bond`): the Bond provider for customer self-built apps, device-flow and OAuth user links, and the chat resource catalog                 |
+| Package                 | Contents                                                                                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@openma/matter`        | The kernel. Subpaths: `.` (core Schemas), `/credentials`, `/bond`, `/store`, `/inbox`, `/integration`, `/agent`, `/runtime`, `/http`                                                            |
+| `@openma/matter-loop`   | The Loop guest SDK: `defineLoop` and the host capability protocol. No dependencies                                                                                                              |
+| `@openma/matter-gitlab` | GitLab (`/bond`): the Bond provider, webhook ingest, merge request and issue note delivery, and the `gitlab-mr-review` and `gitlab-mention` Loop templates                                      |
+| `@openma/matter-feishu` | Feishu and Lark (`/bond`): the Bond provider for customer self-built apps, device-flow and OAuth user links, the chat resource catalog, the encrypted webhook endpoint, and event normalization |
 
 Reference adapters (`store-memory`, `store-sqlite`, `store-mysql`,
 `inbox-sqlite`, `*-mock`), the Slack, GitHub, and Linear providers

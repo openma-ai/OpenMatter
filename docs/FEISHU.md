@@ -160,15 +160,18 @@ Proposed exports:
 
 ```text
 @openma/matter-feishu/bond              isolate-safe, no runtime deps beyond @openma/matter
-  decodeFeishuHttpRequest(request, lookup) → FeishuEventInput | FeishuChallenge
-  makeFeishuHttpEndpoint({ lookup, submit, cardActionResponse? }) → HttpEndpoint
+  decodeFeishuHttpRequest(request, { authority, appId, encryptKey, verificationToken?, botOpenId? })
+    → FeishuEventInput | FeishuChallenge
+  makeFeishuHttpEndpoint({ ...the same, submit, cardActionResponse? }) → HttpEndpoint
+  normalizeFeishuEvents(input) → WorkEvent[]
   makeFeishuIntegration({ credentials }) → { integration, context, tools }
 @openma/matter-feishu/long-connection   Node only, optional peer @larksuiteoapi/node-sdk
   startFeishuLongConnection({ appId, appSecret, authority, eventTypes, submit, onState }) → { stop }
 ```
 
 Both transports produce the same `FeishuEventInput` (`{ kind: "feishu.event",
-authority, transport, envelope }`), and `ingest` never knows which one
+authority, transport, botOpenId?, envelope }`; `botOpenId` comes from
+`inspectFeishuApp` and decides mentions), and `ingest` never knows which one
 delivered it. `startFeishuLongConnection` rebuilds the full v2 envelope (OMA
 drops everything except `sender`/`message`/`chat`,
 `OMA ws-feishu-runner.ts:491-506`) and **awaits `submit`** before its handler

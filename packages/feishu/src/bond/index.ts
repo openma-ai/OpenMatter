@@ -38,3 +38,5 @@ export {
   type FeishuOperation,
   type FeishuResourceCatalogOptions,
 } from "./resources.js";
+
+export * from "./integration/index.js";
