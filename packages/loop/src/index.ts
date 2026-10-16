@@ -11,6 +11,7 @@ export {
   type LoopConfigSchema,
 } from "./config.js";
 export {
+  loopRunAs,
   snapshotLoopDefinition,
   type LoopDefinition,
   type LoopRequiredBond,

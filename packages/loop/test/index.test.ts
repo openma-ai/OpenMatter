@@ -5,6 +5,7 @@ import {
   defineLoop,
   isGuestLoop,
   loadLoop,
+  loopRunAs,
   type ContextProjection,
   type LoopHost,
   type WorkEffect,
@@ -103,6 +104,64 @@ describe("@openma/matter-loop", () => {
     expect(() =>
       defineLoop({ id: "bad", runAs: "owner" } as never, () => undefined),
     ).toThrow("runAs must be app or requester");
+  });
+
+  it("resolves runAs per operation, then per Bond, then for the Loop", () => {
+    const triage = defineLoop(
+      {
+        id: "bug-triage",
+        runAs: "app",
+        requiredBonds: [
+          {
+            provider: "gitlab",
+            operations: ["fetch", "read"],
+            runAs: "requester",
+          },
+          {
+            provider: "feishu",
+            operations: ["im_read", "im_send"],
+            runAs: { im_read: "requester" },
+          },
+        ],
+      },
+      () => undefined,
+    );
+    const d = triage.definition;
+    expect(loopRunAs(d, "gitlab", "fetch")).toBe("requester");
+    expect(loopRunAs(d, "feishu", "im_read")).toBe("requester");
+    expect(loopRunAs(d, "feishu", "im_send")).toBe("app");
+    expect(loopRunAs(d, "linear", "comment")).toBe("app");
+    expect(loopRunAs({}, "gitlab", "fetch")).toBe("app");
+    expect(loopRunAs({ runAs: "requester" }, "gitlab", "fetch")).toBe(
+      "requester",
+    );
+    expect(JSON.parse(JSON.stringify(d.requiredBonds))).toEqual(
+      d.requiredBonds,
+    );
+    expect(Object.isFrozen(d.requiredBonds![1]!.runAs)).toBe(true);
+
+    const bad = (requiredBonds: unknown) => () =>
+      defineLoop({ id: "bad", requiredBonds } as never, () => undefined);
+    expect(
+      bad([{ provider: "gitlab", operations: ["fetch"], runAs: "owner" }]),
+    ).toThrow("gitlab.runAs must be app, requester, or a map");
+    expect(
+      bad([
+        { provider: "gitlab", operations: ["fetch"], runAs: { push: "app" } },
+      ]),
+    ).toThrow("names push, which is not in its operations");
+    expect(
+      bad([
+        {
+          provider: "gitlab",
+          operations: ["fetch"],
+          runAs: { fetch: "owner" },
+        },
+      ]),
+    ).toThrow("gitlab.runAs.fetch must be app or requester");
+    expect(
+      bad([{ provider: "gitlab", operations: ["fetch"], principal: "app" }]),
+    ).toThrow("each requiredBonds entry needs");
   });
 
   it("validates configuration and passes the resolved config to install and handlers", async () => {

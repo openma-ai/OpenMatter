@@ -252,3 +252,31 @@ registered bot credential, an unattended write fails explicitly instead of
 borrowing a person's link. `runAs` is part of the definition and defaults to
 `app`. The runtime records it but does not resolve principals itself; the
 host passes it to Bond when it requests a credential.
+
+### Per Bond and per operation
+
+One Loop may need different principals for different providers. A bug-triage
+Loop answering a chat mention reads the code as the person who asked, so it
+sees only what they can see, but replies in the chat as the bot. Each
+`requiredBonds` entry may override `runAs`, with one value for the whole Bond
+or one per operation:
+
+```ts
+defineLoop(
+  {
+    id: "feishu-bug-triage",
+    runAs: "app",
+    requiredBonds: [
+      { provider: "gitlab", operations: ["fetch", "read"], runAs: "requester" },
+      { provider: "feishu", operations: ["im_read", "im_send"] },
+    ],
+  },
+  install,
+);
+```
+
+`loopRunAs(definition, provider, operation)` resolves an operation's
+`runAs`: the operation's own value, then its Bond's, then the Loop's, then
+`app`. A per-operation map may only name operations listed in the same entry.
+The policy table above still applies to each request, and an unattended
+Event still never runs as `requester`.
