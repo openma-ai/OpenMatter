@@ -48,7 +48,7 @@ packages/
 ├── project-mcp          MCP binding for project controls and thread goals
 ├── project-worker       multi-tenant cloud Projects HTTP service
 ├── host-cloudflare      Worker HTTP ingress and Queue consumer binding
-├── host-local           Node Slack Socket Mode lifecycle binding
+├── host-local           Node long-connection host; Slack Socket Mode adapter
 ├── fastify              Fastify endpoint component
 └── hono                 Hono endpoint component
 ```
@@ -86,7 +86,7 @@ project ─────────→ matter + orchestration
 project-host ────→ project + store-sqlite + inbox-sqlite + matter
 project-mcp ─────→ project + project-host
 host-cloudflare ─→ matter/runtime + slack/bond
-host-local ──────→ matter/runtime + matter/inbox + Slack Socket Mode SDK
+host-local ──────→ matter/runtime + matter/inbox (+ Slack Socket Mode SDK for the adapter)
 fastify / hono ──→ matter/http
 ```
 
