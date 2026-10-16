@@ -634,6 +634,39 @@ The bot's own messages never produce `feishu.message.mentioned` (the
 normalizer drops events whose sender is the bot's `open_id`), so a reply
 cannot trigger another reply.
 
+**Implemented in v1** (`feishuAgent`, `feishuTemplates`): the sketches above
+became one template, `feishu-agent`. It answers a direct message or a group
+@mention with the configured Agent and posts the Agent's output as the bot's
+reply.
+
+- **What the template owns, and what it does not.** The template owns
+  ingress (which chats and messages it answers), the Session binding, and
+  egress (the reply). The Agent owns behaviour and tools: its instructions
+  and skills, and its own Bond grants, such as read access to some GitLab
+  projects. A bug-triage bot is a triage Agent bound by this template; the
+  template has no `instructions` or GitLab fields. A tool and an Effect can be
+  the same Bond operation; the difference is who calls it. The Agent calls a
+  tool during the Turn, under its grant. The Loop delivers an Effect after the
+  Turn, under its `requiredBonds`, so `requiredBonds` lists only the reply.
+- **Identity.** The Loop declares `runAs: "requester"`: the Session acts for
+  the person who asked, so the Agent's tools see only what they can. The
+  Feishu Bond declares `runAs: "app"`, so the reply is always the bot's. A
+  mention is an attended event, which is what `requester` needs.
+- **Config.** `agentId` (`x-oma-widget: "agent"`), `chats` (`bond-resources`
+  for `feishu`; empty means every group the bot is in, and direct messages
+  are always answered), and `sessionScope` (`thread` default, `chat`,
+  `chat_user`; `select`).
+- **Context.** The template adds only facts: who asked, whether in a group or
+  a direct chat, and that the output is posted as Feishu markdown.
+- **Skips** a group outside `chats`, a message from an app, and a bare
+  mention with no text.
+- **Reply.** One `message.reply` with a markdown card; in a group it goes to
+  the message's topic (`inThread: true`), in a direct chat it does not.
+  Effects are delivered after the Turn ends, so the template adds no
+  "received" reaction: it would arrive together with the answer.
+- **Sessions.** `scopeId` `feishu:<authority>:chat:<chatId>`; `workThreadId`
+  `thread:<threadId or messageId>`, `chat`, or `user:<openId>`.
+
 ## 8. Package layout
 
 ```text
@@ -656,7 +689,7 @@ packages/feishu/                         @openma/matter-feishu (public, Apache-2
       delivery.ts                        FEISHU_OPERATIONS, makeFeishuDelivery
       context.ts                         makeFeishuContextReader
       tools.ts                           agent tool descriptors + executors
-      templates.ts                       feishu-chat, feishu-mention (import only @openma/matter-loop)
+      templates.ts                       feishu-agent (imports only @openma/matter-loop)
       shared.ts                          guards, withoutFeishuCredentials, feishuSource
       integration.ts / index.ts
   src/long-connection/index.ts           makeFeishuLongConnectionSource (Node only)
