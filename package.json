@@ -18,6 +18,8 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@types/node": "26.2.0",
     "effect": "3.22.1",
     "prettier": "3.9.6",

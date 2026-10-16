@@ -1,0 +1,92 @@
+---
+title: Agent state protection
+description: Conditional writes and idempotent operation receipts for Agent tools and WorkEffects.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+An Agent makes decisions from observed state. OpenMatter can reject a write
+when that state changed before submission, then return a conflict to the Agent.
+The Agent can read again, revise the request, or stop. There is no draft
+lifecycle and no automatic version refresh.
+
+```ts
+import { Effect } from "effect";
+import { makeSqliteMutationStore } from "@openma/matter-store-sqlite";
+
+const store = makeSqliteMutationStore({ filename: "state.db" });
+const observed = await Effect.runPromise(store.read("acme", "task:42"));
+
+const result = await Effect.runPromise(
+  store.execute(
+    {
+      authority: "acme",
+      operationId: "decision:unique-tool-call",
+      operation: "task.update",
+      input: { status: "complete" },
+      preconditions: [
+        {
+          authority: observed.authority,
+          resourceId: observed.resourceId,
+          revision: observed.revision,
+        },
+      ],
+    },
+    (tx, intent) => {
+      tx.set("task:42", intent.input);
+      return { updated: true };
+    },
+  ),
+);
+
+// Deliver this result to the Agent. A conflict means nothing was written.
+await Effect.runPromise(store.close);
+```
+
+The host binds observations to the Agent's actual reads and access boundary.
+The example uses OpenMatter-owned state; existing SQLite tables can use the
+adapter's `resources.read/write` binding. Handlers must be synchronous and
+database-local, with no network or file side effects.
+
+## One decision, one identity
+
+An intent contains a stable operation identity, its original preconditions,
+and the proposed input. Queueing, restart, and retry preserve all three.
+Replay returns the committed result before checking conditions changed by
+the original write. Reusing an identity with different input fails.
+
+A conflict means no business write occurred. Agent reconsideration uses a new
+identity and newly observed conditions. An unknown provider outcome requires
+reconciliation rather than a new send.
+
+## WorkEffects and integrations
+
+`ContextItem.observation` stores resource-version evidence in the immutable
+ContextProjection. `WorkEffect.mutation` preserves its authority, preconditions,
+and requested guarantee through the outbox. Runtime accepts only conditions
+present in that authorized projection.
+
+Integrations opt in through `conditionalWrites[operation]`. The state owner
+must compare and write inside its own atomic boundary, with a durable receipt.
+An adapter that only reads before sending offers `best-effort`, not `atomic`.
+Unsupported guarded calls fail closed without invoking unconditional delivery.
+
+Delivery returns `delivered`, `conflict`, `uncertain`, or `terminal-failed`.
+The host routes asynchronous conflicts back to the Agent as correlated input.
+OpenMatter does not rerun the original Turn or modify its terminal Reaction.
+
+<Aside type="caution" title="An adapter boundary is not a remote transaction">
+  Slack and other external platforms do not gain conditional sends through a
+  local lock. Each operation must expose its real guarantee. Direct Pi tools or
+  third-party MCP calls need their own binding to this contract.
+</Aside>
+
+## Current coverage
+
+The native `@openma/matter/store` conditional-write API has memory and SQLite
+storage adapters. It works without the Loop runtime. Project MCP `update_goal`
+uses this contract with the Agent-observed goal id/revision and operation id.
+Other existing tools have not all migrated, and async delivery conflicts do
+not automatically wake an Agent.
+
+See the [full design and adapter contract](https://github.com/openma-ai/OpenMatter/blob/main/docs/STATE_PROTECTION.md).

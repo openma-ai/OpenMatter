@@ -39,7 +39,11 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Effect } from "effect";
-import { makeSqliteStore } from "@openma/matter-store-sqlite";
+import {
+  makeSqliteStore,
+  makeSqliteMutationStore,
+} from "@openma/matter-store-sqlite";
+import type { MutationStore } from "@openma/matter/store";
 import { makeSqliteInbox } from "@openma/matter-inbox-sqlite";
 import {
   createOpenMatter,
@@ -83,6 +87,7 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
   readonly db: DatabaseSync;
   readonly workspaces: ProjectWorkspaceRegistry;
   readonly store;
+  readonly #mutations: MutationStore;
   readonly inbox;
   readonly #goals: ProjectGoalRuntime;
   readonly #deps: ProjectWorkDeps<TProject>;
@@ -97,6 +102,43 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
     this.db = new DatabaseSync(join(deps.directory, "projects.db"));
     this.workspaces = new ProjectWorkspaceRegistry(this.db);
     this.store = makeSqliteStore({ database: this.db });
+    this.#mutations = makeSqliteMutationStore({
+      database: this.db,
+      resources: {
+        read: (db, authority, resourceId) => {
+          const row = db
+            .prepare(
+              "SELECT data FROM openmatter_store_records WHERE kind='goal' AND parent_id=? AND scope_id=?",
+            )
+            .get(resourceId, authority) as { data: string } | undefined;
+          const goal = row ? (JSON.parse(row.data) as ThreadGoal) : undefined;
+          return {
+            authority,
+            resourceId,
+            revision: goal ? `${goal.id}:${goal.revision}` : null,
+            exists: goal !== undefined,
+            ...(goal ? { value: goal as unknown as JsonValue } : {}),
+          };
+        },
+        write: (db, state) => {
+          const goal = state.value as unknown as ThreadGoal;
+          if (
+            !state.exists ||
+            goal.scopeId !== state.authority ||
+            goal.workThreadId !== state.resourceId
+          )
+            throw new Error("Invalid Goal write binding");
+          db.prepare(
+            "UPDATE openmatter_store_records SET data=? WHERE kind='goal' AND id=? AND parent_id=? AND scope_id=?",
+          ).run(
+            JSON.stringify(goal),
+            goal.id,
+            state.resourceId,
+            state.authority,
+          );
+        },
+      },
+    });
     this.#goals = new ProjectGoalRuntime(this.store, this.db);
     this.inbox = makeSqliteInbox({
       filename: join(deps.directory, "project-inbox.db"),
@@ -583,22 +625,63 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
         );
       },
       update: async (input: {
+        operationId: string;
+        expectedGoalId: string;
+        expectedRevision: number;
         status: "complete" | "blocked";
         reason?: string;
-      }): Promise<ThreadGoal> => {
+      }) => {
         check();
         if (!["complete", "blocked"].includes(input.status))
           throw new Error("Models may only mark goals complete or blocked");
-        const goal = Effect.runSync(this.store.getThreadGoal(workThreadId));
-        if (!goal) throw new Error("No goal is set");
-        if (goal.status !== "active")
-          throw new Error("This goal is not active");
-        return Effect.runSync(
-          this.store.updateThreadGoal(workThreadId, {
-            expectedGoalId: goal.id,
-            expectedRevision: goal.revision,
-            ...input,
-          }),
+        if (
+          !input.expectedGoalId ||
+          !Number.isSafeInteger(input.expectedRevision) ||
+          input.expectedRevision < 1
+        )
+          throw new Error(
+            "A previously observed Goal identity and revision are required",
+          );
+        return Effect.runPromise(
+          this.#mutations.execute(
+            {
+              authority: projectId,
+              operationId: input.operationId,
+              operation: "goal.update",
+              preconditions: [
+                {
+                  authority: projectId,
+                  resourceId: workThreadId,
+                  revision: `${input.expectedGoalId}:${input.expectedRevision}`,
+                },
+              ],
+              input: {
+                status: input.status,
+                ...(input.reason === undefined ? {} : { reason: input.reason }),
+              },
+            },
+            (tx, intent) => {
+              const goal = tx.read(workThreadId).value as unknown as ThreadGoal;
+              if (goal.status !== "active")
+                throw new Error("This goal is not active");
+              const change = intent.input as {
+                status: "complete" | "blocked";
+                reason?: string;
+              };
+              const { reason: _reason, ...base } = goal;
+              const updated = {
+                ...base,
+                status: change.status,
+                revision: goal.revision + 1,
+                updatedAt: new Date().toISOString(),
+                ...(change.reason?.trim()
+                  ? { reason: change.reason.trim() }
+                  : {}),
+              };
+              tx.set(workThreadId, updated as unknown as JsonValue);
+              return updated as unknown as JsonValue;
+            },
+          ),
         );
       },
     };

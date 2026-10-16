@@ -11,6 +11,7 @@ import {
   ReactionSchema,
   WorkEffectSchema,
   WorkEventSchema,
+  MutationResultSchema,
   type ContextProjection,
   type EffectDeliveryReceipt,
   type JsonValue,
@@ -172,6 +173,9 @@ export const createOpenMatter = (
           kind: input.kind,
           value: input.value,
           provenance: input.provenance,
+          ...(input.observation === undefined
+            ? {}
+            : { observation: input.observation }),
         }),
         project: (input) => {
           const snapshot = structuredClone({
@@ -223,6 +227,27 @@ export const createOpenMatter = (
               message: "WorkEffect input must be portable JSON data",
             });
           }
+          if (effectInput.mutation !== undefined) {
+            const guard = effectInput.mutation;
+            if (
+              guard.preconditions.some(
+                (condition) =>
+                  condition.authority !== guard.authority ||
+                  !durableContext.items.some(
+                    (item) =>
+                      item.observation !== undefined &&
+                      canonicalJson(item.observation) ===
+                        canonicalJson(condition),
+                  ),
+              )
+            ) {
+              return yield* new AuthorizationError({
+                operation: effectInput.operation,
+                message:
+                  "Mutation conditions must come from this authorized ContextProjection",
+              });
+            }
+          }
           const capability = `${effectInput.integrationId}.${effectInput.operation}`;
           if (!durableContext.grants.includes(capability)) {
             return yield* new AuthorizationError({
@@ -258,6 +283,9 @@ export const createOpenMatter = (
               effectInput.idempotencyKey ??
               `${event.idempotencyKey}:effect:${effectSequence}`,
             input: effectInput.input,
+            ...(effectInput.mutation === undefined
+              ? {}
+              : { mutation: effectInput.mutation }),
           };
           // Capture value identity, not JS object identity: user code receives
           // the object and may mutate it despite TypeScript's readonly types.
@@ -432,8 +460,15 @@ export const createOpenMatter = (
         pending,
         ({ effect, lease, attempt }) => {
           const integration = integrations.get(effect.integrationId);
+          const conditional =
+            integration?.conditionalWrites?.[effect.operation];
+          const unsupported =
+            effect.mutation !== undefined &&
+            (conditional === undefined ||
+              (effect.mutation.guarantee === "atomic" &&
+                conditional.guarantee !== "atomic"));
           const delivery =
-            integration === undefined
+            integration === undefined || unsupported
               ? Effect.succeed<EffectDeliveryReceipt>({
                   effectId: effect.id,
                   integrationId: effect.integrationId,
@@ -441,60 +476,108 @@ export const createOpenMatter = (
                   status: "terminal-failed",
                   attempt,
                   attemptedAt: clock(),
-                  error: `Unknown integration: ${effect.integrationId}`,
+                  error: unsupported
+                    ? "Integration does not support the required conditional write guarantee"
+                    : `Unknown integration: ${effect.integrationId}`,
                 })
-              : integration.deliver(effect).pipe(
-                  Effect.flatMap((result) => {
-                    if (!Schema.is(ProviderDeliveryResultSchema)(result)) {
-                      return Effect.fail(
-                        new IntegrationError({
-                          message:
-                            "Provider delivery result must contain only portable JSON data",
-                          retryable: false,
-                        }),
-                      );
-                    }
-                    return Effect.succeed<EffectDeliveryReceipt>({
-                      effectId: effect.id,
-                      integrationId: effect.integrationId,
-                      operation: effect.operation,
-                      status: "delivered",
-                      attempt,
-                      attemptedAt: clock(),
-                      ...(result.providerReceipt === undefined
-                        ? {}
-                        : { providerReceipt: result.providerReceipt }),
-                    });
-                  }),
-                  Effect.catchAll((error: IntegrationError) => {
-                    const attemptedAt = clock();
-                    return Effect.succeed<EffectDeliveryReceipt>({
-                      effectId: effect.id,
-                      integrationId: effect.integrationId,
-                      operation: effect.operation,
-                      status: error.retryable
-                        ? "retryable-failed"
-                        : "terminal-failed",
-                      attempt,
-                      attemptedAt,
-                      ...(error.retryable
-                        ? {
-                            nextRetryAt:
-                              error.retryAt !== undefined &&
-                              Number.isFinite(Date.parse(error.retryAt))
-                                ? new Date(
-                                    Date.parse(error.retryAt),
-                                  ).toISOString()
-                                : new Date(
-                                    Date.parse(attemptedAt) +
-                                      (options.effectRetryDelayMs ?? 1_000),
-                                  ).toISOString(),
-                          }
-                        : {}),
-                      error: error.message,
-                    });
-                  }),
-                );
+              : effect.mutation !== undefined && conditional !== undefined
+                ? conditional.deliver(effect).pipe(
+                    Effect.map((result) => {
+                      if (
+                        !Schema.is(MutationResultSchema)(result) ||
+                        result.operationId !== effect.idempotencyKey
+                      ) {
+                        return {
+                          effectId: effect.id,
+                          integrationId: effect.integrationId,
+                          operation: effect.operation,
+                          status: "uncertain" as const,
+                          attempt,
+                          attemptedAt: clock(),
+                          error:
+                            "Conditional adapter returned an invalid or mismatched receipt",
+                        };
+                      }
+                      return {
+                        effectId: effect.id,
+                        integrationId: effect.integrationId,
+                        operation: effect.operation,
+                        status:
+                          result.status === "committed"
+                            ? ("delivered" as const)
+                            : ("conflict" as const),
+                        mutation: result,
+                        attempt,
+                        attemptedAt: clock(),
+                      };
+                    }),
+                    Effect.catchAll((error) =>
+                      Effect.succeed<EffectDeliveryReceipt>({
+                        effectId: effect.id,
+                        integrationId: effect.integrationId,
+                        operation: effect.operation,
+                        status:
+                          error.effectState === "not-applied"
+                            ? "terminal-failed"
+                            : "uncertain",
+                        attempt,
+                        attemptedAt: clock(),
+                        error: error.message,
+                      }),
+                    ),
+                  )
+                : integration.deliver(effect).pipe(
+                    Effect.flatMap((result) => {
+                      if (!Schema.is(ProviderDeliveryResultSchema)(result)) {
+                        return Effect.fail(
+                          new IntegrationError({
+                            message:
+                              "Provider delivery result must contain only portable JSON data",
+                            retryable: false,
+                          }),
+                        );
+                      }
+                      return Effect.succeed<EffectDeliveryReceipt>({
+                        effectId: effect.id,
+                        integrationId: effect.integrationId,
+                        operation: effect.operation,
+                        status: "delivered",
+                        attempt,
+                        attemptedAt: clock(),
+                        ...(result.providerReceipt === undefined
+                          ? {}
+                          : { providerReceipt: result.providerReceipt }),
+                      });
+                    }),
+                    Effect.catchAll((error: IntegrationError) => {
+                      const attemptedAt = clock();
+                      return Effect.succeed<EffectDeliveryReceipt>({
+                        effectId: effect.id,
+                        integrationId: effect.integrationId,
+                        operation: effect.operation,
+                        status: error.retryable
+                          ? "retryable-failed"
+                          : "terminal-failed",
+                        attempt,
+                        attemptedAt,
+                        ...(error.retryable
+                          ? {
+                              nextRetryAt:
+                                error.retryAt !== undefined &&
+                                Number.isFinite(Date.parse(error.retryAt))
+                                  ? new Date(
+                                      Date.parse(error.retryAt),
+                                    ).toISOString()
+                                  : new Date(
+                                      Date.parse(attemptedAt) +
+                                        (options.effectRetryDelayMs ?? 1_000),
+                                    ).toISOString(),
+                            }
+                          : {}),
+                        error: error.message,
+                      });
+                    }),
+                  );
           return withLeaseHeartbeat(
             delivery.pipe(
               Effect.flatMap((receipt) =>

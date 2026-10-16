@@ -25,6 +25,8 @@ import {
 } from "@openma/matter/store";
 import { Effect, Schema } from "effect";
 
+export { makeMemoryMutationStore } from "./mutation.js";
+
 export interface MemoryStoreOptions {
   readonly makeLeaseToken?: () => string;
   /** Test/embedded clock. Production adapters must use their storage engine's
@@ -242,10 +244,7 @@ export const makeMemoryStore = (
           .filter((effect) => {
             const receipt = deliveries.get(effect.id);
             if (receipt === undefined) return true;
-            if (
-              receipt.status === "delivered" ||
-              receipt.status === "terminal-failed"
-            ) {
+            if (receipt.status !== "retryable-failed") {
               return false;
             }
             return (

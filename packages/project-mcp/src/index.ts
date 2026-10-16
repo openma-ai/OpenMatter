@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/server";
-import type { ThreadGoal } from "@openma/matter";
+import type { ThreadGoal, MutationResult } from "@openma/matter";
 import type {
   ProjectCommandReceipt,
   ProjectControl,
@@ -27,14 +27,17 @@ export interface ProjectMcpServerOptions {
       tokenBudget?: number;
     }) => Promise<ThreadGoal>;
     readonly update: (input: {
+      operationId: string;
+      expectedGoalId: string;
+      expectedRevision: number;
       status: "complete" | "blocked";
       reason?: string;
-    }) => Promise<ThreadGoal>;
+    }) => Promise<MutationResult>;
   };
 }
 
 export const THREAD_GOAL_INSTRUCTIONS =
-  "Goal tracking belongs to this WorkThread and is managed by OpenMatter. Use only get_goal, create_goal and update_goal from the OpenMatter Project MCP server for it; do not start a provider-native goal or another automatic continuation loop. Create a goal only when explicitly requested; an ordinary task or delegation alone does not request goal tracking. Supply a token budget only when explicitly requested. Inspect the current goal before creating one. Ending a turn does not complete a goal. Mark complete only after verifying the entire objective against current evidence. Mark blocked only when the same genuine obstacle prevents meaningful progress for at least three consecutive goal turns; after an explicit resume, begin a fresh blocked audit. Do not mark blocked merely because work is slow, difficult or incomplete. Pause, resume and budget changes belong to the user or host; do not change them through other tools. Report the returned status and final usage when completing a budgeted goal.";
+  "Goal tracking belongs to this WorkThread and is managed by OpenMatter. Use only get_goal, create_goal and update_goal from the OpenMatter Project MCP server for it; do not start a provider-native goal or another automatic continuation loop. Create a goal only when explicitly requested; an ordinary task or delegation alone does not request goal tracking. Supply a token budget only when explicitly requested. Inspect the current goal before creating one. For update_goal, use the id and revision from the goal you read, plus a stable operationId for that decision. Replay the same operationId only with the same arguments. A conflict means no write: read the goal again, reconsider, and use a new operationId for a new decision; never change the expected revision just to force a stale decision through. Ending a turn does not complete a goal. Mark complete only after verifying the entire objective against current evidence. Mark blocked only when the same genuine obstacle prevents meaningful progress for at least three consecutive goal turns; after an explicit resume, begin a fresh blocked audit. Do not mark blocked merely because work is slow, difficult or incomplete. Pause, resume and budget changes belong to the user or host; do not change them through other tools. Report the returned status and final usage when completing a budgeted goal.";
 
 const GoalSchema = z.object({
   id: z.string(),
@@ -59,6 +62,32 @@ const GoalSchema = z.object({
 });
 
 const GoalResultSchema = z.object({ goal: GoalSchema.nullable() });
+const GoalMutationResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("committed"),
+    operationId: z.string(),
+    value: GoalSchema,
+    observations: z.array(
+      z.object({
+        authority: z.string(),
+        resourceId: z.string(),
+        revision: z.string().nullable(),
+      }),
+    ),
+  }),
+  z.object({
+    status: z.literal("conflict"),
+    operationId: z.string(),
+    effect: z.literal("not-applied"),
+    conflicts: z.array(
+      z.object({
+        resourceId: z.string(),
+        expectedRevision: z.string().nullable(),
+        actualRevision: z.string().nullable(),
+      }),
+    ),
+  }),
+]);
 const goalResult = (goal: ThreadGoal | null) => ({
   content: [{ type: "text" as const, text: JSON.stringify({ goal }) }],
   structuredContent: { goal },
@@ -235,10 +264,13 @@ export const makeProjectMcpServer = (
         description:
           "Mark this WorkThread's current goal complete only when all requirements are verified, or blocked only after the same genuine obstacle prevents progress for three consecutive goal turns. A resumed blocked goal starts a fresh audit. User and host control pause, resume, limits and budgets.",
         inputSchema: z.strictObject({
+          operationId: z.string().trim().min(1),
+          expectedGoalId: z.string().min(1),
+          expectedRevision: z.number().int().positive(),
           status: z.enum(["complete", "blocked"]),
           reason: z.string().trim().min(1).optional(),
         }),
-        outputSchema: GoalResultSchema,
+        outputSchema: GoalMutationResultSchema,
         annotations: {
           readOnlyHint: false,
           destructiveHint: false,
@@ -246,13 +278,19 @@ export const makeProjectMcpServer = (
           openWorldHint: false,
         },
       },
-      async ({ status, reason }) =>
-        goalResult(
+      async (input) => {
+        const { reason, ...required } = input;
+        const result = GoalMutationResultSchema.parse(
           await goal.update({
-            status,
+            ...required,
             ...(reason === undefined ? {} : { reason }),
           }),
-        ),
+        );
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
+          structuredContent: result,
+        };
+      },
     );
   }
 
