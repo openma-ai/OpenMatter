@@ -634,6 +634,29 @@ The bot's own messages never produce `feishu.message.mentioned` (the
 normalizer drops events whose sender is the bot's `open_id`), so a reply
 cannot trigger another reply.
 
+**Implemented in v1** (`feishuAgent`, `feishuTemplates`): the sketches above
+became one template, `feishu-agent`. It answers a direct message or a group
+@mention with an Agent that can read GitLab, so a bug-triage bot is this
+template plus triage text in `instructions`, not a second template.
+
+- **Identity.** `runAs: "app"` for the Loop, with the GitLab Bond declared
+  `runAs: "requester"` for `fetch` and `read`: the Agent reads GitLab as the
+  person who asked and sees only what they can, while the reply is posted by
+  the bot. The template asks for no GitLab write operation.
+- **Config.** `agentId` (`x-oma-widget: "agent"`), `gitlabProjects`
+  (`bond-resources` for `gitlab`, at least one), `chats` (`bond-resources`
+  for `feishu`; empty means every group the bot is in, and direct messages
+  are always answered), `sessionScope` (`thread` default, `chat`,
+  `chat_user`; `select`), and `instructions` (`textarea`).
+- **Skips** a group outside `chats`, a message from an app, and a bare
+  mention with no text.
+- **Reply.** One `message.reply` with a markdown card; in a group it goes to
+  the message's topic (`inThread: true`), in a direct chat it does not.
+  Effects are delivered after the Turn ends, so the template adds no
+  "received" reaction: it would arrive together with the answer.
+- **Sessions.** `scopeId` `feishu:<authority>:chat:<chatId>`; `workThreadId`
+  `thread:<threadId or messageId>`, `chat`, or `user:<openId>`.
+
 ## 8. Package layout
 
 ```text
@@ -656,7 +679,7 @@ packages/feishu/                         @openma/matter-feishu (public, Apache-2
       delivery.ts                        FEISHU_OPERATIONS, makeFeishuDelivery
       context.ts                         makeFeishuContextReader
       tools.ts                           agent tool descriptors + executors
-      templates.ts                       feishu-chat, feishu-mention (import only @openma/matter-loop)
+      templates.ts                       feishu-agent (imports only @openma/matter-loop)
       shared.ts                          guards, withoutFeishuCredentials, feishuSource
       integration.ts / index.ts
   src/long-connection/index.ts           makeFeishuLongConnectionSource (Node only)
