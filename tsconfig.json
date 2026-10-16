@@ -23,6 +23,9 @@
         "./packages/host-cloudflare/src/index.ts"
       ],
       "@openma/matter-host-local": ["./packages/host-local/src/index.ts"],
+      "@openma/matter-host-local/runtime": [
+        "./packages/host-local/src/runtime/index.ts"
+      ],
       "@openma/matter-inbox-sqlite": ["./packages/inbox-sqlite/src/index.ts"],
       "@openma/matter-integration-mock": [
         "./packages/integration-mock/src/index.ts"

@@ -72,7 +72,7 @@ claim token, or fencing token.
 @openma/matter-slack/bond signed Slack ingress and semantic operations
 @openma/matter-orchestration     built-in code-first Loops
 @openma/matter-host-cloudflare   Worker HTTP/Queue host binding
-@openma/matter-host-local        Node Socket Mode host binding
+@openma/matter-host-local        Node long-connection host; Slack Socket Mode adapter
 ```
 
 Dependency direction is inward toward `core`. Concrete provider SDKs,

@@ -254,7 +254,8 @@ long Agent Turn; exposing the operation does not make a delayed trigger valid.
 When a laptop, private network, or local server cannot expose a Request URL,
 `@openma/matter-host-local` uses Slack's official
 [`@slack/socket-mode`](https://docs.slack.dev/tools/node-slack-sdk/socket-mode)
-client. Socket Mode delivers pre-authenticated envelopes over a reconnecting
+client. `makeLocalSlackRuntime` adapts it to the package's provider-neutral
+long-connection runtime, which other long-connection providers share. Socket Mode delivers pre-authenticated envelopes over a reconnecting
 WebSocket, so per-request signature verification is neither required nor
 performed. The host first validates and persists an immutable snapshot of each
 native body through `DurableInbox`, then acknowledges Slack. A supervised
