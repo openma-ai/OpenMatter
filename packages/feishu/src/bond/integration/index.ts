@@ -42,3 +42,8 @@ export {
   type FeishuIntegrationOptions,
 } from "./integration.js";
 export { withoutFeishuCredentials } from "./shared.js";
+export {
+  feishuAgent,
+  feishuTemplates,
+  templateMarkdownCard,
+} from "./templates.js";
