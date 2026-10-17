@@ -3,9 +3,8 @@
 Every package under `packages/` that is not `private` is published to npm,
 all at the same version. Today that is `@openma/matter` (the kernel, one
 subpath export per port), `@openma/matter-loop` (the Loop guest SDK),
-and `@openma/matter-gitlab`. `@openma/matter-feishu` stays `private` until
-its first version is bootstrapped (below). Consumers install exact versions
-from npm; git dependencies on this repository are not supported.
+`@openma/matter-gitlab`, and `@openma/matter-feishu`. Consumers install exact
+versions from npm; git dependencies on this repository are not supported.
 
 A package becomes public when it has a consumer outside this repository:
 remove `"private": true`, add the same `license`, `repository`, and
