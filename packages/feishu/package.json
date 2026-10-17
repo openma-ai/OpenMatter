@@ -1,7 +1,6 @@
 {
   "name": "@openma/matter-feishu",
   "version": "0.2.1",
-  "private": true,
   "description": "Feishu and Lark for OpenMatter: the Bond provider for customer self-built apps, user links by device flow or OAuth with PKCE, the chat resource catalog, the encrypted webhook endpoint, event normalization, and the long-connection source.",
   "license": "Apache-2.0",
   "repository": {
