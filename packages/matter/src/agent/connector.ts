@@ -217,6 +217,9 @@ export const makeConnectorAgentDriver = (
         cancel: value.cancellation,
         permissions: value.permissions,
         concurrentTurns: false,
+        // A connector with custom tools receives the Turn's tools and reports
+        // calls as OPERATION_CALL_METHOD callbacks.
+        operations: value.customTools === true,
       })),
     );
 
@@ -302,6 +305,17 @@ export const makeConnectorAgentDriver = (
                   contextDigest: input.context.digest,
                   content,
                   grants: input.allow,
+                  // The shared connector contract has no tools field yet; the
+                  // tool descriptors travel in metadata until it does.
+                  ...(input.tools === undefined || input.tools.length === 0
+                    ? {}
+                    : {
+                        metadata: {
+                          openmatter: {
+                            tools: immutableJson(input.tools) as JsonValue,
+                          },
+                        },
+                      }),
                 });
                 if (
                   events === null ||
@@ -343,6 +357,17 @@ export const makeConnectorAgentDriver = (
           }),
         catch: (cause) =>
           driverError("Could not answer Claude Agent permission", cause),
+      }),
+    respondToCallback: ({ session, callbackId, result }) =>
+      Effect.tryPromise({
+        try: () =>
+          connector.send(connectorHandleFrom(session), {
+            type: "callback.respond",
+            callbackId,
+            result,
+          }),
+        catch: (cause) =>
+          driverError("Could not answer Claude Agent callback", cause),
       }),
     cancel: ({ session, turnId }) =>
       Effect.tryPromise({

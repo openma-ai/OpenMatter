@@ -222,3 +222,49 @@ export const PermissionDecisionSchema = Schema.Struct({
 }).annotations({ identifier: "PermissionDecision" });
 
 export type PermissionDecision = typeof PermissionDecisionSchema.Type;
+
+/**
+ * What an Agent gets back from an operation it called during its Turn.
+ * `refused` and `failed` are known not to have applied; `uncertain` may have.
+ */
+export const OperationCallResultSchema = Schema.Union(
+  Schema.Struct({
+    status: Schema.Literal("delivered"),
+    receipt: Schema.optional(JsonValueSchema),
+  }),
+  Schema.Struct({
+    status: Schema.Literal("refused"),
+    reason: Schema.String,
+  }),
+  Schema.Struct({
+    status: Schema.Literal("failed"),
+    reason: Schema.String,
+    retryable: Schema.Boolean,
+  }),
+  Schema.Struct({
+    status: Schema.Literal("uncertain"),
+    reason: Schema.String,
+  }),
+).annotations({ identifier: "OperationCallResult" });
+
+export type OperationCallResult = typeof OperationCallResultSchema.Type;
+
+/**
+ * The durable record of one operation an Agent called during a Turn, keyed by
+ * Turn and the driver's callback id. `pending` is written before delivery, so
+ * a crash between delivery and completion is never delivered twice.
+ */
+export const OperationCallSchema = Schema.Struct({
+  turnId: Schema.String,
+  callId: Schema.String,
+  fingerprint: Schema.String,
+  integrationId: Schema.String,
+  operation: Schema.String,
+  input: JsonValueSchema,
+  state: Schema.Literal("pending", "completed"),
+  result: Schema.optional(OperationCallResultSchema),
+  startedAt: Schema.String,
+  completedAt: Schema.optional(Schema.String),
+}).annotations({ identifier: "OperationCall" });
+
+export type OperationCall = typeof OperationCallSchema.Type;

@@ -5,17 +5,31 @@ import {
   OpenMAEventSchema,
   createOpenMAEvent,
   immutableJson,
+  isCallbackRequestEvent,
   isPermissionRequestEvent,
   isTurnTerminalEvent,
+  OPERATION_CALL_METHOD,
   turnTerminalStatus,
   type AgentDriverRegistry,
   type AgentSessionHandle,
+  type AgentTool,
   type OpenMAEvent,
 } from "../agent/index.js";
 import {
+  IntegrationError,
+  ProviderDeliveryResultSchema,
+  WorkIntegrations,
+  type WorkIntegrationRegistry,
+} from "../integration/index.js";
+import {
+  JsonValueSchema,
+  WorkEffectSchema,
   type AgentSession,
   type JsonValue,
+  type OperationCall,
+  type OperationCallResult,
   type Turn,
+  type WorkEffect,
   type WorkEvent,
 } from "../index.js";
 import {
@@ -68,7 +82,7 @@ export interface AgentTurnRuntime {
     | ContextProjectionError
     | SessionBusyError
     | StoreError,
-    OpenMatterStore | AgentDriverRegistry
+    OpenMatterStore | AgentDriverRegistry | WorkIntegrationRegistry
   >;
 }
 
@@ -161,6 +175,7 @@ export const makeAgentTurnRuntime = (options: {
       return Effect.gen(function* () {
         const store = yield* StoreService;
         const drivers = yield* AgentDrivers;
+        const integrations = yield* WorkIntegrations;
         if (
           input.context.scopeId !== scopeId ||
           input.context.workThreadId !== workThreadId
@@ -332,6 +347,8 @@ export const makeAgentTurnRuntime = (options: {
               message: `Turn operation is not present in the context grants: ${denied}`,
             });
           }
+
+          const turnTools = toolsFor(turnAllow, integrations);
 
           const portableHandle = (
             handle: AgentSessionHandle,
@@ -566,6 +583,7 @@ export const makeAgentTurnRuntime = (options: {
               afterSequence: lastSequence,
               context: turnContext,
               allow: turnAllow,
+              ...(turnTools.length === 0 ? {} : { tools: turnTools }),
             })
             .pipe(
               Stream.runFoldEffect(
@@ -664,6 +682,41 @@ export const makeAgentTurnRuntime = (options: {
                         session: handle,
                         requestId,
                         approved: decision.approved,
+                      });
+                    }
+                    if (
+                      isCallbackRequestEvent(durableEvent) &&
+                      durableEvent.data.category === "extension" &&
+                      durableEvent.data.method === OPERATION_CALL_METHOD
+                    ) {
+                      if (
+                        capabilities.operations !== true ||
+                        driver.respondToCallback === undefined
+                      ) {
+                        return yield* new AgentDriverError({
+                          message:
+                            "Agent called an operation but its driver does not support operation calls",
+                        });
+                      }
+                      const result = yield* callOperation({
+                        store,
+                        integrations,
+                        clock: options.clock,
+                        turnId,
+                        triggerEventId: event.id,
+                        allow: turnAllow,
+                        callId: durableEvent.data.callback_id,
+                        fingerprint: durableEvent.data.fingerprint,
+                        params: durableEvent.data.params,
+                        bindingKey,
+                        leaseToken: sessionClaim.lease.token,
+                      });
+                      // As with permissions: respond before checkpointing the
+                      // request. Replay answers from the stored call.
+                      yield* driver.respondToCallback({
+                        session: handle,
+                        callbackId: durableEvent.data.callback_id,
+                        result: result as unknown as JsonValue,
                       });
                     }
                     const terminal = isTurnTerminalEvent(durableEvent)
@@ -901,3 +954,197 @@ export const makeAgentTurnRuntime = (options: {
 
   return { cancel, run };
 };
+
+/** The allowed operations whose integration describes them as tools. */
+const toolsFor = (
+  allow: readonly string[],
+  integrations: WorkIntegrationRegistry,
+): readonly AgentTool[] =>
+  allow.flatMap((name) => {
+    for (const [integrationId, integration] of integrations) {
+      if (!name.startsWith(`${integrationId}.`)) continue;
+      const operation = name.slice(integrationId.length + 1);
+      const descriptor = integration.manifest.tools?.[operation];
+      if (
+        descriptor === undefined ||
+        !declares(integration.manifest.operations, operation)
+      ) {
+        continue;
+      }
+      return [
+        {
+          name,
+          integrationId,
+          operation,
+          description: descriptor.description,
+          inputSchema: descriptor.inputSchema,
+        },
+      ];
+    }
+    return [];
+  });
+
+/** `"*"` declares every operation, as for Effects. */
+const declares = (operations: readonly string[], operation: string) =>
+  operations.includes("*") || operations.includes(operation);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * Executes one operation an Agent called during its Turn: the grant, one
+ * delivery per Turn/call id, and the result the Agent gets back. A call that
+ * was started but not completed (a crash mid-delivery) is reported as
+ * uncertain rather than delivered again.
+ */
+const callOperation = (input: {
+  readonly store: OpenMatterStore;
+  readonly integrations: WorkIntegrationRegistry;
+  readonly clock: () => string;
+  readonly turnId: string;
+  readonly triggerEventId: string;
+  readonly allow: readonly string[];
+  readonly callId: string;
+  readonly fingerprint: string;
+  readonly params: unknown;
+  readonly bindingKey: string;
+  readonly leaseToken: string;
+}): Effect.Effect<OperationCallResult, AgentDriverError | StoreError> =>
+  Effect.gen(function* () {
+    const { store, turnId, callId, fingerprint, bindingKey, leaseToken } =
+      input;
+    const complete = (result: OperationCallResult) =>
+      store
+        .completeOperationCall(
+          turnId,
+          callId,
+          result,
+          input.clock(),
+          bindingKey,
+          leaseToken,
+        )
+        .pipe(Effect.map((call) => call.result ?? result));
+
+    const stored = yield* store.getOperationCall(turnId, callId);
+    if (stored !== undefined && stored.fingerprint !== fingerprint) {
+      return yield* new AgentDriverError({
+        message: `Operation call content changed for reused callback id: ${callId}`,
+      });
+    }
+    if (stored?.state === "completed" && stored.result !== undefined) {
+      return stored.result;
+    }
+    if (stored?.state === "pending") {
+      return yield* complete({
+        status: "uncertain",
+        reason:
+          "The outcome of this call was not recorded before the Turn was interrupted; check before calling again",
+      });
+    }
+
+    const params = isRecord(input.params) ? input.params : {};
+    const integrationId =
+      typeof params.integrationId === "string" ? params.integrationId : "";
+    const operation =
+      typeof params.operation === "string" ? params.operation : "";
+    const callInput = params.input;
+    const name = `${integrationId}.${operation}`;
+    const integration = input.integrations.get(integrationId);
+    const refusal =
+      integrationId === "" ||
+      operation === "" ||
+      !Schema.is(JsonValueSchema)(callInput)
+        ? "Operation call parameters must name an integration, an operation, and JSON input"
+        : !input.allow.includes(name)
+          ? `Operation is not allowed for this Turn: ${name}`
+          : integration === undefined ||
+              !declares(integration.manifest.operations, operation)
+            ? `Unknown operation: ${name}`
+            : undefined;
+
+    const startedAt = input.clock();
+    const call: OperationCall = {
+      turnId,
+      callId,
+      fingerprint,
+      integrationId,
+      operation,
+      input: Schema.is(JsonValueSchema)(callInput) ? callInput : null,
+      state: "pending",
+      startedAt,
+    };
+    const begun = yield* store.beginOperationCall(call, bindingKey, leaseToken);
+    if (begun.fingerprint !== fingerprint) {
+      return yield* new AgentDriverError({
+        message: `Operation call content changed for reused callback id: ${callId}`,
+      });
+    }
+    if (begun.state === "completed" && begun.result !== undefined) {
+      return begun.result;
+    }
+    if (begun.startedAt !== startedAt) {
+      return yield* complete({
+        status: "uncertain",
+        reason: "Another attempt of this call is already in progress",
+      });
+    }
+    if (refusal !== undefined || integration === undefined) {
+      return yield* complete({
+        status: "refused",
+        reason: refusal ?? `Unknown operation: ${name}`,
+      });
+    }
+
+    const effectId = `${turnId}:call:${callId}`;
+    const effect: WorkEffect = {
+      schemaVersion: "0.1",
+      id: effectId,
+      eventId: input.triggerEventId,
+      integrationId,
+      operation,
+      idempotencyKey: effectId,
+      input: call.input,
+    };
+    if (!Schema.is(WorkEffectSchema)(effect)) {
+      return yield* complete({
+        status: "refused",
+        reason: "Operation call could not be expressed as a WorkEffect",
+      });
+    }
+    const result: OperationCallResult = yield* integration.deliver(effect).pipe(
+      Effect.flatMap((delivered) =>
+        Schema.is(ProviderDeliveryResultSchema)(delivered)
+          ? Effect.succeed<OperationCallResult>({
+              status: "delivered",
+              ...(delivered.providerReceipt === undefined
+                ? {}
+                : { receipt: delivered.providerReceipt }),
+            })
+          : Effect.fail(
+              new IntegrationError({
+                message:
+                  "Provider delivery result must contain only portable JSON data",
+                retryable: false,
+              }),
+            ),
+      ),
+      Effect.catchAll((error: IntegrationError) =>
+        Effect.succeed<OperationCallResult>(
+          error.effectState === "not-applied"
+            ? {
+                status: "failed",
+                reason: error.message,
+                retryable: error.retryable,
+              }
+            : { status: "uncertain", reason: error.message },
+        ),
+      ),
+      Effect.catchAllDefect(() =>
+        Effect.succeed<OperationCallResult>({
+          status: "uncertain",
+          reason: "The integration failed while delivering the call",
+        }),
+      ),
+    );
+    return yield* complete(result);
+  });

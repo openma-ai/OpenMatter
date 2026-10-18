@@ -3,6 +3,8 @@ import type {
   ContextProjection,
   EffectDeliveryReceipt,
   PermissionDecision,
+  OperationCall,
+  OperationCallResult,
   Reaction,
   ReactionReceipt,
   ThreadGoal,
@@ -116,6 +118,7 @@ export interface StoreSnapshot {
   readonly contexts: readonly ContextProjection[];
   readonly agentEvents: readonly OpenMAEvent[];
   readonly permissionDecisions: readonly PermissionDecision[];
+  readonly operationCalls: readonly OperationCall[];
 }
 
 export interface OpenMatterStore {
@@ -226,6 +229,27 @@ export interface OpenMatterStore {
     sessionBindingKey: string,
     sessionLeaseToken: string,
   ) => Effect.Effect<PermissionDecision, StoreError>;
+  readonly getOperationCall: (
+    turnId: string,
+    callId: string,
+  ) => Effect.Effect<OperationCall | undefined, StoreError>;
+  /** Atomically inserts one `pending` call per Turn/call id under the Session
+   * fence, and returns the stored call, which may be an earlier one. */
+  readonly beginOperationCall: (
+    call: OperationCall,
+    sessionBindingKey: string,
+    sessionLeaseToken: string,
+  ) => Effect.Effect<OperationCall, StoreError>;
+  /** Completes a `pending` call under the Session fence. A completed call is
+   * returned unchanged; a missing call fails. */
+  readonly completeOperationCall: (
+    turnId: string,
+    callId: string,
+    result: OperationCallResult,
+    completedAt: string,
+    sessionBindingKey: string,
+    sessionLeaseToken: string,
+  ) => Effect.Effect<OperationCall, StoreError>;
   /** Idempotent for the same Turn sequence/event identity. */
   readonly appendAgentEvent: (
     event: OpenMAEvent,

@@ -26,6 +26,8 @@ interface AgentDriver {
   respondToPermission(
     input: PermissionResponse,
   ): Effect<void, AgentDriverError>;
+  // Required when capabilities().operations is true.
+  respondToCallback?(input: CallbackResponse): Effect<void, AgentDriverError>;
   cancel(input: CancelTurnInput): Effect<void, AgentDriverError>;
   closeSession(handle: AgentSessionHandle): Effect<void, AgentDriverError>;
 }
@@ -176,7 +178,7 @@ Drivers deliver granted operations through the closest supported mechanism:
 
 A driver must report when its runtime cannot receive external operations. It cannot silently pretend that Work Profile operations were exposed.
 
-The runtime path that executes such a call during the Turn (`invoke`: fencing, grant, idempotency, conversation freshness, and the result returned to the Agent) is designed in [Turn tool calls and conversation writes](./TURN_TOOLS.md).
+A driver with `capabilities.operations` receives the allowed operations that integrations describe as tools in `AgentTurnInput.tools`, and reports each call as a `callback.requested` event with method `OPERATION_CALL_METHOD`. The runtime checks the grant, delivers the call once per Turn and callback id, records it, and answers through `respondToCallback`. See [Turn tool calls and conversation writes](./TURN_TOOLS.md), which also designs conversation freshness.
 
 ## ACP binding
 

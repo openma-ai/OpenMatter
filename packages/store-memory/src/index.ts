@@ -2,6 +2,7 @@ import type {
   AgentSession,
   ContextProjection,
   EffectDeliveryReceipt,
+  OperationCall,
   PermissionDecision,
   Reaction,
   ReactionReceipt,
@@ -60,6 +61,7 @@ export const makeMemoryStore = (
   const contexts = new Map<string, ContextProjection>();
   const agentEvents: OpenMAEvent[] = [];
   const permissionDecisions = new Map<string, PermissionDecision>();
+  const operationCalls = new Map<string, OperationCall>();
   const goals = new Map<string, ThreadGoal>();
   const goalUsage = new Map<string, AccountThreadGoalInput>();
   const cancellations = new Map<string, TurnCancellationRequest>();
@@ -432,6 +434,48 @@ export const makeMemoryStore = (
         return copy(durableDecision);
       }),
 
+    getOperationCall: (turnId, callId) =>
+      Effect.sync(() => {
+        const call = operationCalls.get(JSON.stringify([turnId, callId]));
+        return call === undefined ? undefined : copy(call);
+      }),
+
+    beginOperationCall: (call, bindingKey, leaseToken) =>
+      storeTry(() => {
+        assertSessionLease(bindingKey, leaseToken);
+        const key = JSON.stringify([call.turnId, call.callId]);
+        const existing = operationCalls.get(key);
+        if (existing !== undefined) return copy(existing);
+        operationCalls.set(key, copy(call));
+        return copy(call);
+      }),
+
+    completeOperationCall: (
+      turnId,
+      callId,
+      result,
+      completedAt,
+      bindingKey,
+      leaseToken,
+    ) =>
+      storeTry(() => {
+        assertSessionLease(bindingKey, leaseToken);
+        const key = JSON.stringify([turnId, callId]);
+        const existing = operationCalls.get(key);
+        if (existing === undefined) {
+          return fail(`Unknown operation call: ${turnId}/${callId}`);
+        }
+        if (existing.state === "completed") return copy(existing);
+        const completed: OperationCall = {
+          ...existing,
+          state: "completed",
+          result: copy(result),
+          completedAt,
+        };
+        operationCalls.set(key, completed);
+        return copy(completed);
+      }),
+
     appendAgentEvent: (event, bindingKey, leaseToken) =>
       storeTry(() => {
         assertSessionLease(bindingKey, leaseToken);
@@ -656,6 +700,7 @@ export const makeMemoryStore = (
       contexts: [...contexts.values()].map(copy),
       agentEvents: agentEvents.map(copy),
       permissionDecisions: [...permissionDecisions.values()].map(copy),
+      operationCalls: [...operationCalls.values()].map(copy),
     })),
   };
 };
