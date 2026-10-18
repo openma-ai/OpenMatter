@@ -1,6 +1,6 @@
 {
   "name": "@openma/matter-gitlab",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "GitLab for OpenMatter: the Bond provider, webhook ingest, merge request and issue note delivery, and the GitLab Loop templates.",
   "license": "Apache-2.0",
   "repository": {
