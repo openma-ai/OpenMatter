@@ -30,7 +30,8 @@ packages/
 ├── feishu               @openma/matter-feishu — ./bond: Feishu/Lark Bond provider for
 │                        self-built apps, device and OAuth user links, chat catalog,
 │                        encrypted webhook decoder, event normalization, and
-│                        message, reply, reaction, and card Effects;
+│                        message, reply, reaction, and card Effects, and the
+│                        feishu-agent Loop template;
 │                        ./long-connection: Node long-connection source
 │
 │   One package per provider, @openma/matter-<provider>. ./bond holds the
@@ -84,6 +85,7 @@ Everything else depends on `@openma/matter`:
 
 ```text
 gitlab ──────────→ matter + @openma/matter-loop (templates)
+feishu ──────────→ matter + @openma/matter-loop (templates)
 store-* / inbox-sqlite / *-mock → matter
 slack / github / linear → matter
 orchestration ───→ matter/runtime
