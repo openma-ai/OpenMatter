@@ -5,6 +5,7 @@ import {
   type AgentSession,
   type ContextProjection,
   type EffectDeliveryReceipt,
+  type OperationCall,
   type PermissionDecision,
   type Reaction,
   type ThreadGoal,
@@ -301,6 +302,9 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
       ),
       permissionDecisions: rows<PermissionDecision>("permission").filter(
         (d) => scopeId === undefined || turnIds.has(d.turnId),
+      ),
+      operationCalls: rows<OperationCall>("operationCall").filter(
+        (c) => scopeId === undefined || turnIds.has(c.turnId),
       ),
       turnCancellationRequests: rows<TurnCancellationRequest>(
         "cancellation",
@@ -701,6 +705,41 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
         if (existing) return existing;
         put("permission", id, decision);
         return get<PermissionDecision>("permission", id)!;
+      }, true),
+    getOperationCall: (turnId, callId) =>
+      op(() =>
+        get<OperationCall>("operationCall", JSON.stringify([turnId, callId])),
+      ),
+    beginOperationCall: (call, key, token) =>
+      op(() => {
+        fence("session", key, token);
+        const turn = get<Turn>("turn", call.turnId);
+        if (
+          !turn ||
+          get<AgentSession>("session", turn.sessionId)?.bindingKey !== key
+        )
+          return fail("Operation call belongs to another session binding");
+        const id = JSON.stringify([call.turnId, call.callId]);
+        const existing = get<OperationCall>("operationCall", id);
+        if (existing) return existing;
+        put("operationCall", id, call);
+        return get<OperationCall>("operationCall", id)!;
+      }, true),
+    completeOperationCall: (turnId, callId, result, completedAt, key, token) =>
+      op(() => {
+        fence("session", key, token);
+        const id = JSON.stringify([turnId, callId]);
+        const existing = get<OperationCall>("operationCall", id);
+        if (!existing)
+          return fail(`Unknown operation call: ${turnId}/${callId}`);
+        if (existing.state === "completed") return existing;
+        put("operationCall", id, {
+          ...existing,
+          state: "completed",
+          result,
+          completedAt,
+        });
+        return get<OperationCall>("operationCall", id)!;
       }, true),
     appendAgentEvent: (event, key, token) =>
       op(() => {

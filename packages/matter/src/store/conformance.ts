@@ -409,5 +409,158 @@ export const storeConformanceCases = (
         );
       },
     },
+    {
+      name: "an operation call is begun once, completed once, and fenced by the Session lease",
+      run: async () => {
+        const store = await fresh();
+        const first = await run(
+          store.claimSession("binding-call", {
+            ownerId: "w1",
+            durationMs: short,
+          }),
+        );
+        if (first._tag !== "Acquired") throw new Error("claim is Acquired");
+        await expire();
+        const second = await run(
+          store.claimSession("binding-call", {
+            ownerId: "w2",
+            durationMs: LONG,
+          }),
+        );
+        if (second._tag !== "Acquired") throw new Error("claim is Acquired");
+        const token = second.lease.token;
+        await run(
+          store.saveSession(
+            {
+              id: "session-call",
+              bindingKey: "binding-call",
+              agentId: "agent-1",
+              authority: "workspace-1",
+              scopeId: "scope-1",
+              workThreadId: "thread-1",
+              privacyPartition: "default",
+              driverId: "mock",
+              generation: 1,
+              state: "open",
+              createdAt: "2026-08-20T08:00:01.000Z",
+              lastUsedAt: "2026-08-20T08:00:01.000Z",
+            },
+            token,
+          ),
+        );
+        await run(
+          store.saveTurn(
+            {
+              id: "turn-call",
+              sessionId: "session-call",
+              triggerEventId: "event-call",
+              contextProjectionId: "context-1",
+              contextDigest: "digest-1",
+              allow: ["chat.reply"],
+              state: "running",
+              createdAt: "2026-08-20T08:00:02.000Z",
+            },
+            "binding-call",
+            token,
+          ),
+        );
+        const call = {
+          turnId: "turn-call",
+          callId: "call-1",
+          fingerprint: "fp-1",
+          integrationId: "chat",
+          operation: "reply",
+          input: { text: "hi" },
+          state: "pending" as const,
+          startedAt: "2026-08-20T08:00:03.000Z",
+        };
+        assert(
+          await fails(
+            store.beginOperationCall(call, "binding-call", first.lease.token),
+          ),
+          "a stale Session token cannot begin an operation call",
+        );
+        assert(
+          (await run(store.getOperationCall("turn-call", "call-1"))) ===
+            undefined,
+          "a fenced begin stores nothing",
+        );
+        await run(store.beginOperationCall(call, "binding-call", token));
+        const again = await run(
+          store.beginOperationCall(
+            { ...call, startedAt: "2026-08-20T08:00:09.000Z" },
+            "binding-call",
+            token,
+          ),
+        );
+        assert(
+          again.startedAt === call.startedAt && again.state === "pending",
+          "a second begin returns the first call",
+        );
+        const delivered = { status: "delivered" as const, receipt: { id: 1 } };
+        assert(
+          await fails(
+            store.completeOperationCall(
+              "turn-call",
+              "call-1",
+              delivered,
+              "2026-08-20T08:00:04.000Z",
+              "binding-call",
+              first.lease.token,
+            ),
+          ),
+          "a stale Session token cannot complete an operation call",
+        );
+        const completed = await run(
+          store.completeOperationCall(
+            "turn-call",
+            "call-1",
+            delivered,
+            "2026-08-20T08:00:04.000Z",
+            "binding-call",
+            token,
+          ),
+        );
+        assert(
+          completed.state === "completed" &&
+            completed.result?.status === "delivered" &&
+            completed.completedAt === "2026-08-20T08:00:04.000Z",
+          "a pending call is completed with its result",
+        );
+        const late = await run(
+          store.completeOperationCall(
+            "turn-call",
+            "call-1",
+            { status: "uncertain", reason: "late" },
+            "2026-08-20T08:00:05.000Z",
+            "binding-call",
+            token,
+          ),
+        );
+        assert(
+          late.result?.status === "delivered",
+          "a completed call is not overwritten",
+        );
+        assert(
+          await fails(
+            store.completeOperationCall(
+              "turn-call",
+              "call-unknown",
+              delivered,
+              "2026-08-20T08:00:05.000Z",
+              "binding-call",
+              token,
+            ),
+          ),
+          "completing an unknown call fails",
+        );
+        const stored = await run(store.getOperationCall("turn-call", "call-1"));
+        assert(
+          stored?.state === "completed" &&
+            JSON.stringify(stored.input) === JSON.stringify({ text: "hi" }),
+          "the call is stored with its input",
+        );
+      },
+    },
   ];
 };

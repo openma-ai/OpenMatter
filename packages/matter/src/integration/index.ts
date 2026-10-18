@@ -30,6 +30,14 @@ export interface IntegrationManifest {
   readonly displayName: string;
   readonly events: readonly string[];
   readonly operations: readonly string[];
+  /** Operations an Agent may call during its Turn, described as tools. The
+   * Turn's `allow` still decides which are offered. */
+  readonly tools?: Readonly<
+    Record<
+      string,
+      { readonly description: string; readonly inputSchema: JsonValue }
+    >
+  >;
 }
 
 export interface WorkIntegration {

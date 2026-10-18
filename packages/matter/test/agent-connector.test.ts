@@ -160,6 +160,95 @@ describe("makeConnectorAgentDriver", () => {
     ]);
   });
 
+  it("passes the Turn's tools and answers operation callbacks through the connector", async () => {
+    const turns: ConnectorTurnInput[] = [];
+    const commands: unknown[] = [];
+    const connector: OpenMAAgentConnector = {
+      id: "tools",
+      async capabilities() {
+        return {
+          sessionPersistence: "persistent",
+          streaming: true,
+          cancellation: true,
+          permissions: true,
+          elicitation: false,
+          customTools: true,
+        };
+      },
+      async open() {
+        return createAgentSessionHandle({
+          connectorId: "tools",
+          externalSessionId: "s1",
+          placement: "managed",
+        });
+      },
+      async *execute(_session, input) {
+        turns.push(input);
+        yield createOpenMAEvent({
+          event_id: "e1",
+          type: "turn.completed",
+          session_id: input.sessionId,
+          turn_id: input.turnId,
+          seq: 1,
+          occurred_at: "2026-08-20T10:00:02.000Z",
+          source: { kind: "harness", harness: "tools" },
+          data: {},
+        });
+      },
+      async send(_session, command) {
+        commands.push(command);
+      },
+      async close() {},
+    };
+    const driver = makeConnectorAgentDriver({ connector, agentId: "a" });
+    expect(await Effect.runPromise(driver.capabilities())).toMatchObject({
+      operations: true,
+    });
+    const handle = await Effect.runPromise(
+      driver.createSession({
+        sessionId: "session-1",
+        bindingKey: "b",
+        generation: 1,
+        idempotencyKey: "session-1",
+      }),
+    );
+    const tool = {
+      name: "slack.message.post",
+      integrationId: "slack",
+      operation: "message.post",
+      description: "Post a message",
+      inputSchema: { type: "object" },
+    };
+    await Effect.runPromise(
+      driver
+        .turn({
+          session: handle,
+          sessionId: "session-1",
+          turnId: "turn-1",
+          afterSequence: 0,
+          context,
+          allow: ["slack.message.post"],
+          tools: [tool],
+        })
+        .pipe(Stream.runCollect),
+    );
+    await Effect.runPromise(
+      driver.respondToCallback!({
+        session: handle,
+        callbackId: "call-1",
+        result: { status: "delivered" },
+      }),
+    );
+    expect(turns[0]!.metadata).toEqual({ openmatter: { tools: [tool] } });
+    expect(commands).toEqual([
+      {
+        type: "callback.respond",
+        callbackId: "call-1",
+        result: { status: "delivered" },
+      },
+    ]);
+  });
+
   it("contains a synchronous connector execute failure in the Effect error channel", async () => {
     const connector: OpenMAAgentConnector = {
       id: "claude-managed",

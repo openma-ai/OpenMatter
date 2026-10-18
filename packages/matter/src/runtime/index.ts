@@ -356,6 +356,7 @@ export const createOpenMatter = (
               ),
               Effect.provideService(StoreService, store),
               Effect.provideService(AgentDrivers, drivers),
+              Effect.provideService(WorkIntegrations, integrations),
             );
           },
         }),

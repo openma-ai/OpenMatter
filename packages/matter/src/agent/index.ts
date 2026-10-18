@@ -54,6 +54,30 @@ export const OpenMAEventSchema = Schema.declare<CanonicalOpenMAEvent>(
 /** The single canonical Agent event vocabulary lives in openma-common. */
 export type OpenMAEvent = CanonicalOpenMAEvent;
 
+/**
+ * The callback method a driver reports when its Agent calls an operation the
+ * Turn allows. The request is a `callback.requested` event with category
+ * `extension`, this method, and `params` of `OperationCallParams`; the runtime
+ * answers through `respondToCallback` with an `OperationCallResult`.
+ */
+export const OPERATION_CALL_METHOD = "openmatter/operation";
+
+export interface OperationCallParams {
+  readonly integrationId: string;
+  readonly operation: string;
+  readonly input: JsonValue;
+}
+
+/** One operation the Turn allows, described for the Agent as a tool. */
+export interface AgentTool {
+  /** `${integrationId}.${operation}`, as in `allow`. */
+  readonly name: string;
+  readonly integrationId: string;
+  readonly operation: string;
+  readonly description: string;
+  readonly inputSchema: JsonValue;
+}
+
 export interface AgentTurnInput {
   readonly session: AgentSessionHandle;
   readonly sessionId: string;
@@ -62,6 +86,9 @@ export interface AgentTurnInput {
   readonly afterSequence: number;
   readonly context: ContextProjection;
   readonly allow: readonly string[];
+  /** Allowed operations whose integration describes them as tools. A driver
+   * whose capabilities include `operations` exposes these to the Agent. */
+  readonly tools?: readonly AgentTool[];
 }
 
 export class AgentDriverError extends Data.TaggedError("AgentDriverError")<{
@@ -100,6 +127,14 @@ export interface AgentDriver {
     readonly requestId: string;
     readonly approved: boolean;
   }) => Effect.Effect<void, AgentDriverError>;
+  /** Answers a `callback.requested` the runtime handled, such as an operation
+   * call. Repeated responses for one Session/callback id must be idempotent.
+   * Required when capabilities include `operations`. */
+  readonly respondToCallback?: (input: {
+    readonly session: AgentSessionHandle;
+    readonly callbackId: string;
+    readonly result: JsonValue;
+  }) => Effect.Effect<void, AgentDriverError>;
   /** Repeated cancellation for one Session/Turn must be idempotent. */
   readonly cancel: (input: {
     readonly session: AgentSessionHandle;
@@ -117,6 +152,9 @@ export interface AgentCapabilities {
   readonly cancel: boolean;
   readonly permissions: boolean;
   readonly concurrentTurns: boolean;
+  /** The driver exposes `AgentTurnInput.tools` to the Agent and reports calls
+   * as `OPERATION_CALL_METHOD` callbacks. */
+  readonly operations?: boolean;
 }
 
 export type AgentDriverRegistry = ReadonlyMap<string, AgentDriver>;

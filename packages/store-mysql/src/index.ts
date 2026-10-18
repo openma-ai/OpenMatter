@@ -11,6 +11,7 @@ import {
   type AgentSession,
   type ContextProjection,
   type EffectDeliveryReceipt,
+  type OperationCall,
   type PermissionDecision,
   type Reaction,
   type ThreadGoal,
@@ -430,6 +431,9 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
         await rows<PermissionDecision>(conn, "permission")
       ).filter(
         (decision) => scopeId === undefined || turnIds.has(decision.turnId),
+      ),
+      operationCalls: (await rows<OperationCall>(conn, "operationCall")).filter(
+        (call) => scopeId === undefined || turnIds.has(call.turnId),
       ),
       turnCancellationRequests: (
         await rows<TurnCancellationRequest>(conn, "cancellation")
@@ -876,6 +880,45 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
         if (existing) return existing;
         await put(conn, "permission", id, decision);
         return (await get<PermissionDecision>(conn, "permission", id))!;
+      }, true),
+    getOperationCall: (turnId, callId) =>
+      op((conn) =>
+        get<OperationCall>(
+          conn,
+          "operationCall",
+          JSON.stringify([turnId, callId]),
+        ),
+      ),
+    beginOperationCall: (call, key, token) =>
+      op(async (conn) => {
+        await fence(conn, "session", key, token);
+        const turn = await get<Turn>(conn, "turn", call.turnId);
+        if (
+          !turn ||
+          (await get<AgentSession>(conn, "session", turn.sessionId))
+            ?.bindingKey !== key
+        )
+          fail("Operation call belongs to another session binding");
+        const id = JSON.stringify([call.turnId, call.callId]);
+        const existing = await get<OperationCall>(conn, "operationCall", id);
+        if (existing) return existing;
+        await put(conn, "operationCall", id, call);
+        return (await get<OperationCall>(conn, "operationCall", id))!;
+      }, true),
+    completeOperationCall: (turnId, callId, result, completedAt, key, token) =>
+      op(async (conn) => {
+        await fence(conn, "session", key, token);
+        const id = JSON.stringify([turnId, callId]);
+        const existing = await get<OperationCall>(conn, "operationCall", id);
+        if (!existing) fail(`Unknown operation call: ${turnId}/${callId}`);
+        if (existing!.state === "completed") return existing!;
+        await put(conn, "operationCall", id, {
+          ...existing!,
+          state: "completed",
+          result,
+          completedAt,
+        });
+        return (await get<OperationCall>(conn, "operationCall", id))!;
       }, true),
     appendAgentEvent: (event, key, token) =>
       op(async (conn) => {

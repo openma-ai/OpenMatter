@@ -1,7 +1,7 @@
 # Turn tool calls and conversation writes
 
-Status: design. Nothing here is implemented yet; the delivery plan is at the
-end.
+Status: step 1 (operation calls) is implemented; the rest is design. The
+delivery plan is at the end.
 
 ## Problem
 
@@ -40,48 +40,55 @@ already requires a driver to expose them through MCP, an SDK callback, or an
 ACP extension, and to report when it cannot. What is missing is the runtime
 path that executes such a call. That is the first part of this design.
 
-## Kernel: `invoke`
+## Kernel: operation calls
+
+Implemented (step 1). A call travels on the callback channel the shared
+Agent contract already has, the same one permission requests use, so no new
+event types or driver transport are needed:
+
+- The driver reports a `callback.requested` event with category `extension`,
+  method `OPERATION_CALL_METHOD` (`"openmatter/operation"`), and `params` of
+  `{ integrationId, operation, input }`.
+- The runtime answers through `AgentDriver.respondToCallback` with an
+  `OperationCallResult`. The connector bridge maps it to the connector's
+  `callback.respond` command.
+- A driver opts in with `capabilities.operations`. The connector bridge sets
+  it from the connector's `customTools`. A call from a driver that has not
+  opted in fails the Turn rather than going unanswered.
 
 ```ts
-interface OperationCall {
-  readonly sessionId: string;
-  readonly turnId: string;
-  /** The driver's tool-call id; stable across Turn resume. */
-  readonly callId: string;
-  /** `${integrationId}.${operation}`, as in `allow`. */
-  readonly operation: string;
-  readonly input: JsonValue;
-}
-
 type OperationCallResult =
-  | { status: "delivered"; receipt: ProviderReceipt }
-  | { status: "conflict"; effect: "not-applied"; conflict: JsonValue }
-  | { status: "uncertain"; reason: string }
-  | { status: "terminal-failed"; reason: string };
-
-runtime.invoke(call): Effect<OperationCallResult, OperationCallError>
+  | { status: "delivered"; receipt?: JsonValue }
+  | { status: "refused"; reason: string } // not applied: grant or input
+  | { status: "failed"; reason: string; retryable: boolean } // not applied
+  | { status: "uncertain"; reason: string }; // may have applied
+// Step 2 adds { status: "conflict", ... }.
 ```
 
-The runtime checks, in order:
+The runtime, for each call:
 
-1. **Fencing.** The Turn is running and the caller holds its lease. A call
-   from an expired worker is rejected.
-2. **Grant.** `operation` is in the Turn's persisted `allow` list and declared
-   by the target integration's manifest.
-3. **Idempotency.** The operation id is `${turnId}:call:${callId}`. A replay
-   with the same input returns the saved result without calling the provider,
-   including after a crash and Turn resume. The same id with different input
-   is an error.
-4. **Freshness**, for operations that declare it (below).
-5. **Delivery** through the integration: `conditionalWrites[operation]` when
-   the operation is guarded, `deliver` otherwise. The result and receipt are
-   stored with the call.
+1. **Fencing.** The call is handled inside the running Turn, under its
+   Session lease; every store write is fenced by it.
+2. **Idempotency.** One `OperationCall` record per Turn and callback id. A
+   repeated callback id with the same fingerprint gets the stored result; a
+   different fingerprint fails the Turn. The record is written as `pending`
+   before delivery, so a crash after the provider accepted the call is
+   reported on replay as `uncertain`, never delivered twice.
+3. **Grant.** The operation must be in the Turn's persisted `allow` list and
+   declared by the integration (`"*"` declares every operation, as for
+   Effects); otherwise `refused`.
+4. **Delivery** through the integration's `deliver`, as a WorkEffect whose
+   `id` and `idempotencyKey` are `${turnId}:call:${callId}` and whose
+   `eventId` is the Turn's trigger. A provider error that declares
+   `effectState: "not-applied"` is `failed`; any other error or defect is
+   `uncertain`. The runtime does not retry; the Agent decides.
+5. **Record.** The request event is stored in the Turn's Agent events; the
+   result is stored on the `OperationCall` (`StoreSnapshot.operationCalls`).
 
-Each call and result is also an OpenMAEvent in the Turn stream
-(`operation.call`, `operation.result`), so a UI and the trace show them in
-order with the Agent's other output.
-
-An integration describes its tools next to its operations:
+Stores implement `getOperationCall`, `beginOperationCall`, and
+`completeOperationCall`; the conformance suite covers them. An integration
+describes its tools next to its operations, and the runtime passes the
+allowed, described ones to the driver as `AgentTurnInput.tools`:
 
 ```ts
 interface IntegrationManifest {
@@ -95,10 +102,13 @@ interface IntegrationManifest {
 }
 ```
 
+The shared connector contract has no tools field yet, so the connector bridge
+sends the descriptors as `metadata.openmatter.tools`.
+
 The host binds what the Agent must not choose. For a reply, the target
 message is the one that triggered the Turn; the Agent supplies only the
 content. The integration's `bindToolInput(operation, input, turn)` merges the
-two before delivery.
+two before delivery (step 4).
 
 ## Conversation revision
 
@@ -195,15 +205,16 @@ bot silent.
 ## Host responsibilities
 
 - Expose the Turn's allowed operations as tools through the driver (an MCP
-  server per Session in OMA) and route each call to `invoke`.
+  server per Session in OMA) and report each call to the runtime as an
+  `OPERATION_CALL_METHOD` callback, answering the Agent with the result.
 - Store call receipts and the conversation revision with the same
   transaction guarantees as `MutationBackend`.
 - Render `x-oma-widget: "freshness"`.
 
 ## Delivery plan
 
-1. Kernel: `invoke`, call receipts, `operation.call`/`operation.result`
-   events, the memory and SQLite stores, and conformance tests.
+1. Kernel: operation calls over the callback channel, call records in the
+   memory, SQLite, and MySQL stores, and conformance tests. Done.
 2. Kernel: recording observation events, the WorkThread revision, the seen
    revision, and freshness evaluation.
 3. Loop SDK: `spec.observes`, the freshness config helper.
