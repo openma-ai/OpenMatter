@@ -1,7 +1,7 @@
 # Turn tool calls and conversation writes
 
-Status: step 1 (operation calls) is implemented; the rest is design. The
-delivery plan is at the end.
+Status: steps 1 (operation calls) and 2 (conversation freshness in the
+kernel) are implemented; the rest is design. The delivery plan is at the end.
 
 ## Problem
 
@@ -61,8 +61,8 @@ type OperationCallResult =
   | { status: "delivered"; receipt?: JsonValue }
   | { status: "refused"; reason: string } // not applied: grant or input
   | { status: "failed"; reason: string; retryable: boolean } // not applied
-  | { status: "uncertain"; reason: string }; // may have applied
-// Step 2 adds { status: "conflict", ... }.
+  | { status: "uncertain"; reason: string } // may have applied
+  | { status: "conflict"; effect: "not-applied"; conflict; seenRevision }; // step 2
 ```
 
 The runtime, for each call:
@@ -112,28 +112,44 @@ two before delivery (step 4).
 
 ## Conversation revision
 
-A conversation write is checked against the conversation, so the runtime has
-to know what the conversation contains:
+Implemented (step 2). A conversation write is checked against the
+conversation, so the runtime records what the conversation contains:
 
-- **Observation events are recorded.** A WorkEvent that starts no Turn (in
-  Feishu, `feishu.message.received` and `feishu.message.recalled`, activation
-  `observation`) is still recorded on its WorkThread when a Loop declares it
-  in `spec.observes`. Recording does not run Loop code.
-- **The WorkThread revision** advances with every recorded event. It is an
+- **The Integration maps events to messages.** `WorkIntegration.observe(event)`
+  returns a `ConversationObservation`: the conversation, the kind (`message`,
+  `mention`, `recall`), and when known the thread, message id, sender
+  (`{ id, kind: "human" | "app" }`), and text. For a recall, the message id is
+  the recalled message. It is pure, so recording runs no Loop code.
+- **Which events are recorded.** Event types a handler handles, and types
+  named with `app.observe(types)` (a Loop's `spec.observes`, step 3). An event
+  of any other type, or one the Integration does not map, is not recorded.
+  Recording happens when the event is accepted, before its claim, so a Turn
+  that is already running sees it at its next write.
+- **The conversation log.** Each conversation
+  (`[provider, authority, conversationId]`) has entries with consecutive
+  revisions from 1, idempotent by event id (`ConversationEntry`,
+  `StoreSnapshot.conversationEntries`). A recall takes the thread and sender
+  of the message it recalls, when that message is recorded. The revision is an
   equality token, as in STATE_PROTECTION.md.
-- **The host tracks what the Turn has seen.** The ContextProjection records
-  the revision its messages came from. A history read or a conflict result
-  shown to the Agent advances it. The Agent never supplies a revision, so it
-  cannot claim to have read what it was not shown.
+- **What a Turn has seen.** The revision of its triggering event's entry,
+  advanced by every conflict result shown to it. The Agent never supplies a
+  revision, so it cannot claim to have read what it was not shown. A Loop that
+  projects conversation history into the context will advance it too
+  (not yet).
+
+The host must accept events concurrently with running Turns. A host that
+accepts one event at a time behind a running Turn records newer messages only
+after that Turn ends, and every write passes the check.
 
 ## Freshness policy
 
-What counts as a newer message is configured per Loop instance:
+What counts as a newer message is configured per Turn, from the Loop
+instance's configuration, and stored on the Turn:
 
 ```ts
 interface FreshnessPolicy {
-  /** Where to look: the message's thread, or the whole chat. */
-  readonly scope: "thread" | "chat";
+  /** Where to look: the message's thread, or the whole conversation. */
+  readonly scope: "thread" | "conversation";
   /** Whose messages count. */
   readonly senders:
     "anyone" | "humans" | "requester" | { readonly ids: readonly string[] };
@@ -142,23 +158,31 @@ interface FreshnessPolicy {
 }
 ```
 
-Default: `{ scope: "thread", senders: "humans", kinds: ["message", "mention",
-"recall"] }`. Messages from apps, including the bot's own, never count under
-`humans`.
+`DEFAULT_FRESHNESS` is `{ scope: "thread", senders: "humans", kinds:
+["message", "mention", "recall"] }`. Messages from apps, including the bot's
+own, never count under `humans`; an entry without a known sender counts only
+under `anyone`, and one without a known thread only under `conversation`.
 
 A template exposes the policy in its `configSchema` with
-`x-oma-widget: "freshness"`, so a console renders it as one control. A Loop
-written as code may pass a predicate over the recorded events instead.
+`x-oma-widget: "freshness"`, so a console renders it as one control (step 3).
 
-The integration maps its events to the policy's terms (sender kind, message
-kind, thread). Availability depends on the provider: Feishu delivers group
-messages that do not mention the bot only when the app has the permission to
-read all group messages. Without it only mentions and direct messages are
-recorded, and a console disables the choices that need more.
+Availability depends on the provider: Feishu delivers group messages that do
+not mention the bot only when the app has the permission to read all group
+messages. Without it only mentions and direct messages are recorded, and a
+console disables the choices that need more.
 
-At call time the runtime evaluates the policy over the events recorded after
-the Turn's seen revision. If none count, it delivers. If some count, the call
-is not applied and returns:
+An operation opts in with `freshness: "best-effort"` on its tool descriptor.
+It then writes to the triggering event's conversation. If that event is not
+recorded, there is nothing to compare and the call is not checked. For a
+guarded call the runtime reads the entries after the Turn's seen revision:
+
+- If none count, it begins the call record with
+  `conversation: { key, revision }`. The Store inserts it only while the
+  conversation is still at that revision, in the same transaction, and fails
+  with `ConversationChangedError` otherwise; the runtime then checks again,
+  up to five times, and answers `failed` (retryable) if the conversation keeps
+  moving.
+- If some count, the call is recorded and not applied, and returns:
 
 ```jsonc
 {
@@ -167,22 +191,23 @@ is not applied and returns:
   "conflict": {
     "reason": "newer_messages",
     "messages": [
-      /* the counting events, in order, as the Agent sees messages */
+      /* the counting entries, in order: kind, sender, text, thread, time */
     ],
   },
+  "seenRevision": 7,
 }
 ```
 
-The messages are shown to the Agent, so the seen revision advances to the
-latest one. The Agent decides: call again with revised content (a new call),
-call again unchanged, or not reply. The runtime does not retry, drop, or
-rerun anything on its own.
+The messages are shown to the Agent, so the Turn's seen revision advances to
+`seenRevision`. The Agent decides: call again with revised content (a new
+call), call again unchanged, or not reply. The runtime does not retry, drop,
+or rerun anything on its own. A repeated callback id gets the stored result,
+conflict included.
 
-**Guarantee.** The comparison and the call receipt are one store
-transaction. The write itself is remote, so a message can still arrive
-between the check and the provider accepting the send. Conversation
-freshness is `best-effort` in STATE_PROTECTION.md terms. An integration whose
-provider has a real conditional write may declare `atomic`.
+**Guarantee.** The comparison and the call record are one store transaction.
+The write itself is remote, so a message can still arrive between the check
+and the provider accepting the send. Conversation freshness is
+`best-effort` in STATE_PROTECTION.md terms.
 
 ## A Turn that ends without a reply
 
@@ -215,8 +240,9 @@ bot silent.
 
 1. Kernel: operation calls over the callback channel, call records in the
    memory, SQLite, and MySQL stores, and conformance tests. Done.
-2. Kernel: recording observation events, the WorkThread revision, the seen
-   revision, and freshness evaluation.
+2. Kernel: `WorkIntegration.observe`, `app.observe`, the conversation log in
+   the memory, SQLite, and MySQL stores, the seen revision, freshness
+   evaluation, and the guarded call record. Done.
 3. Loop SDK: `spec.observes`, the freshness config helper.
 4. Feishu: tool descriptors, input binding, guarded `message.reply`, and
    `feishu-agent` replying through the tool.

@@ -8,6 +8,7 @@ import {
 import {
   JsonValueSchema,
   ContextProjectionSchema,
+  ConversationObservationSchema,
   ReactionSchema,
   WorkEffectSchema,
   WorkEventSchema,
@@ -98,6 +99,7 @@ export const createOpenMatter = (
   options: OpenMatterOptions,
 ): OpenMatterApplication => {
   const handlers = new Map<string, WorkHandler>();
+  const observed = new Set<string>();
   const clock = options.clock ?? (() => new Date().toISOString());
   const makeId = options.makeId ?? (() => globalThis.crypto.randomUUID());
   const runtimeId = options.runtimeId ?? makeId();
@@ -329,6 +331,9 @@ export const createOpenMatter = (
             const sealedInput = structuredClone({
               context: input.context,
               allow: input.allow ?? [],
+              ...(input.freshness === undefined
+                ? {}
+                : { freshness: input.freshness }),
             });
             return authorizeContext(sealedInput.context, "agent.turn").pipe(
               Effect.zipRight(
@@ -596,6 +601,64 @@ export const createOpenMatter = (
       );
     });
 
+  /**
+   * Records an observed or handled event as a conversation message, before
+   * any handler runs, so a Turn already running sees it at its next write.
+   * An Integration without `observe`, or an event it does not map, records
+   * nothing.
+   */
+  const recordConversation = (
+    event: WorkEvent,
+    store: OpenMatterStore,
+    integrations: WorkIntegrationRegistry,
+  ): Effect.Effect<void, StoreError> =>
+    Effect.gen(function* () {
+      if (!observed.has(event.type) && !handlers.has(event.type)) return;
+      const integration = integrations.get(event.source.provider);
+      if (integration?.observe === undefined) return;
+      let observation: unknown;
+      try {
+        observation = integration.observe(event);
+      } catch {
+        return;
+      }
+      if (
+        observation === undefined ||
+        !Schema.is(ConversationObservationSchema)(observation)
+      ) {
+        return;
+      }
+      const conversationKey = JSON.stringify([
+        event.source.provider,
+        event.source.authority,
+        observation.conversationId,
+      ]);
+      let { threadId, sender } = observation;
+      if (
+        observation.kind === "recall" &&
+        observation.messageId !== undefined
+      ) {
+        const recalled = yield* store.findConversationMessage(
+          conversationKey,
+          observation.messageId,
+        );
+        threadId ??= recalled?.threadId;
+        sender ??= recalled?.sender;
+      }
+      yield* store.recordConversationEntry({
+        conversationKey,
+        eventId: event.id,
+        kind: observation.kind,
+        occurredAt: event.occurredAt,
+        ...(threadId === undefined ? {} : { threadId }),
+        ...(observation.messageId === undefined
+          ? {}
+          : { messageId: observation.messageId }),
+        ...(sender === undefined ? {} : { sender }),
+        ...(observation.text === undefined ? {} : { text: observation.text }),
+      });
+    });
+
   const acceptProgram = (
     event: WorkEvent,
   ): Effect.Effect<
@@ -620,6 +683,7 @@ export const createOpenMatter = (
       const store = yield* StoreService;
       const integrations = yield* WorkIntegrations;
       const drivers = yield* AgentDrivers;
+      yield* recordConversation(event, store, integrations);
       const claim = yield* store.claimEvent(
         event,
         leaseRequest(options.eventLeaseMs ?? 60_000),
@@ -760,6 +824,11 @@ export const createOpenMatter = (
     on: (eventTypes, handler) => {
       const types = typeof eventTypes === "string" ? [eventTypes] : eventTypes;
       for (const type of types) handlers.set(type, handler);
+      return app;
+    },
+    observe: (eventTypes) => {
+      const types = typeof eventTypes === "string" ? [eventTypes] : eventTypes;
+      for (const type of types) observed.add(type);
       return app;
     },
     acceptEffect,

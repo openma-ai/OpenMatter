@@ -1,7 +1,7 @@
 import { createOpenMAEvent, type OpenMAEvent } from "../agent/index.js";
 import type { Reaction, Turn, WorkEffect, WorkEvent } from "../index.js";
 import { Effect, Either } from "effect";
-import type { OpenMatterStore } from "./index.js";
+import { ConversationChangedError, type OpenMatterStore } from "./index.js";
 
 /**
  * One conformance case. Framework-neutral: run each `run()` inside your test
@@ -559,6 +559,204 @@ export const storeConformanceCases = (
           stored?.state === "completed" &&
             JSON.stringify(stored.input) === JSON.stringify({ text: "hi" }),
           "the call is stored with its input",
+        );
+      },
+    },
+    {
+      name: "conversation entries get consecutive revisions, once per event",
+      run: async () => {
+        const store = await fresh();
+        const key = '["chat","workspace-1","room-1"]';
+        const other = '["chat","workspace-1","room-2"]';
+        const entry = (eventId: string, messageId: string) => ({
+          conversationKey: key,
+          eventId,
+          kind: "message" as const,
+          threadId: "thread-1",
+          messageId,
+          sender: { id: "user-1", kind: "human" as const },
+          text: `text of ${messageId}`,
+          occurredAt: "2026-08-20T08:00:00.000Z",
+        });
+        assert(
+          (await run(store.listConversationEntries(key, 0))).length === 0,
+          "an empty conversation has no entries",
+        );
+        const one = await run(
+          store.recordConversationEntry(entry("event-1", "m-1")),
+        );
+        const two = await run(
+          store.recordConversationEntry(entry("event-2", "m-2")),
+        );
+        const again = await run(
+          store.recordConversationEntry(entry("event-1", "m-1")),
+        );
+        await run(
+          store.recordConversationEntry({
+            ...entry("event-3", "m-3"),
+            conversationKey: other,
+          }),
+        );
+        assert(
+          one.revision === 1 && two.revision === 2 && again.revision === 1,
+          "revisions are consecutive and a recorded event keeps its entry",
+        );
+        assert(
+          (await run(store.listConversationEntries(key, 0))).length === 2 &&
+            (await run(store.listConversationEntries(other, 0))).length === 1,
+          "each conversation counts its own entries",
+        );
+        const after = await run(store.listConversationEntries(key, 1));
+        assert(
+          after.length === 1 &&
+            after[0]?.eventId === "event-2" &&
+            after[0]?.text === "text of m-2",
+          "entries after a revision are listed with their content",
+        );
+        assert(
+          (await run(store.getConversationEntry("event-2")))?.revision === 2,
+          "an entry is found by its event",
+        );
+        await run(
+          store.recordConversationEntry({
+            conversationKey: key,
+            eventId: "event-4",
+            kind: "recall",
+            messageId: "m-1",
+            occurredAt: "2026-08-20T08:00:05.000Z",
+          }),
+        );
+        assert(
+          (await run(store.findConversationMessage(key, "m-1")))?.eventId ===
+            "event-1",
+          "a message is found by its id, not by its recall",
+        );
+        assert(
+          (await run(store.findConversationMessage(other, "m-1"))) ===
+            undefined,
+          "a message is found only in its own conversation",
+        );
+      },
+    },
+    {
+      name: "a guarded operation call is begun only at its conversation revision",
+      run: async () => {
+        const store = await fresh();
+        const claim = await run(
+          store.claimSession("binding-guard", {
+            ownerId: "w1",
+            durationMs: LONG,
+          }),
+        );
+        if (claim._tag !== "Acquired") throw new Error("claim is Acquired");
+        const token = claim.lease.token;
+        await run(
+          store.saveSession(
+            {
+              id: "session-guard",
+              bindingKey: "binding-guard",
+              agentId: "agent-1",
+              authority: "workspace-1",
+              scopeId: "scope-1",
+              workThreadId: "thread-1",
+              privacyPartition: "default",
+              driverId: "mock",
+              generation: 1,
+              state: "open",
+              createdAt: "2026-08-20T08:00:01.000Z",
+              lastUsedAt: "2026-08-20T08:00:01.000Z",
+            },
+            token,
+          ),
+        );
+        await run(
+          store.saveTurn(
+            {
+              id: "turn-guard",
+              sessionId: "session-guard",
+              triggerEventId: "event-guard",
+              contextProjectionId: "context-1",
+              contextDigest: "digest-1",
+              allow: ["chat.reply"],
+              state: "running",
+              createdAt: "2026-08-20T08:00:02.000Z",
+            },
+            "binding-guard",
+            token,
+          ),
+        );
+        const key = '["chat","workspace-1","room-guard"]';
+        await run(
+          store.recordConversationEntry({
+            conversationKey: key,
+            eventId: "event-guard",
+            kind: "mention",
+            occurredAt: "2026-08-20T08:00:00.000Z",
+          }),
+        );
+        const call = {
+          turnId: "turn-guard",
+          callId: "call-1",
+          fingerprint: "fp-1",
+          integrationId: "chat",
+          operation: "reply",
+          input: { text: "hi" },
+          conversation: { key, revision: 1 },
+          state: "pending" as const,
+          startedAt: "2026-08-20T08:00:03.000Z",
+        };
+        await run(
+          store.recordConversationEntry({
+            conversationKey: key,
+            eventId: "event-newer",
+            kind: "message",
+            occurredAt: "2026-08-20T08:00:02.500Z",
+          }),
+        );
+        const stale = await Effect.runPromise(
+          Effect.either(store.beginOperationCall(call, "binding-guard", token)),
+        );
+        assert(
+          Either.isLeft(stale) &&
+            stale.left instanceof ConversationChangedError &&
+            stale.left.expected === 1 &&
+            stale.left.actual === 2,
+          "a call checked at an older revision fails with ConversationChangedError",
+        );
+        assert(
+          (await run(store.getOperationCall("turn-guard", "call-1"))) ===
+            undefined,
+          "a refused guarded call stores nothing",
+        );
+        const begun = await run(
+          store.beginOperationCall(
+            { ...call, conversation: { key, revision: 2 } },
+            "binding-guard",
+            token,
+          ),
+        );
+        assert(
+          begun.conversation?.revision === 2,
+          "a call at the current revision is begun with its revision",
+        );
+        await run(
+          store.recordConversationEntry({
+            conversationKey: key,
+            eventId: "event-later",
+            kind: "message",
+            occurredAt: "2026-08-20T08:00:04.000Z",
+          }),
+        );
+        const replay = await run(
+          store.beginOperationCall(
+            { ...call, conversation: { key, revision: 2 } },
+            "binding-guard",
+            token,
+          ),
+        );
+        assert(
+          replay.startedAt === call.startedAt,
+          "an existing call is returned without checking the conversation again",
         );
       },
     },
