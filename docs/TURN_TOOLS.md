@@ -1,7 +1,7 @@
 # Turn tool calls and conversation writes
 
-Status: steps 1 (operation calls), 2 (conversation freshness in the
-kernel), and 3 (the Loop SDK) are implemented; the rest is design. The delivery plan is at the end.
+Status: steps 1 to 4 (operation calls, conversation freshness, the Loop
+SDK, and Feishu) are implemented; step 5 (OMA) is design. The delivery plan is at the end.
 
 ## Problem
 
@@ -107,8 +107,8 @@ sends the descriptors as `metadata.openmatter.tools`.
 
 The host binds what the Agent must not choose. For a reply, the target
 message is the one that triggered the Turn; the Agent supplies only the
-content. The integration's `bindToolInput(operation, input, turn)` merges the
-two before delivery (step 4).
+content. The integration's `bindToolInput(operation, input, trigger)` merges the two
+before delivery (step 4).
 
 ## Conversation revision
 
@@ -223,13 +223,20 @@ bot silent.
 
 ## Feishu
 
-- `message.reply` and `message.send` gain tool descriptors. For
-  `message.reply` the Agent supplies `text` or `card`; the target message and
-  `inThread` are bound from the triggering event.
-- `message.reply` declares freshness, `best-effort`.
-- `feishu-agent` stops delivering the final output as an Effect. It allows
+- `message.reply` is a tool (`FEISHU_TOOLS`). The Agent supplies only
+  `markdown`; `bindToolInput` adds the authority, the target message, the
+  markdown card, and `inThread` from the triggering event, and refuses
+  anything else. `message.send` stays an Effect.
+- `message.reply` declares freshness, `best-effort`. `observe` maps a
+  message to its topic or `main`, and a recall to the recalled message.
+- `feishu-agent` no longer delivers the final output as an Effect. It allows
   `feishu.message.reply` for the Turn, observes `feishu.message.received`
-  and `feishu.message.recalled`, and adds a `freshness` field to its config.
+  and `feishu.message.recalled`, and has a `freshness` config field.
+
+The kernel side of input binding: `WorkIntegration.bindToolInput(operation,
+input, trigger)` runs for operations with a tool descriptor, before the call
+is recorded. Its result is what is delivered and stored; a refusal, a throw,
+or a non-JSON result refuses the call.
 
 ## Host responsibilities
 
@@ -251,5 +258,5 @@ bot silent.
    applied by `installLoadedLoop`), `freshnessField`, `freshnessPolicy`, and
    `freshness` on the guest `AgentTurnInput`. Done.
 4. Feishu: tool descriptors, input binding, guarded `message.reply`, and
-   `feishu-agent` replying through the tool.
+   `feishu-agent` replying through the tool. Done.
 5. OMA: the MCP bridge, SQL stores, the console widget.

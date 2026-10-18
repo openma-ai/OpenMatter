@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
   FEISHU_EVENT_TYPES,
   FEISHU_OPERATIONS,
+  FEISHU_TOOLS,
+  bindFeishuToolInput,
+  observeFeishuEvent,
   feishuMarkdownCard,
   makeFeishuIntegration,
 } from "../packages/feishu/src/bond/index.js";
@@ -64,7 +67,10 @@ describe("Feishu integration", () => {
       displayName: "Feishu",
       events: FEISHU_EVENT_TYPES,
       operations: FEISHU_OPERATIONS,
+      tools: FEISHU_TOOLS,
     });
+    expect(integration.observe).toBe(observeFeishuEvent);
+    expect(integration.bindToolInput).toBe(bindFeishuToolInput);
   });
 
   it("sends text and cards to a chat with a stable uuid per Effect", async () => {

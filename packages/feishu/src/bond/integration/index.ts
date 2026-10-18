@@ -43,7 +43,12 @@ export {
 } from "./integration.js";
 export { withoutFeishuCredentials } from "./shared.js";
 export {
+  FEISHU_TOOLS,
+  bindFeishuToolInput,
+  observeFeishuEvent,
+} from "./tools.js";
+export {
   feishuAgent,
   feishuTemplates,
-  templateMarkdownCard,
+  TEMPLATE_OPERATION_CALL_METHOD,
 } from "./templates.js";

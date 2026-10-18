@@ -1,12 +1,13 @@
 import { readFileSync } from "node:fs";
-import type { ContextProjection } from "@openma/matter";
+import type { ContextProjection, OperationCallResult } from "@openma/matter";
 import { makeMockAgentDriver } from "@openma/matter-agent-mock";
+import { OPERATION_CALL_METHOD } from "@openma/matter/agent";
 import {
+  TEMPLATE_OPERATION_CALL_METHOD,
   feishuAgent,
   feishuMarkdownCard,
   feishuTemplates,
   makeFeishuIntegration,
-  templateMarkdownCard,
   type FeishuEventInput,
 } from "@openma/matter-feishu/bond";
 import {
@@ -30,6 +31,7 @@ const message = (
     readonly sender?: string;
     readonly senderType?: string;
     readonly rootId?: string;
+    readonly threadId?: string;
   } = {},
 ): FeishuEventInput => {
   seq += 1;
@@ -55,6 +57,7 @@ const message = (
         message: {
           message_id: `om_${seq}`,
           ...(opts.rootId === undefined ? {} : { root_id: opts.rootId }),
+          ...(opts.threadId === undefined ? {} : { thread_id: opts.threadId }),
           chat_id: opts.chatId ?? "oc_eng",
           chat_type: opts.chatType ?? "group",
           message_type: "text",
@@ -72,13 +75,60 @@ const message = (
   };
 };
 
+const recall = (messageId: string, chatId = "oc_eng"): FeishuEventInput => {
+  seq += 1;
+  return {
+    kind: "feishu.event",
+    authority: "bond_fs",
+    transport: "long_connection",
+    botOpenId: BOT,
+    envelope: {
+      schema: "2.0",
+      header: {
+        event_id: `ev_${seq}`,
+        event_type: "im.message.recalled_v1",
+        create_time: "1792000000000",
+      },
+      event: {
+        message_id: messageId,
+        chat_id: chatId,
+        recall_type: "message_owner",
+      },
+    },
+  };
+};
+
+const ANSWER = "Found it: `auth/session.ts:42` returns null.";
+
+/**
+ * A Feishu app with one Agent. The Agent replies with `replies` through the
+ * tool (none: it does not reply); `during` arrive while it works.
+ */
 const makeHarness = (
-  agentOutput = "Found it: `auth/session.ts:42` returns null.",
+  opts: {
+    readonly replies?: readonly string[];
+    readonly during?: () => readonly FeishuEventInput[];
+  } = {},
 ) => {
   const posted: { url: string; body: Record<string, unknown> }[] = [];
   const contexts: ContextProjection[] = [];
   const sessions: unknown[] = [];
-  const worker = makeMockAgentDriver({ id: "worker", output: agentOutput });
+  let app: ReturnType<typeof createOpenMatter> | undefined;
+  const worker = makeMockAgentDriver({
+    id: "worker",
+    output: "done",
+    operationCalls: (opts.replies ?? [ANSWER]).map((markdown, i) => ({
+      callId: `reply-${i + 1}`,
+      integrationId: "feishu",
+      operation: "message.reply",
+      input: { markdown },
+    })),
+    beforeEvents: async () => {
+      for (const input of opts.during?.() ?? []) {
+        await app!.acceptFrom("feishu", input);
+      }
+    },
+  });
   const driver = {
     ...worker.driver,
     turn: (input: Parameters<typeof worker.driver.turn>[0]) => {
@@ -99,16 +149,20 @@ const makeHarness = (
       });
     }) as typeof globalThis.fetch,
   });
-  const app = createOpenMatter({
+  app = createOpenMatter({
     store: makeMemoryStore(),
     integrations: { feishu },
     agents: { worker: driver },
   });
   const send = async (input: FeishuEventInput) => {
-    const receipts = await app.acceptFrom("feishu", input);
+    const receipts = await app!.acceptFrom("feishu", input);
     return receipts[0];
   };
-  return { app, send, posted, contexts, sessions };
+  const results = () =>
+    worker
+      .callbackResponses()
+      .map((r) => r.result as unknown as OperationCallResult);
+  return { app, send, posted, contexts, sessions, worker, results };
 };
 
 const config = { agentId: "worker" };
@@ -132,14 +186,23 @@ describe("Feishu Loop templates", () => {
     expect(Object.keys(d.configSchema!.properties).sort()).toEqual([
       "agentId",
       "chats",
+      "freshness",
       "sessionScope",
     ]);
+    expect(d.configSchema!.properties.freshness).toMatchObject({
+      default: "thread",
+      "x-oma-widget": "freshness",
+    });
+    expect(d.spec).toMatchObject({
+      observes: ["feishu.message.received", "feishu.message.recalled"],
+      reaction: "tools",
+    });
     expect(d.configSchema!.required).toEqual(["agentId"]);
     expect(d.configSchema!.properties.chats).toMatchObject({
       "x-oma-widget": "bond-resources",
       "x-bond-provider": "feishu",
     });
-    expect(templateMarkdownCard("**x**")).toEqual(feishuMarkdownCard("**x**"));
+    expect(TEMPLATE_OPERATION_CALL_METHOD).toBe(OPERATION_CALL_METHOD);
     const source = readFileSync(
       new URL(
         "../packages/feishu/src/bond/integration/templates.ts",
@@ -154,19 +217,24 @@ describe("Feishu Loop templates", () => {
     ).toEqual(["@openma/matter-loop"]);
   });
 
-  it("answers a group mention in its topic with a markdown card", async () => {
-    const { app, send, posted, contexts } = makeHarness();
+  it("answers a group mention in its topic with a markdown card the Agent posts through the tool", async () => {
+    const { app, send, posted, contexts, worker, results } = makeHarness();
     app.loop(feishuAgent, config);
 
     const receipt = await send(message());
 
-    expect(receipt!.reaction.status).toBe("completed");
-    expect(receipt!.deliveries).toEqual([
-      expect.objectContaining({
-        integrationId: "feishu",
-        operation: "message.reply",
-        status: "delivered",
-      }),
+    expect(receipt!.reaction).toMatchObject({
+      status: "completed",
+      reason: "The Agent called the reply tool",
+      effects: [],
+    });
+    // Posted during the Turn, not as an Effect after it.
+    expect(receipt!.deliveries).toEqual([]);
+    expect(results()).toEqual([
+      { status: "delivered", receipt: { messageId: "om_reply_1" } },
+    ]);
+    expect(worker.turnInputs()[0]!.tools?.map((t) => t.name)).toEqual([
+      "feishu.message.reply",
     ]);
     expect(posted).toHaveLength(1);
     expect(posted[0]!.url).toMatch(
@@ -177,7 +245,7 @@ describe("Feishu Loop templates", () => {
       reply_in_thread: true,
     });
     expect(JSON.parse(String(posted[0]!.body.content))).toEqual(
-      feishuMarkdownCard("Found it: `auth/session.ts:42` returns null."),
+      feishuMarkdownCard(ANSWER),
     );
     expect(contexts[0]).toMatchObject({
       scopeId: "feishu:bond_fs:chat:oc_eng",
@@ -190,6 +258,7 @@ describe("Feishu Loop templates", () => {
     expect(instructions).toContain("ou_alice");
     expect(instructions).toContain("mentioned you in a group chat");
     expect(instructions).toContain("on their behalf");
+    expect(instructions).toContain("feishu.message.reply");
     expect(instructions).not.toMatch(/gitlab/i);
   });
 
@@ -252,12 +321,21 @@ describe("Feishu Loop templates", () => {
     );
     expect(posted).toHaveLength(1);
 
-    const silent = makeHarness("   ");
+    const silent = makeHarness({ replies: [] });
     silent.app.loop(feishuAgent, config);
     expect((await silent.send(message()))!.reaction.reason).toBe(
-      "The Agent produced no reply",
+      "The Agent did not reply",
     );
     expect(silent.posted).toEqual([]);
+
+    const blank = makeHarness({ replies: ["   "] });
+    blank.app.loop(feishuAgent, config);
+    await blank.send(message());
+    expect(blank.results()[0]).toEqual({
+      status: "refused",
+      reason: "A reply needs exactly one non-empty markdown string",
+    });
+    expect(blank.posted).toEqual([]);
   });
 
   it("refuses a configuration without an Agent or with an unknown scope", () => {
@@ -268,5 +346,68 @@ describe("Feishu Loop templates", () => {
     expect(() =>
       app.loop(feishuAgent, { ...config, sessionScope: "forever" }),
     ).toThrow("Invalid configuration for Loop feishu-agent");
+  });
+
+  it("returns a correction posted while the Agent works, and posts the revised reply", async () => {
+    const t = makeHarness({
+      replies: ["Login 500s because of X", "On staging it is Y"],
+      during: () => [
+        message({ mentionBot: false, text: "sorry, I meant on staging" }),
+      ],
+    });
+    t.app.loop(feishuAgent, config);
+    await t.send(message());
+
+    expect(t.results().map((r) => r.status)).toEqual(["conflict", "delivered"]);
+    expect(t.results()[0]).toMatchObject({
+      conflict: {
+        messages: [
+          {
+            kind: "message",
+            threadId: "main",
+            sender: { id: "ou_alice", kind: "human" },
+            text: "sorry, I meant on staging",
+          },
+        ],
+      },
+    });
+    expect(t.posted).toHaveLength(1);
+    expect(JSON.parse(String(t.posted[0]!.body.content))).toEqual(
+      feishuMarkdownCard("On staging it is Y"),
+    );
+  });
+
+  it("returns the recall of the question, and ignores other topics and bots", async () => {
+    const recalled = makeHarness({
+      replies: ["answer"],
+      during: () => [recall(`om_${seq}`)],
+    });
+    recalled.app.loop(feishuAgent, config);
+    await recalled.send(message());
+    expect(recalled.results()[0]).toMatchObject({
+      status: "conflict",
+      conflict: { messages: [{ kind: "recall", threadId: "main" }] },
+    });
+    expect(recalled.posted).toEqual([]);
+
+    const unrelated = makeHarness({
+      during: () => [
+        message({ mentionBot: false, threadId: "omt_other" }),
+        message({ mentionBot: false, senderType: "app", sender: "ou_bot2" }),
+        message({ mentionBot: false, chatId: "oc_other" }),
+      ],
+    });
+    unrelated.app.loop(feishuAgent, config);
+    await unrelated.send(message());
+    expect(unrelated.results().map((r) => r.status)).toEqual(["delivered"]);
+  });
+
+  it("posts regardless of newer messages when freshness is off", async () => {
+    const t = makeHarness({
+      during: () => [message({ mentionBot: false, text: "never mind" })],
+    });
+    t.app.loop(feishuAgent, { ...config, freshness: "off" });
+    await t.send(message());
+    expect(t.results().map((r) => r.status)).toEqual(["delivered"]);
   });
 });
