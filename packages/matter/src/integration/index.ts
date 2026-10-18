@@ -1,5 +1,6 @@
 import {
   JsonValueSchema,
+  type ConversationObservation,
   type JsonValue,
   type WorkEffect,
   type WorkEvent,
@@ -35,7 +36,17 @@ export interface IntegrationManifest {
   readonly tools?: Readonly<
     Record<
       string,
-      { readonly description: string; readonly inputSchema: JsonValue }
+      {
+        readonly description: string;
+        readonly inputSchema: JsonValue;
+        /**
+         * The call writes to the triggering event's conversation, so it is
+         * checked against newer messages under the Turn's freshness policy.
+         * `best-effort`: the check and the call record are one transaction,
+         * but the provider write is not conditional.
+         */
+        readonly freshness?: "best-effort";
+      }
     >
   >;
 }
@@ -48,6 +59,12 @@ export interface WorkIntegration {
   readonly deliver: (
     effect: WorkEffect,
   ) => Effect.Effect<ProviderDeliveryResult, IntegrationError>;
+  /**
+   * The event as a conversation message, or undefined when it is not one.
+   * The runtime records observed events with it, so conversation writes can
+   * be checked for freshness. Pure: no I/O.
+   */
+  readonly observe?: (event: WorkEvent) => ConversationObservation | undefined;
   /** Absent operations fail closed for guarded Effects. The adapter owns both
    * the comparison and the actual write; a local preflight is not remote CAS. */
   readonly conditionalWrites?: Readonly<

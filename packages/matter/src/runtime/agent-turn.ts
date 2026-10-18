@@ -22,9 +22,13 @@ import {
   type WorkIntegrationRegistry,
 } from "../integration/index.js";
 import {
+  DEFAULT_FRESHNESS,
   JsonValueSchema,
   WorkEffectSchema,
   type AgentSession,
+  type ConversationEntry,
+  type ConversationMessage,
+  type FreshnessPolicy,
   type JsonValue,
   type OperationCall,
   type OperationCallResult,
@@ -33,6 +37,7 @@ import {
   type WorkEvent,
 } from "../index.js";
 import {
+  ConversationChangedError,
   StoreError,
   StoreService,
   type OpenMatterStore,
@@ -338,6 +343,10 @@ export const makeAgentTurnRuntime = (options: {
             });
           }
           const turnAllow = storedTurn?.allow ?? input.allow ?? [];
+          const turnFreshness = storedTurn?.freshness ?? input.freshness;
+          // The latest conversation revision shown to the Agent in this Turn
+          // beyond its trigger: conflict results advance it.
+          const seen = { revision: 0 };
           const denied = turnAllow.find(
             (operation) => !turnContext.grants.includes(operation),
           );
@@ -521,6 +530,9 @@ export const makeAgentTurnRuntime = (options: {
               storedTurn?.contextProjectionId ?? input.context.id,
             contextDigest: storedTurn?.contextDigest ?? input.context.digest,
             allow: turnAllow,
+            ...(turnFreshness === undefined
+              ? {}
+              : { freshness: turnFreshness }),
             state: "running",
             createdAt: storedTurn?.createdAt ?? now,
           };
@@ -705,6 +717,8 @@ export const makeAgentTurnRuntime = (options: {
                         turnId,
                         triggerEventId: event.id,
                         allow: turnAllow,
+                        freshness: turnFreshness ?? DEFAULT_FRESHNESS,
+                        seen,
                         callId: durableEvent.data.callback_id,
                         fingerprint: durableEvent.data.fingerprint,
                         params: durableEvent.data.params,
@@ -1004,6 +1018,69 @@ const callOperation = (input: {
   readonly turnId: string;
   readonly triggerEventId: string;
   readonly allow: readonly string[];
+  readonly freshness: FreshnessPolicy;
+  readonly seen: { revision: number };
+  readonly callId: string;
+  readonly fingerprint: string;
+  readonly params: unknown;
+  readonly bindingKey: string;
+  readonly leaseToken: string;
+}): Effect.Effect<OperationCallResult, AgentDriverError | StoreError> =>
+  callOperationOnce(input).pipe(
+    Effect.tap((result) => {
+      if (result.status === "conflict") {
+        input.seen.revision = Math.max(
+          input.seen.revision,
+          result.seenRevision,
+        );
+      }
+    }),
+  );
+
+/** Whether a newer entry makes a write to the trigger's conversation stale. */
+const counts = (
+  entry: ConversationEntry,
+  trigger: ConversationEntry,
+  policy: FreshnessPolicy,
+): boolean => {
+  if (entry.eventId === trigger.eventId) return false;
+  if (!policy.kinds.includes(entry.kind)) return false;
+  if (
+    policy.scope === "thread" &&
+    (entry.threadId === undefined || entry.threadId !== trigger.threadId)
+  ) {
+    return false;
+  }
+  const sender = entry.sender;
+  const senders = policy.senders;
+  if (senders === "anyone") return true;
+  if (sender === undefined) return false;
+  if (senders === "humans") return sender.kind === "human";
+  if (senders === "requester") return sender.id === trigger.sender?.id;
+  return senders.ids.includes(sender.id);
+};
+
+const asMessage = (entry: ConversationEntry): ConversationMessage => ({
+  kind: entry.kind,
+  occurredAt: entry.occurredAt,
+  ...(entry.threadId === undefined ? {} : { threadId: entry.threadId }),
+  ...(entry.messageId === undefined ? {} : { messageId: entry.messageId }),
+  ...(entry.sender === undefined ? {} : { sender: entry.sender }),
+  ...(entry.text === undefined ? {} : { text: entry.text }),
+});
+
+/** How many times a guarded call re-checks a conversation that keeps moving. */
+const FRESHNESS_ATTEMPTS = 5;
+
+const callOperationOnce = (input: {
+  readonly store: OpenMatterStore;
+  readonly integrations: WorkIntegrationRegistry;
+  readonly clock: () => string;
+  readonly turnId: string;
+  readonly triggerEventId: string;
+  readonly allow: readonly string[];
+  readonly freshness: FreshnessPolicy;
+  readonly seen: { revision: number };
   readonly callId: string;
   readonly fingerprint: string;
   readonly params: unknown;
@@ -1073,7 +1150,95 @@ const callOperation = (input: {
       state: "pending",
       startedAt,
     };
-    const begun = yield* store.beginOperationCall(call, bindingKey, leaseToken);
+    const guarded =
+      refusal === undefined &&
+      integration?.manifest.tools?.[operation]?.freshness !== undefined;
+    const trigger = guarded
+      ? yield* store.getConversationEntry(input.triggerEventId)
+      : undefined;
+
+    // A guarded call is inserted only while its conversation is still at the
+    // revision it was checked at, so the check and the record are one store
+    // transaction. A conversation that moved is checked again.
+    let conflict: OperationCallResult | undefined;
+    let begun: OperationCall | undefined;
+    for (
+      let attempt = 0;
+      begun === undefined && attempt < FRESHNESS_ATTEMPTS;
+      attempt++
+    ) {
+      if (trigger === undefined) {
+        begun = yield* store
+          .beginOperationCall(call, bindingKey, leaseToken)
+          .pipe(
+            Effect.catchTag("ConversationChangedError", (error) =>
+              Effect.fail(
+                new StoreError({
+                  message:
+                    "An unguarded operation call reported a conversation change",
+                  cause: error,
+                }),
+              ),
+            ),
+          );
+        break;
+      }
+      const key = trigger.conversationKey;
+      const after = Math.max(trigger.revision, input.seen.revision);
+      // One read: the entries after what was seen end at the current
+      // revision, and none means the conversation is still at `after`.
+      const entries = yield* store.listConversationEntries(key, after);
+      const revision = entries.at(-1)?.revision ?? after;
+      const newer = entries.filter((entry) =>
+        counts(entry, trigger, input.freshness),
+      );
+      if (newer.length > 0) {
+        conflict = {
+          status: "conflict",
+          effect: "not-applied",
+          conflict: {
+            reason: "newer_messages",
+            messages: newer.map(asMessage),
+          },
+          seenRevision: revision,
+        };
+      }
+      const guardedCall: OperationCall =
+        conflict === undefined
+          ? { ...call, conversation: { key, revision } }
+          : call;
+      begun = yield* store
+        .beginOperationCall(guardedCall, bindingKey, leaseToken)
+        .pipe(
+          Effect.catchIf(
+            (error): error is ConversationChangedError =>
+              error instanceof ConversationChangedError,
+            () => Effect.succeed(undefined),
+          ),
+        );
+    }
+    if (begun === undefined) {
+      // The conversation kept moving. Record the call so a replay answers the
+      // same way, and let the Agent decide.
+      begun = yield* store
+        .beginOperationCall(call, bindingKey, leaseToken)
+        .pipe(
+          Effect.catchTag("ConversationChangedError", (error) =>
+            Effect.fail(
+              new StoreError({
+                message:
+                  "An unguarded operation call reported a conversation change",
+                cause: error,
+              }),
+            ),
+          ),
+        );
+      conflict ??= {
+        status: "failed",
+        reason: "The conversation is changing too quickly; try again",
+        retryable: true,
+      };
+    }
     if (begun.fingerprint !== fingerprint) {
       return yield* new AgentDriverError({
         message: `Operation call content changed for reused callback id: ${callId}`,
@@ -1094,6 +1259,7 @@ const callOperation = (input: {
         reason: refusal ?? `Unknown operation: ${name}`,
       });
     }
+    if (conflict !== undefined) return yield* complete(conflict);
 
     const effectId = `${turnId}:call:${callId}`;
     const effect: WorkEffect = {

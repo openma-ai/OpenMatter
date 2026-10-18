@@ -10,6 +10,7 @@ import {
   ThreadGoalStatusSchema,
   type AgentSession,
   type ContextProjection,
+  type ConversationEntry,
   type EffectDeliveryReceipt,
   type OperationCall,
   type PermissionDecision,
@@ -21,6 +22,7 @@ import {
 } from "@openma/matter";
 import type { OpenMAEvent } from "@openma/matter/agent";
 import {
+  ConversationChangedError,
   StoreError,
   type AccountThreadGoalInput,
   type LeaseRequest,
@@ -179,6 +181,32 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
               cause,
             }),
     });
+  /** As `op`, but a guarded write's ConversationChangedError passes through. */
+  const casOp = <T>(
+    body: (conn: PoolConnection) => Promise<T>,
+  ): Effect.Effect<T, StoreError | ConversationChangedError> =>
+    op(body, true).pipe(
+      Effect.mapError((error): StoreError | ConversationChangedError =>
+        error.cause instanceof ConversationChangedError ? error.cause : error,
+      ),
+    );
+  // The revision is the entry count. Two writers that read the same count
+  // collide on the unique (conversation, revision) key; the loser fails and
+  // the caller retries, so revisions never repeat.
+  const conversationRevision = async (conn: PoolConnection, key: string) =>
+    asNumber(
+      (
+        await one<{ n: unknown }>(
+          conn,
+          "SELECT COUNT(*) AS n FROM openmatter_store_records WHERE tenant_id=? AND kind='conversationEntry' AND parent_id=?",
+          [tenantId, key],
+        )
+      )?.n ?? 0,
+    );
+  const conversationLog = (conn: PoolConnection, key: string) =>
+    rows<ConversationEntry>(conn, "conversationEntry", "AND parent_id=?", [
+      key,
+    ]);
   const clock = async (conn: PoolConnection) =>
     asNumber(
       (
@@ -435,6 +463,9 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
       operationCalls: (await rows<OperationCall>(conn, "operationCall")).filter(
         (call) => scopeId === undefined || turnIds.has(call.turnId),
       ),
+      conversationEntries: (
+        await rows<ConversationEntry>(conn, "conversationEntry")
+      ).filter((entry) => scopeId === undefined || eventIds.has(entry.eventId)),
       turnCancellationRequests: (
         await rows<TurnCancellationRequest>(conn, "cancellation")
       ).filter(
@@ -890,7 +921,7 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
         ),
       ),
     beginOperationCall: (call, key, token) =>
-      op(async (conn) => {
+      casOp(async (conn) => {
         await fence(conn, "session", key, token);
         const turn = await get<Turn>(conn, "turn", call.turnId);
         if (
@@ -902,9 +933,58 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
         const id = JSON.stringify([call.turnId, call.callId]);
         const existing = await get<OperationCall>(conn, "operationCall", id);
         if (existing) return existing;
+        if (call.conversation !== undefined) {
+          const actual = await conversationRevision(
+            conn,
+            call.conversation.key,
+          );
+          if (actual !== call.conversation.revision) {
+            throw new ConversationChangedError({
+              conversationKey: call.conversation.key,
+              expected: call.conversation.revision,
+              actual,
+            });
+          }
+        }
         await put(conn, "operationCall", id, call);
         return (await get<OperationCall>(conn, "operationCall", id))!;
+      }),
+    recordConversationEntry: (input) =>
+      op(async (conn) => {
+        const existing = await get<ConversationEntry>(
+          conn,
+          "conversationEntry",
+          input.eventId,
+        );
+        if (existing) return existing;
+        const revision =
+          (await conversationRevision(conn, input.conversationKey)) + 1;
+        const entry: ConversationEntry = { ...input, revision };
+        await put(
+          conn,
+          "conversationEntry",
+          input.eventId,
+          entry,
+          null,
+          input.conversationKey,
+          JSON.stringify([input.conversationKey, revision]),
+        );
+        return entry;
       }, true),
+    getConversationEntry: (eventId) =>
+      op((conn) => get<ConversationEntry>(conn, "conversationEntry", eventId)),
+    findConversationMessage: (key, messageId) =>
+      op(async (conn) =>
+        (await conversationLog(conn, key)).findLast(
+          (e) => e.kind !== "recall" && e.messageId === messageId,
+        ),
+      ),
+    listConversationEntries: (key, afterRevision) =>
+      op(async (conn) =>
+        (await conversationLog(conn, key))
+          .filter((e) => e.revision > afterRevision)
+          .sort((a, b) => a.revision - b.revision),
+      ),
     completeOperationCall: (turnId, callId, result, completedAt, key, token) =>
       op(async (conn) => {
         await fence(conn, "session", key, token);

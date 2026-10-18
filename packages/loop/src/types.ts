@@ -90,9 +90,24 @@ export interface AgentSessionBinding {
   readonly privacyPartition: string;
 }
 
+/**
+ * Which messages recorded after what a Turn has seen make a conversation
+ * write, such as a reply, stale. See `freshnessField` for the config field.
+ */
+export interface FreshnessPolicy {
+  /** The triggering message's thread, or its whole conversation. */
+  readonly scope: "thread" | "conversation";
+  /** `humans` excludes apps, including the bot itself. */
+  readonly senders:
+    "anyone" | "humans" | "requester" | { readonly ids: readonly string[] };
+  readonly kinds: readonly ("message" | "mention" | "recall")[];
+}
+
 export interface AgentTurnInput {
   readonly context: ContextProjection;
   readonly allow?: readonly string[];
+  /** Checks the Turn's conversation writes; the host default when absent. */
+  readonly freshness?: FreshnessPolicy;
 }
 
 /**

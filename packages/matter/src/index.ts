@@ -183,6 +183,85 @@ export const ThreadGoalSchema = Schema.Struct({
 
 export type ThreadGoal = typeof ThreadGoalSchema.Type;
 
+/**
+ * Which messages recorded after what a Turn has seen make a conversation
+ * write stale. `scope` is the triggering message's thread or its whole
+ * conversation; `senders` whose messages count (`humans` excludes apps,
+ * including the bot itself); `kinds` which entries count.
+ */
+export const FreshnessPolicySchema = Schema.Struct({
+  scope: Schema.Literal("thread", "conversation"),
+  senders: Schema.Union(
+    Schema.Literal("anyone", "humans", "requester"),
+    Schema.Struct({ ids: Schema.Array(Schema.String) }),
+  ),
+  kinds: Schema.Array(Schema.Literal("message", "mention", "recall")),
+}).annotations({ identifier: "FreshnessPolicy" });
+
+export type FreshnessPolicy = typeof FreshnessPolicySchema.Type;
+
+/** The policy used when a Turn names none. */
+export const DEFAULT_FRESHNESS: FreshnessPolicy = {
+  scope: "thread",
+  senders: "humans",
+  kinds: ["message", "mention", "recall"],
+};
+
+export const ConversationSenderSchema = Schema.Struct({
+  id: Schema.String,
+  kind: Schema.Literal("human", "app"),
+}).annotations({ identifier: "ConversationSender" });
+
+export type ConversationSender = typeof ConversationSenderSchema.Type;
+
+/**
+ * One WorkEvent as a conversation message, in the terms a freshness policy
+ * uses. An Integration maps its events to it (`WorkIntegration.observe`).
+ * For a recall, `messageId` is the recalled message.
+ */
+export const ConversationObservationSchema = Schema.Struct({
+  conversationId: Schema.String,
+  kind: Schema.Literal("message", "mention", "recall"),
+  threadId: Schema.optional(Schema.String),
+  messageId: Schema.optional(Schema.String),
+  sender: Schema.optional(ConversationSenderSchema),
+  text: Schema.optional(Schema.String),
+}).annotations({ identifier: "ConversationObservation" });
+
+export type ConversationObservation = typeof ConversationObservationSchema.Type;
+
+/**
+ * A recorded conversation message. `revision` counts the entries of one
+ * conversation (`provider:authority:conversationId`) from 1; it is an
+ * equality token, never compared across conversations. A recall carries the
+ * thread and sender of the message it recalls when that message is recorded.
+ */
+export const ConversationEntrySchema = Schema.Struct({
+  conversationKey: Schema.String,
+  revision: Schema.Number,
+  eventId: Schema.String,
+  kind: Schema.Literal("message", "mention", "recall"),
+  threadId: Schema.optional(Schema.String),
+  messageId: Schema.optional(Schema.String),
+  sender: Schema.optional(ConversationSenderSchema),
+  text: Schema.optional(Schema.String),
+  occurredAt: Schema.String,
+}).annotations({ identifier: "ConversationEntry" });
+
+export type ConversationEntry = typeof ConversationEntrySchema.Type;
+
+/** A newer message as an Agent sees it in a conflict result. */
+export const ConversationMessageSchema = Schema.Struct({
+  kind: Schema.Literal("message", "mention", "recall"),
+  occurredAt: Schema.String,
+  threadId: Schema.optional(Schema.String),
+  messageId: Schema.optional(Schema.String),
+  sender: Schema.optional(ConversationSenderSchema),
+  text: Schema.optional(Schema.String),
+}).annotations({ identifier: "ConversationMessage" });
+
+export type ConversationMessage = typeof ConversationMessageSchema.Type;
+
 export const TurnSchema = Schema.Struct({
   id: Schema.String,
   sessionId: Schema.String,
@@ -190,6 +269,7 @@ export const TurnSchema = Schema.Struct({
   contextProjectionId: Schema.String,
   contextDigest: Schema.String,
   allow: Schema.Array(Schema.String),
+  freshness: Schema.optional(FreshnessPolicySchema),
   state: Schema.Literal(
     "queued",
     "running",
@@ -245,6 +325,17 @@ export const OperationCallResultSchema = Schema.Union(
     status: Schema.Literal("uncertain"),
     reason: Schema.String,
   }),
+  /** Not applied: newer messages count under the Turn's freshness policy.
+   * They are shown to the Agent, so `seenRevision` is what it has now seen. */
+  Schema.Struct({
+    status: Schema.Literal("conflict"),
+    effect: Schema.Literal("not-applied"),
+    conflict: Schema.Struct({
+      reason: Schema.Literal("newer_messages"),
+      messages: Schema.Array(ConversationMessageSchema),
+    }),
+    seenRevision: Schema.Number,
+  }),
 ).annotations({ identifier: "OperationCallResult" });
 
 export type OperationCallResult = typeof OperationCallResultSchema.Type;
@@ -261,6 +352,11 @@ export const OperationCallSchema = Schema.Struct({
   integrationId: Schema.String,
   operation: Schema.String,
   input: JsonValueSchema,
+  /** The conversation revision the call was checked at. The Store inserts
+   * the call only while the conversation is still at that revision. */
+  conversation: Schema.optional(
+    Schema.Struct({ key: Schema.String, revision: Schema.Number }),
+  ),
   state: Schema.Literal("pending", "completed"),
   result: Schema.optional(OperationCallResultSchema),
   startedAt: Schema.String,

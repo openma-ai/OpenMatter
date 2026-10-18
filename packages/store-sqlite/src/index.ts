@@ -4,6 +4,7 @@ import {
   JsonValueSchema,
   type AgentSession,
   type ContextProjection,
+  type ConversationEntry,
   type EffectDeliveryReceipt,
   type OperationCall,
   type PermissionDecision,
@@ -15,6 +16,7 @@ import {
 } from "@openma/matter";
 import type { OpenMAEvent } from "@openma/matter/agent";
 import {
+  ConversationChangedError,
   StoreError,
   type AccountThreadGoalInput,
   type OpenMatterStore,
@@ -140,6 +142,27 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
           ? cause
           : new StoreError({ message: "SQLite store operation failed", cause }),
     });
+  /** As `op`, but a guarded write's ConversationChangedError passes through. */
+  const casOp = <T>(
+    body: () => T,
+  ): Effect.Effect<T, StoreError | ConversationChangedError> =>
+    op(body, true).pipe(
+      Effect.mapError((error): StoreError | ConversationChangedError =>
+        error.cause instanceof ConversationChangedError ? error.cause : error,
+      ),
+    );
+  const conversationLog = (key: string) =>
+    rows<ConversationEntry>("conversationEntry", "AND parent_id=?", [key]);
+  const conversationRevision = (key: string) =>
+    Number(
+      (
+        db
+          .prepare(
+            "SELECT COUNT(*) AS n FROM openmatter_store_records WHERE kind='conversationEntry' AND parent_id=?",
+          )
+          .get(key) as { n: number }
+      ).n,
+    );
   const clock = () =>
     Number(
       (
@@ -305,6 +328,9 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
       ),
       operationCalls: rows<OperationCall>("operationCall").filter(
         (c) => scopeId === undefined || turnIds.has(c.turnId),
+      ),
+      conversationEntries: rows<ConversationEntry>("conversationEntry").filter(
+        (e) => scopeId === undefined || eventIds.has(e.eventId),
       ),
       turnCancellationRequests: rows<TurnCancellationRequest>(
         "cancellation",
@@ -711,7 +737,7 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
         get<OperationCall>("operationCall", JSON.stringify([turnId, callId])),
       ),
     beginOperationCall: (call, key, token) =>
-      op(() => {
+      casOp(() => {
         fence("session", key, token);
         const turn = get<Turn>("turn", call.turnId);
         if (
@@ -722,9 +748,52 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
         const id = JSON.stringify([call.turnId, call.callId]);
         const existing = get<OperationCall>("operationCall", id);
         if (existing) return existing;
+        if (call.conversation !== undefined) {
+          const actual = conversationRevision(call.conversation.key);
+          if (actual !== call.conversation.revision) {
+            throw new ConversationChangedError({
+              conversationKey: call.conversation.key,
+              expected: call.conversation.revision,
+              actual,
+            });
+          }
+        }
         put("operationCall", id, call);
         return get<OperationCall>("operationCall", id)!;
+      }),
+    recordConversationEntry: (input) =>
+      op(() => {
+        const existing = get<ConversationEntry>(
+          "conversationEntry",
+          input.eventId,
+        );
+        if (existing) return existing;
+        const revision = conversationRevision(input.conversationKey) + 1;
+        const entry: ConversationEntry = { ...input, revision };
+        put(
+          "conversationEntry",
+          input.eventId,
+          entry,
+          null,
+          input.conversationKey,
+          JSON.stringify([input.conversationKey, revision]),
+        );
+        return entry;
       }, true),
+    getConversationEntry: (eventId) =>
+      op(() => get<ConversationEntry>("conversationEntry", eventId)),
+    findConversationMessage: (key, messageId) =>
+      op(() =>
+        conversationLog(key).findLast(
+          (e) => e.kind !== "recall" && e.messageId === messageId,
+        ),
+      ),
+    listConversationEntries: (key, afterRevision) =>
+      op(() =>
+        conversationLog(key)
+          .filter((e) => e.revision > afterRevision)
+          .sort((a, b) => a.revision - b.revision),
+      ),
     completeOperationCall: (turnId, callId, result, completedAt, key, token) =>
       op(() => {
         fence("session", key, token);

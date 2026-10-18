@@ -1,6 +1,7 @@
 import type {
   AgentSession,
   ContextProjection,
+  ConversationEntry,
   EffectDeliveryReceipt,
   PermissionDecision,
   OperationCall,
@@ -35,6 +36,21 @@ export class StoreError extends Data.TaggedError("StoreError")<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
+
+/**
+ * `beginOperationCall` refused a guarded call because its conversation moved
+ * past the revision the call was checked at. Check again and retry.
+ */
+export class ConversationChangedError extends Data.TaggedError(
+  "ConversationChangedError",
+)<{
+  readonly conversationKey: string;
+  readonly expected: number;
+  readonly actual: number;
+}> {}
+
+/** A conversation message to record; the Store assigns the revision. */
+export type ConversationEntryInput = Omit<ConversationEntry, "revision">;
 
 export interface LeaseRequest {
   readonly ownerId: string;
@@ -119,6 +135,7 @@ export interface StoreSnapshot {
   readonly agentEvents: readonly OpenMAEvent[];
   readonly permissionDecisions: readonly PermissionDecision[];
   readonly operationCalls: readonly OperationCall[];
+  readonly conversationEntries: readonly ConversationEntry[];
 }
 
 export interface OpenMatterStore {
@@ -234,12 +251,33 @@ export interface OpenMatterStore {
     callId: string,
   ) => Effect.Effect<OperationCall | undefined, StoreError>;
   /** Atomically inserts one `pending` call per Turn/call id under the Session
-   * fence, and returns the stored call, which may be an earlier one. */
+   * fence, and returns the stored call, which may be an earlier one. A new
+   * call with `conversation` is inserted only while that conversation is at
+   * that revision, in the same transaction. */
   readonly beginOperationCall: (
     call: OperationCall,
     sessionBindingKey: string,
     sessionLeaseToken: string,
-  ) => Effect.Effect<OperationCall, StoreError>;
+  ) => Effect.Effect<OperationCall, StoreError | ConversationChangedError>;
+  /** Appends a message to its conversation with the next revision. Idempotent
+   * by event id: a recorded event returns its existing entry. */
+  readonly recordConversationEntry: (
+    entry: ConversationEntryInput,
+  ) => Effect.Effect<ConversationEntry, StoreError>;
+  readonly getConversationEntry: (
+    eventId: string,
+  ) => Effect.Effect<ConversationEntry | undefined, StoreError>;
+  /** The latest message or mention entry with this message id. */
+  readonly findConversationMessage: (
+    conversationKey: string,
+    messageId: string,
+  ) => Effect.Effect<ConversationEntry | undefined, StoreError>;
+  /** Entries after a revision, in revision order. */
+  readonly listConversationEntries: (
+    conversationKey: string,
+    afterRevision: number,
+  ) => Effect.Effect<readonly ConversationEntry[], StoreError>;
+
   /** Completes a `pending` call under the Session fence. A completed call is
    * returned unchanged; a missing call fails. */
   readonly completeOperationCall: (

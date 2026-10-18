@@ -1,6 +1,7 @@
 import type {
   AgentSession,
   ContextProjection,
+  ConversationEntry,
   EffectDeliveryReceipt,
   OperationCall,
   PermissionDecision,
@@ -14,6 +15,7 @@ import type {
 import { ThreadGoalStatusSchema } from "@openma/matter";
 import type { OpenMAEvent } from "@openma/matter/agent";
 import {
+  ConversationChangedError,
   StoreError,
   type AccountThreadGoalInput,
   type CreateThreadGoalInput,
@@ -62,6 +64,8 @@ export const makeMemoryStore = (
   const agentEvents: OpenMAEvent[] = [];
   const permissionDecisions = new Map<string, PermissionDecision>();
   const operationCalls = new Map<string, OperationCall>();
+  const conversationEntries = new Map<string, ConversationEntry>();
+  const conversationLogs = new Map<string, ConversationEntry[]>();
   const goals = new Map<string, ThreadGoal>();
   const goalUsage = new Map<string, AccountThreadGoalInput>();
   const cancellations = new Map<string, TurnCancellationRequest>();
@@ -441,14 +445,70 @@ export const makeMemoryStore = (
       }),
 
     beginOperationCall: (call, bindingKey, leaseToken) =>
-      storeTry(() => {
-        assertSessionLease(bindingKey, leaseToken);
-        const key = JSON.stringify([call.turnId, call.callId]);
-        const existing = operationCalls.get(key);
-        if (existing !== undefined) return copy(existing);
-        operationCalls.set(key, copy(call));
-        return copy(call);
+      Effect.try({
+        try: () => {
+          assertSessionLease(bindingKey, leaseToken);
+          const key = JSON.stringify([call.turnId, call.callId]);
+          const existing = operationCalls.get(key);
+          if (existing !== undefined) return copy(existing);
+          if (call.conversation !== undefined) {
+            const actual =
+              conversationLogs.get(call.conversation.key)?.length ?? 0;
+            if (actual !== call.conversation.revision) {
+              throw new ConversationChangedError({
+                conversationKey: call.conversation.key,
+                expected: call.conversation.revision,
+                actual,
+              });
+            }
+          }
+          operationCalls.set(key, copy(call));
+          return copy(call);
+        },
+        catch: (cause) =>
+          cause instanceof StoreError ||
+          cause instanceof ConversationChangedError
+            ? cause
+            : new StoreError({
+                message: "Memory store operation failed",
+                cause,
+              }),
       }),
+
+    recordConversationEntry: (input) =>
+      storeTry(() => {
+        const existing = conversationEntries.get(input.eventId);
+        if (existing !== undefined) return copy(existing);
+        const log = conversationLogs.get(input.conversationKey) ?? [];
+        const entry: ConversationEntry = {
+          ...copy(input),
+          revision: log.length + 1,
+        };
+        conversationLogs.set(input.conversationKey, [...log, entry]);
+        conversationEntries.set(entry.eventId, entry);
+        return copy(entry);
+      }),
+
+    getConversationEntry: (eventId) =>
+      Effect.sync(() => {
+        const entry = conversationEntries.get(eventId);
+        return entry === undefined ? undefined : copy(entry);
+      }),
+
+    findConversationMessage: (conversationKey, messageId) =>
+      Effect.sync(() => {
+        const entry = (conversationLogs.get(conversationKey) ?? []).findLast(
+          (e) => e.kind !== "recall" && e.messageId === messageId,
+        );
+        return entry === undefined ? undefined : copy(entry);
+      }),
+
+    listConversationEntries: (conversationKey, afterRevision) =>
+      Effect.sync(() =>
+        (conversationLogs.get(conversationKey) ?? [])
+          .filter((e) => e.revision > afterRevision)
+          .map(copy),
+      ),
 
     completeOperationCall: (
       turnId,
@@ -701,6 +761,7 @@ export const makeMemoryStore = (
       agentEvents: agentEvents.map(copy),
       permissionDecisions: [...permissionDecisions.values()].map(copy),
       operationCalls: [...operationCalls.values()].map(copy),
+      conversationEntries: [...conversationEntries.values()].map(copy),
     })),
   };
 };

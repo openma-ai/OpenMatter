@@ -8,6 +8,7 @@ import type {
   ContextItem,
   ContextProjection,
   EffectDeliveryReceipt,
+  FreshnessPolicy,
   JsonValue,
   MutationGuard,
   ReactionReceipt,
@@ -81,6 +82,8 @@ export interface ReactionDraft {
 export interface AgentTurnOptions {
   readonly context: ContextProjection;
   readonly allow?: readonly string[];
+  /** Checks the Turn's conversation writes; `DEFAULT_FRESHNESS` when absent. */
+  readonly freshness?: FreshnessPolicy;
 }
 
 export interface AgentTurnResult {
@@ -221,6 +224,15 @@ export interface OpenMatterApplication {
   readonly on: (
     eventType: string | readonly string[],
     handler: WorkHandler,
+  ) => OpenMatterApplication;
+  /**
+   * Records events of these types in their conversation, through the
+   * Integration's `observe`, without running a handler for them. Handled
+   * event types are recorded too. Recorded messages are what a conversation
+   * write is checked against.
+   */
+  readonly observe: (
+    eventType: string | readonly string[],
   ) => OpenMatterApplication;
   readonly acceptEffect: (
     event: WorkEvent,
