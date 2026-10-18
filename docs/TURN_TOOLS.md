@@ -1,7 +1,7 @@
 # Turn tool calls and conversation writes
 
-Status: steps 1 (operation calls) and 2 (conversation freshness in the
-kernel) are implemented; the rest is design. The delivery plan is at the end.
+Status: steps 1 (operation calls), 2 (conversation freshness in the
+kernel), and 3 (the Loop SDK) are implemented; the rest is design. The delivery plan is at the end.
 
 ## Problem
 
@@ -163,8 +163,12 @@ interface FreshnessPolicy {
 own, never count under `humans`; an entry without a known sender counts only
 under `anyone`, and one without a known thread only under `conversation`.
 
-A template exposes the policy in its `configSchema` with
-`x-oma-widget: "freshness"`, so a console renders it as one control (step 3).
+A template exposes the policy with `freshnessField()`: one string field with
+the presets `thread` (the default policy), `thread_requester` (only the
+person who asked), `conversation` (humans anywhere in the conversation), and
+`off` (no kinds count), marked `x-oma-widget: "freshness"` so a console
+renders it as one control. `freshnessPolicy(value)` maps the value to the
+policy. A Loop written as code may pass any policy, including sender ids.
 
 Availability depends on the provider: Feishu delivers group messages that do
 not mention the bot only when the app has the permission to read all group
@@ -243,7 +247,9 @@ bot silent.
 2. Kernel: `WorkIntegration.observe`, `app.observe`, the conversation log in
    the memory, SQLite, and MySQL stores, the seen revision, freshness
    evaluation, and the guarded call record. Done.
-3. Loop SDK: `spec.observes`, the freshness config helper.
+3. Loop SDK: `spec.observes` (`loopObserves`, validated in the definition,
+   applied by `installLoadedLoop`), `freshnessField`, `freshnessPolicy`, and
+   `freshness` on the guest `AgentTurnInput`. Done.
 4. Feishu: tool descriptors, input binding, guarded `message.reply`, and
    `feishu-agent` replying through the tool.
 5. OMA: the MCP bridge, SQL stores, the console widget.

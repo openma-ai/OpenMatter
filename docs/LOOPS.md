@@ -108,6 +108,49 @@ app.loop(review, { projects: ["project:42"] });
 it performs there. The runtime only checks its shape; a host compares it with
 what the configured agent is granted before enabling an instance.
 
+## Observed events and freshness
+
+`spec.observes` lists event types the Loop records in their conversation
+without handling them, such as chat messages that do not mention the bot.
+The runtime records them through the Integration's `observe` before any
+handler runs; handled types are recorded too. A conversation write the Agent
+makes during its Turn, such as a reply, is checked against them
+([Turn tool calls and conversation writes](./TURN_TOOLS.md)).
+
+`freshnessField()` is the matching config field: one string with the presets
+`thread` (default), `thread_requester`, `conversation`, and `off`, rendered by
+a console as one control (`x-oma-widget: "freshness"`). `freshnessPolicy`
+turns the configured value into the policy the Loop passes to the Turn:
+
+```ts
+const answer = defineLoop(
+  {
+    id: "chat-answer",
+    spec: { sources: ["chat.mention"], observes: ["chat.message"] },
+    configSchema: {
+      type: "object",
+      properties: { freshness: freshnessField() },
+    },
+  },
+  (app) =>
+    app.on("chat.mention", async (work) => {
+      // ...project the context
+      await work
+        .agent("assistant")
+        .session(binding)
+        .turn({
+          context,
+          allow: ["chat.reply"],
+          freshness: freshnessPolicy(work.config.freshness),
+        });
+      return work.react.none();
+    }),
+);
+```
+
+A Loop written as code may pass any `FreshnessPolicy`, including a list of
+sender ids.
+
 ## Guest Loops
 
 `@openma/matter-loop` is the package Loop code imports when it should run

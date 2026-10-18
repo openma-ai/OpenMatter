@@ -98,6 +98,35 @@ export const loopRunAs = (
 };
 
 /**
+ * The event types a Loop records in their conversation without handling
+ * them, from `spec.observes`. A conversation write, such as a reply, is
+ * checked against them (docs/TURN_TOOLS.md).
+ */
+export const loopObserves = (
+  definition: Pick<LoopDefinition, "spec">,
+): readonly string[] => {
+  const spec = definition.spec;
+  if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
+    return [];
+  }
+  const observes = (spec as { readonly [key: string]: JsonValue }).observes;
+  return Array.isArray(observes)
+    ? observes.filter((t): t is string => typeof t === "string" && t !== "")
+    : [];
+};
+
+const observesProblem = (spec: JsonValue | undefined): string | undefined => {
+  if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
+    return undefined;
+  }
+  const observes = (spec as { readonly [key: string]: JsonValue }).observes;
+  return observes === undefined ||
+    (Array.isArray(observes) && observes.every(isNonEmptyString))
+    ? undefined
+    : "spec.observes must be a list of event types";
+};
+
+/**
  * Validates a definition and returns a frozen snapshot of it. Throws a
  * TypeError listing every problem.
  */
@@ -119,9 +148,10 @@ export const snapshotLoopDefinition = (
     ...(definition.configSchema === undefined
       ? []
       : loopConfigSchemaProblems(definition.configSchema)),
-    ...[requiredBondsProblem(definition.requiredBonds)].filter(
-      (p): p is string => p !== undefined,
-    ),
+    ...[
+      requiredBondsProblem(definition.requiredBonds),
+      observesProblem(definition.spec),
+    ].filter((p): p is string => p !== undefined),
     ...(definition.runAs === undefined ||
     definition.runAs === "app" ||
     definition.runAs === "requester"
