@@ -205,5 +205,7 @@ other writers can post between the read and send. A local lock or SQLite CAS
 cannot protect remote writers. Tool execution outside these ports, including
 third-party MCP servers and native file tools, needs its own binding.
 
+Conversation writes, where the Agent must have seen the latest messages before it replies, are designed in [Turn tool calls and conversation writes](./TURN_TOOLS.md).
+
 No draft service, model loop, automatic rebase, or reasoning policy is added.
 The Agent owns the next decision after a conflict.

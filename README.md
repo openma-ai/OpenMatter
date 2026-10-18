@@ -280,6 +280,7 @@ The foundation already includes:
 - [Integrations](docs/INTEGRATIONS.md)
 - [Credentials](docs/CREDENTIALS.md)
 - [Agent runtime](docs/AGENT_RUNTIME.md)
+- [Turn tool calls and conversation writes](docs/TURN_TOOLS.md)
 - [Design decisions](docs/DECISIONS.md)
 
 ## Development
