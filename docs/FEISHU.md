@@ -666,6 +666,10 @@ reply.
   "received" reaction: it would arrive together with the answer.
 - **Sessions.** `scopeId` `feishu:<authority>:chat:<chatId>`; `workThreadId`
   `thread:<threadId or messageId>`, `chat`, or `user:<openId>`.
+- **Next.** The reply moves from a post-Turn Effect to a tool the Agent calls,
+  checked against newer messages under a configurable freshness policy, with
+  a conflict returned to the Agent. See
+  [Turn tool calls and conversation writes](./TURN_TOOLS.md).
 
 ## 8. Package layout
 

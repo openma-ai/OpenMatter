@@ -176,6 +176,8 @@ Drivers deliver granted operations through the closest supported mechanism:
 
 A driver must report when its runtime cannot receive external operations. It cannot silently pretend that Work Profile operations were exposed.
 
+The runtime path that executes such a call during the Turn (`invoke`: fencing, grant, idempotency, conversation freshness, and the result returned to the Agent) is designed in [Turn tool calls and conversation writes](./TURN_TOOLS.md).
+
 ## ACP binding
 
 The ACP driver maps OpenMatter semantics to the closest supported ACP lifecycle:
