@@ -1,7 +1,13 @@
 {
   "name": "@openma/matter-host-local",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.3",
+  "description": "Long-connection host for OpenMatter in a long-running Node.js process: the generic runtime that drives any outbound-connection event source into a durable inbox, plus Slack Socket Mode.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openma-ai/OpenMatter.git",
+    "directory": "packages/host-local"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -19,6 +25,10 @@
       "types": "./dist/runtime/index.d.ts",
       "import": "./dist/runtime/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@openma/matter": "workspace:*",

@@ -1,7 +1,13 @@
 {
   "name": "@openma/matter-inbox-sqlite",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.3",
+  "description": "Embedded SQLite durable inbox for OpenMatter on Node.js (node:sqlite), for a single-machine host with a persistent volume.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openma-ai/OpenMatter.git",
+    "directory": "packages/inbox-sqlite"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -15,6 +21,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@openma/matter": "workspace:*"
