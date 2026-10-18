@@ -44,6 +44,9 @@ export const makeMockAgentDriver = (options: {
   readonly operationCalls?: readonly MockOperationCall[];
   /** Defaults to true when `operationCalls` is set. */
   readonly operations?: boolean;
+  /** Awaited at the start of each Turn, before any event: the world moving
+   * while the Agent works. */
+  readonly beforeEvents?: (input: AgentTurnInput) => Promise<void>;
 }): MockAgentDriver => {
   let nextSession = 1;
   const permissionResponses: Array<{
@@ -130,9 +133,15 @@ export const makeMockAgentDriver = (options: {
           ? []
           : [event("terminal", options.terminalType ?? "turn.completed", {})]),
       ];
-      return Stream.fromIterable(
+      const stream = Stream.fromIterable(
         events.filter((item) => (item.seq ?? 0) > input.afterSequence),
       );
+      const before = options.beforeEvents;
+      return before === undefined
+        ? stream
+        : Stream.unwrap(
+            Effect.promise(() => before(input)).pipe(Effect.as(stream)),
+          );
     },
     respondToPermission: ({ requestId, approved }) =>
       Effect.sync(() => {

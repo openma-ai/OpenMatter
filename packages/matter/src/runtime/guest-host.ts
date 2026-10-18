@@ -8,6 +8,7 @@ import type * as Core from "../index.js";
 import type * as Guest from "@openma/matter-loop";
 import type { JsonValue } from "../index.js";
 import { Effect, Either } from "effect";
+import { loopObserves } from "@openma/matter-loop";
 import type {
   AgentCancellationResult,
   AgentTurnOptions,
@@ -77,7 +78,10 @@ export const makeLoopHost = (work: WorkContext): Guest.LoopHost => ({
 export const installLoadedLoop = (
   app: OpenMatterApplication,
   loaded: Guest.LoadedLoop,
-): OpenMatterApplication =>
-  app.on(loaded.eventTypes, (work) =>
+): OpenMatterApplication => {
+  const observes = loopObserves(loaded.definition);
+  if (observes.length > 0) app.observe(observes);
+  return app.on(loaded.eventTypes, (work) =>
     loaded.handle(work.event, makeLoopHost(work)),
   );
+};

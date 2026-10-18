@@ -11,6 +11,13 @@ export {
   type LoopConfigSchema,
 } from "./config.js";
 export {
+  FRESHNESS_PRESETS,
+  freshnessField,
+  freshnessPolicy,
+  type FreshnessPreset,
+} from "./freshness.js";
+export {
+  loopObserves,
   loopRunAs,
   snapshotLoopDefinition,
   type LoopDefinition,
