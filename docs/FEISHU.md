@@ -380,38 +380,54 @@ lifecycle events, and only pays off for hosted SaaS.
 
 ### 5.3 Model 3: how one-click provisioning works
 
-Read from `larksuite/cli` source (MIT), not from Feishu documentation, which
-does not describe this endpoint publicly as far as found **(verify)**:
+The official Node SDK implements this flow as `registerApp` (since 1.76.0),
+and `lark-cli config init --new` uses the same endpoint. OpenMatter
+implements it with `fetch` only in `packages/feishu/src/bond/registration.ts`:
 
-- `lark-cli config init --new` calls
-  `POST https://accounts.feishu.cn/oauth/v1/app/registration` (form-encoded)
-  with `action=begin`, `archetype=PersonalAgent`, `auth_method=client_secret`,
-  `request_user_info=open_id tenant_brand` (`internal/auth/app_registration.go`,
-  `internal/auth/paths.go`). The response is device-flow shaped:
-  `device_code`, `user_code`, `verification_uri`, `expire_in` (default 600 s),
-  `interval` (default 5 s).
-- The user opens `https://open.feishu.cn/page/cli?user_code=…` and confirms.
-- The client polls the same endpoint with `action=poll&device_code=…`;
-  `authorization_pending`, `slow_down`, `access_denied`, `expired_token`
-  follow RFC 8628. Success returns `client_id` (the `app_id`),
-  `client_secret` (the `app_secret`), and `user_info { open_id,
-tenant_brand }`. A Lark-brand tenant switches polling to
-  `accounts.larksuite.com` once.
-- No encrypt key, verification token, or event-callback URL comes back, so a
-  provisioned app should use the long connection. Whether the `PersonalAgent`
-  archetype pre-subscribes `im.message.receive_v1`, enables the bot, and
-  which scopes it grants is unknown **(verify)**; lark-cli's `event consume`
-  command suggests events are usable on such apps **(verify)**.
-- `lark-cli config bind --identity bot-only | user-default` shows the same app
-  is meant to carry both identities.
+- `beginFeishuAppRegistration` posts to
+  `https://accounts.feishu.cn/oauth/v1/app/registration` (form-encoded):
+  `action=begin`, `archetype=PersonalAgent`, `auth_method=client_secret`,
+  `request_user_info=open_id tenant_brand`. The answer is device-flow shaped:
+  `device_code`, `verification_uri_complete`, `expires_in` (default 600 s),
+  `interval` (default 5 s). A live request on 2026-10 returned a
+  `https://open.feishu.cn/page/launcher?user_code=…` link.
+- The link carries the pre-filled app: `name`, `desc`, up to six `avatar`
+  URLs, `clientID` to update an existing app instead of creating one, and
+  `createOnly=true` to forbid that. `addons` pre-configures tenant and user
+  scopes, event subscriptions, and card callbacks. Its encoding is fixed by
+  the platform: JSON, gzip, base64, URL-safe alphabet, no padding. The page
+  drops the whole payload silently on any unknown key, so the payload is
+  validated and rebuilt from the known keys (`preset`, `scopes`, `events`,
+  `callbacks`) before encoding.
+- The host shows the link as a QR code. The user confirms in Feishu; a
+  background job calls `pollFeishuAppRegistration` every `interval` seconds.
+  `authorization_pending`, `slow_down`, `access_denied`, and `expired_token`
+  follow RFC 8628 and arrive as HTTP 400 with a JSON body. Success returns
+  `client_id` (the `app_id`), `client_secret`, and `user_info { open_id,
+tenant_brand }`. A Lark tenant is reported on the Feishu origin; the poll then
+  asks `accounts.larksuite.com` once and answers `brand: "lark"`, which the
+  host keeps for later polls.
+- No encrypt key or callback URL comes back, so a registered app uses the
+  long connection.
+- `feishuAgentSetup()` returns the addons and the requirements of the
+  `feishu-agent` template: the message scopes, `im.message.receive_v1` and
+  `im.message.recalled_v1`, and `application:application:self_manage`, which
+  lets the app read its own version for the setup check. The sensitive
+  `im:message.group_msg` is added only when asked for.
+- `checkFeishuAppSetup` runs after a registration or a pasted credential. It
+  reads the tenant's scope grants (`GET /open-apis/application/v6/scopes`)
+  and the published version's bot ability and events
+  (`applications/:app_id` → `app_versions/:version_id`), and returns the
+  missing pieces as fixes for the setup page. Without `self_manage` the events
+  are reported as unknown, not as missing.
 
-Risks: undocumented endpoint, an archetype named for a personal agent, terms
-of use for a third party calling it **(verify)**. Ship behind a deployment
-flag, and fall back to model 2 if registration fails. In OpenMatter this is
-`beginFeishuAppRegistration()` / `pollFeishuAppRegistration()` in the
-Binding; the host persists the result as a `self_built` ProviderApp with
+The host persists the result as a `self_built` ProviderApp with
 `provisioning.method = "app_registration"` and links the confirming user
-(`ownerOpenId`).
+(`openId`). Model 2 (paste) stays as the fallback and uses the same setup
+check. Still to verify on a live tenant: whether the confirmation page
+publishes the version with the addons applied, whether the tenant
+administrator must approve it, and whether the long-connection subscription
+mode is set by default.
 
 ## 6. Binding & credentials
 
@@ -760,8 +776,8 @@ need a live tenant or confirmation from Feishu.
 4. **Credential shape.** One shape with `kind` and `brand`; `tenantKey` and
    `botOpenId` live on the Installation; Integration credentials never carry
    `appSecret` (§5.2).
-5. **Model 3.** Behind a deployment flag with model 2 as fallback, after
-   Feishu confirms third parties may call `oauth/v1/app/registration`.
+5. **Model 3.** The default "Connect Feishu" path, with model 2 as the
+   fallback. The official SDK exposes the same endpoint to third parties.
 6. **Webhook encryption.** Required: `ingress: "webhook"` without
    `encryptKey` is rejected.
 7. **User link.** Device flow, which needs no redirect allowlisting in the

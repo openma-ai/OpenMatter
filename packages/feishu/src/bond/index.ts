@@ -39,4 +39,20 @@ export {
   type FeishuResourceCatalogOptions,
 } from "./resources.js";
 
+export {
+  SELF_MANAGE_SCOPE,
+  beginFeishuAppRegistration,
+  checkFeishuAppSetup,
+  encodeFeishuAddons,
+  feishuAgentSetup,
+  normalizeFeishuAddons,
+  pollFeishuAppRegistration,
+  type FeishuAppAddons,
+  type FeishuAppRegistration,
+  type FeishuAppRegistrationInput,
+  type FeishuAppRegistrationPoll,
+  type FeishuAppRequirements,
+  type FeishuAppSetupReport,
+} from "./registration.js";
+
 export * from "./integration/index.js";
