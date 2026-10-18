@@ -65,6 +65,17 @@ export interface WorkIntegration {
    * be checked for freshness. Pure: no I/O.
    */
   readonly observe?: (event: WorkEvent) => ConversationObservation | undefined;
+  /**
+   * Merges what an Agent supplied for a tool with what the host binds from
+   * the Turn's triggering event, such as the message a reply answers. The
+   * Agent cannot choose the bound part. Called only for operations with a
+   * tool descriptor; the result is what is delivered and recorded. Pure.
+   */
+  readonly bindToolInput?: (
+    operation: string,
+    input: JsonValue,
+    trigger: WorkEvent,
+  ) => { readonly input: JsonValue } | { readonly refused: string };
   /** Absent operations fail closed for guarded Effects. The adapter owns both
    * the comparison and the actual write; a local preflight is not remote CAS. */
   readonly conditionalWrites?: Readonly<

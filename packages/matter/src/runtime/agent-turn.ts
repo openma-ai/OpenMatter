@@ -19,6 +19,7 @@ import {
   IntegrationError,
   ProviderDeliveryResultSchema,
   WorkIntegrations,
+  type WorkIntegration,
   type WorkIntegrationRegistry,
 } from "../integration/index.js";
 import {
@@ -715,7 +716,7 @@ export const makeAgentTurnRuntime = (options: {
                         integrations,
                         clock: options.clock,
                         turnId,
-                        triggerEventId: event.id,
+                        trigger: event,
                         allow: turnAllow,
                         freshness: turnFreshness ?? DEFAULT_FRESHNESS,
                         seen,
@@ -1016,7 +1017,7 @@ const callOperation = (input: {
   readonly integrations: WorkIntegrationRegistry;
   readonly clock: () => string;
   readonly turnId: string;
-  readonly triggerEventId: string;
+  readonly trigger: WorkEvent;
   readonly allow: readonly string[];
   readonly freshness: FreshnessPolicy;
   readonly seen: { revision: number };
@@ -1036,6 +1037,23 @@ const callOperation = (input: {
       }
     }),
   );
+
+const bindSafely = (
+  integration: WorkIntegration,
+  operation: string,
+  agentInput: JsonValue,
+  trigger: WorkEvent,
+): { readonly input: JsonValue } | { readonly refused: string } => {
+  try {
+    const bound = integration.bindToolInput!(operation, agentInput, trigger);
+    if ("refused" in bound) return { refused: String(bound.refused) };
+    return Schema.is(JsonValueSchema)(bound.input)
+      ? { input: bound.input }
+      : { refused: "The integration bound a non-JSON input" };
+  } catch {
+    return { refused: "The integration could not bind the call's input" };
+  }
+};
 
 /** Whether a newer entry makes a write to the trigger's conversation stale. */
 const counts = (
@@ -1077,7 +1095,7 @@ const callOperationOnce = (input: {
   readonly integrations: WorkIntegrationRegistry;
   readonly clock: () => string;
   readonly turnId: string;
-  readonly triggerEventId: string;
+  readonly trigger: WorkEvent;
   readonly allow: readonly string[];
   readonly freshness: FreshnessPolicy;
   readonly seen: { revision: number };
@@ -1127,7 +1145,7 @@ const callOperationOnce = (input: {
     const callInput = params.input;
     const name = `${integrationId}.${operation}`;
     const integration = input.integrations.get(integrationId);
-    const refusal =
+    const unbound =
       integrationId === "" ||
       operation === "" ||
       !Schema.is(JsonValueSchema)(callInput)
@@ -1138,6 +1156,22 @@ const callOperationOnce = (input: {
               !declares(integration.manifest.operations, operation)
             ? `Unknown operation: ${name}`
             : undefined;
+    // The host binds what the Agent must not choose, such as the target of a
+    // reply. A binding that cannot be made refuses the call.
+    const binding =
+      unbound === undefined &&
+      integration?.bindToolInput !== undefined &&
+      integration.manifest.tools?.[operation] !== undefined &&
+      Schema.is(JsonValueSchema)(callInput)
+        ? bindSafely(integration, operation, callInput, input.trigger)
+        : undefined;
+    const refusal =
+      unbound ??
+      (binding !== undefined && "refused" in binding
+        ? binding.refused
+        : undefined);
+    const deliveredInput =
+      binding !== undefined && "input" in binding ? binding.input : callInput;
 
     const startedAt = input.clock();
     const call: OperationCall = {
@@ -1146,7 +1180,7 @@ const callOperationOnce = (input: {
       fingerprint,
       integrationId,
       operation,
-      input: Schema.is(JsonValueSchema)(callInput) ? callInput : null,
+      input: Schema.is(JsonValueSchema)(deliveredInput) ? deliveredInput : null,
       state: "pending",
       startedAt,
     };
@@ -1154,7 +1188,7 @@ const callOperationOnce = (input: {
       refusal === undefined &&
       integration?.manifest.tools?.[operation]?.freshness !== undefined;
     const trigger = guarded
-      ? yield* store.getConversationEntry(input.triggerEventId)
+      ? yield* store.getConversationEntry(input.trigger.id)
       : undefined;
 
     // A guarded call is inserted only while its conversation is still at the
@@ -1265,7 +1299,7 @@ const callOperationOnce = (input: {
     const effect: WorkEffect = {
       schemaVersion: "0.1",
       id: effectId,
-      eventId: input.triggerEventId,
+      eventId: input.trigger.id,
       integrationId,
       operation,
       idempotencyKey: effectId,

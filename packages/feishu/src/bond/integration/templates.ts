@@ -4,6 +4,8 @@
 
 import {
   defineLoop,
+  freshnessField,
+  freshnessPolicy,
   type JsonValue,
   type LoopConfig,
   type WorkEvent,
@@ -28,15 +30,25 @@ const strings = (value: JsonValue | undefined): readonly string[] =>
     : [];
 
 /**
- * The same Card JSON 2.0 shape as `feishuMarkdownCard` in the Integration.
- * A template may import only `@openma/matter-loop`, so it builds the card
- * itself; a test keeps the two equal.
+ * The callback method of an operation the Agent calls (`OPERATION_CALL_METHOD`
+ * in `@openma/matter/agent`). A template may import only
+ * `@openma/matter-loop`, so it names it itself; a test keeps the two equal.
  */
-export const templateMarkdownCard = (markdown: string): JsonValue => ({
-  schema: "2.0",
-  config: { update_multi: true },
-  body: { elements: [{ tag: "markdown", content: markdown }] },
-});
+export const TEMPLATE_OPERATION_CALL_METHOD = "openmatter/operation";
+
+/** Whether the Agent called the reply tool during its Turn. */
+const calledReply = (events: readonly JsonValue[]): boolean =>
+  events.some((e) => {
+    if (!isObject(e) || e.type !== "callback.requested" || !isObject(e.data)) {
+      return false;
+    }
+    const params = isObject(e.data.params) ? e.data.params : {};
+    return (
+      e.data.method === TEMPLATE_OPERATION_CALL_METHOD &&
+      params.integrationId === "feishu" &&
+      params.operation === "message.reply"
+    );
+  });
 
 /** Where an answer's Session lives. */
 const sessionFor = (
@@ -70,19 +82,23 @@ const contextFor = (event: WorkEvent): string => {
   return (
     `${sender === undefined ? "Someone" : `The Feishu user ${sender}`} ` +
     `${f.activation === "direct" ? "messaged you directly" : "mentioned you in a group chat"}; ` +
-    `their message is in the event. You act on their behalf. Your final ` +
-    `output is posted as the reply, rendered as Feishu markdown.`
+    `their message is in the event. You act on their behalf. To answer, call ` +
+    `the feishu.message.reply tool; your final output is not posted.`
   );
 };
 
 /**
  * Answers Feishu messages addressed to the bot (a direct message, or a group
- * @mention) with the configured Agent, and posts its output as the bot's
- * reply. The template owns ingress (which chats and messages), the Session
- * binding, and egress (the reply). The Agent owns behaviour and tools: what it
- * may reach, such as GitLab projects, is its own Bond grant, and the Session
- * runs as the person who asked (`runAs: "requester"`), so it sees only what
- * they can. The reply itself is always posted by the bot.
+ * @mention) with the configured Agent. The Agent replies by calling the
+ * `feishu.message.reply` tool during its Turn; the reply is bound to the
+ * message that asked and checked against newer messages in the chat under the
+ * instance's freshness setting, and a conflict goes back to the Agent. The
+ * template owns ingress (which chats and messages, and which it observes),
+ * the Session binding, and the tool it allows. The Agent owns behaviour and
+ * its other tools: what it may reach, such as GitLab projects, is its own
+ * Bond grant, and the Session runs as the person who asked
+ * (`runAs: "requester"`), so it sees only what they can. The reply itself is
+ * always posted by the bot.
  */
 export const feishuAgent = defineLoop(
   {
@@ -92,9 +108,11 @@ export const feishuAgent = defineLoop(
       "Answer Feishu messages to the bot with an Agent acting for the person who asked",
     spec: {
       sources: ["feishu.message.mentioned"],
+      // Newer messages and recalls the reply is checked against.
+      observes: ["feishu.message.received", "feishu.message.recalled"],
       workThread: "feishu.thread",
       session: "per-work-thread",
-      reaction: "effects",
+      reaction: "tools",
     },
     // The Session acts for the person who asked; the reply is the bot's.
     runAs: "requester",
@@ -129,6 +147,7 @@ export const feishuAgent = defineLoop(
             "thread: one Session per topic thread; chat: one per chat; chat_user: one per person in each chat",
           "x-oma-widget": "select",
         },
+        freshness: freshnessField(),
       },
       required: ["agentId"],
     },
@@ -170,27 +189,19 @@ export const feishuAgent = defineLoop(
       const turn = await work
         .agent(String(work.config.agentId))
         .session(binding)
-        .turn({ context, allow: [capability] });
-      const body = typeof turn.output === "string" ? turn.output.trim() : "";
-      if (turn.outcome !== "completed" || body.length === 0) {
-        return work.react.none(
-          turn.outcome === "completed"
-            ? "The Agent produced no reply"
-            : `The Agent Turn ended ${turn.outcome}`,
-        );
+        .turn({
+          context,
+          allow: [capability],
+          freshness: freshnessPolicy(work.config.freshness),
+        });
+      if (turn.outcome !== "completed") {
+        return work.react.none(`The Agent Turn ended ${turn.outcome}`);
       }
-      const reply = await work.effect(context, {
-        integrationId: "feishu",
-        operation: "message.reply",
-        input: {
-          authority: work.event.source.authority,
-          messageId,
-          card: templateMarkdownCard(body),
-          // A group reply goes to the message's topic; a direct chat has none.
-          ...(direct ? {} : { inThread: true }),
-        },
-      });
-      return work.react.effects([reply]);
+      return work.react.none(
+        calledReply(turn.events)
+          ? "The Agent called the reply tool"
+          : "The Agent did not reply",
+      );
     }),
 );
 
