@@ -1,6 +1,6 @@
 {
   "name": "@openma/matter-host-local",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Long-connection host for OpenMatter in a long-running Node.js process: the generic runtime that drives any outbound-connection event source into a durable inbox, plus Slack Socket Mode.",
   "license": "Apache-2.0",
   "repository": {
