@@ -58,6 +58,10 @@ const recordingHost = () => {
       calls.push(["createEffect", context.id, input]);
       return effect;
     },
+    acknowledge: async (context, input) => {
+      calls.push(["acknowledge", context.id, input]);
+      return { status: "delivered" };
+    },
     agentTurn: async (agentId, binding, input) => {
       calls.push(["agentTurn", agentId, binding, input.context.id]);
       return {
@@ -226,6 +230,12 @@ describe("@openma/matter-loop", () => {
           ],
           grants: ["chat.message.reply"],
         });
+        const ack = await work.acknowledge(context, {
+          integrationId: "chat",
+          operation: "reaction.add",
+          input: { emoji: "OnIt" },
+        });
+        if (ack.status !== "delivered") throw new Error("ack not delivered");
         const session = work.agent("worker").session({
           scopeId: "scope-1",
           workThreadId: "thread-1",
@@ -282,6 +292,15 @@ describe("@openma/matter-loop", () => {
             },
           ],
           grants: ["chat.message.reply"],
+        },
+      ],
+      [
+        "acknowledge",
+        "context-1",
+        {
+          integrationId: "chat",
+          operation: "reaction.add",
+          input: { emoji: "OnIt" },
         },
       ],
       ["agentTurn", "worker", binding, "context-1"],

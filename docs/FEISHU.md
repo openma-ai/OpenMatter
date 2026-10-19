@@ -660,8 +660,9 @@ became one template, `feishu-agent`. It answers a direct message or a group
   Session binding, and the reply tool it allows. The Agent owns behaviour and tools: its instructions
   and skills, and its own Bond grants, such as read access to some GitLab
   projects. A bug-triage bot is a triage Agent bound by this template; the
-  template has no `instructions` or GitLab fields. `requiredBonds` lists only
-  the reply (`im_send`), which the Turn's `allow` offers as a tool.
+  template has no `instructions` or GitLab fields. `requiredBonds` lists the
+  reply (`im_send`), which the Turn's `allow` offers as a tool, and the
+  acknowledgement reaction (`im_react`), which the Agent is not offered.
 - **Identity.** The Loop declares `runAs: "requester"`: the Session acts for
   the person who asked, so the Agent's tools see only what they can. The
   Feishu Bond declares `runAs: "app"`, so the reply is always the bot's. A
@@ -670,7 +671,13 @@ became one template, `feishu-agent`. It answers a direct message or a group
   for `feishu`; empty means every group the bot is in, and direct messages
   are always answered), `sessionScope` (`thread` default, `chat`,
   `chat_user`; `select`), and `freshness` (`freshnessField()`: `thread`
-  default, `thread_requester`, `conversation`, `off`).
+  default, `thread_requester`, `conversation`, `off`), and `acknowledge`
+  (a Feishu `emoji_type`, `OnIt` default; empty for none).
+- **Acknowledgement.** Once the template takes a message, and before the
+  Agent works, it adds the `acknowledge` reaction to it with
+  `work.acknowledge` (`reaction.add` as the bot), so the sender sees it was
+  picked up. It is best effort: a failure, or a name Feishu does not know,
+  does not stop the answer. Skipped messages get no reaction.
 - **Context.** The template adds only facts: who asked, whether in a group or
   a direct chat, and that the answer is posted only through the reply tool.
 - **Skips** a group outside `chats`, a message from an app, and a bare

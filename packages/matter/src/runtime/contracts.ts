@@ -73,6 +73,19 @@ export interface EffectInput {
   readonly mutation?: MutationGuard;
 }
 
+/**
+ * What became of an acknowledgement (`WorkContext.acknowledge`). It never
+ * fails the handler: a failure is reported here and the work goes on.
+ */
+export type AcknowledgementResult =
+  | { readonly status: "delivered"; readonly receipt?: JsonValue }
+  | {
+      readonly status: "failed";
+      readonly reason: string;
+      readonly retryable: boolean;
+    }
+  | { readonly status: "uncertain"; readonly reason: string };
+
 export interface ReactionDraft {
   readonly status: "completed" | "failed" | "cancelled";
   readonly effects: readonly WorkEffect[];
@@ -132,6 +145,18 @@ export interface WorkContext {
     context: ContextProjection,
     input: EffectInput,
   ) => Effect.Effect<WorkEffect, AuthorizationError | StoreError>;
+  /**
+   * Delivers an authorized operation now, before the Reaction, for example a
+   * reaction that tells the sender their message was picked up. It is
+   * authorized like `effect` but is not durable: it is not logged, a failure
+   * does not fail the handler, and a retried Event may deliver it again, so
+   * use it only for an idempotent, low-stakes operation. It cannot be part of
+   * a Reaction.
+   */
+  readonly acknowledge: (
+    context: ContextProjection,
+    input: EffectInput,
+  ) => Effect.Effect<AcknowledgementResult, AuthorizationError | StoreError>;
   readonly react: {
     readonly none: (reason?: string) => ReactionDraft;
     readonly effects: (

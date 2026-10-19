@@ -10,6 +10,7 @@ import type { JsonValue } from "../index.js";
 import { Effect, Either } from "effect";
 import { loopObserves } from "@openma/matter-loop";
 import type {
+  AcknowledgementResult,
   AgentCancellationResult,
   AgentTurnOptions,
   EffectInput,
@@ -38,7 +39,22 @@ const sameShapes: [
   Same<AgentCancellationResult, Guest.AgentCancellation>,
   Same<SessionBinding, Guest.AgentSessionBinding>,
   Same<ProjectInput, Guest.ProjectContextInput>,
-] = [true, true, true, true, true, true, true, true, true, true, true, true];
+  Same<AcknowledgementResult, Guest.AcknowledgementResult>,
+] = [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+];
 void sameShapes;
 
 /**
@@ -60,6 +76,7 @@ const call = async <A>(effect: Effect.Effect<A, unknown>): Promise<A> => {
 export const makeLoopHost = (work: WorkContext): Guest.LoopHost => ({
   projectContext: (input) => call(work.context.project(input)),
   createEffect: (context, input) => call(work.effect(context, input)),
+  acknowledge: (context, input) => call(work.acknowledge(context, input)),
   agentTurn: async (agentId, binding, input) => {
     const result = await call(work.agent(agentId).session(binding).turn(input));
     return {
