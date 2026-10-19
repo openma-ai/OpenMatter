@@ -198,13 +198,22 @@ export default defineLoop(
 ```
 
 The handler API mirrors the native one with Promises instead of Effects.
-Everything a guest handler can do goes through a `LoopHost`: four capabilities
-(`projectContext`, `createEffect`, `agentTurn`, `agentCancel`) whose arguments
-and results are portable JSON. The guest records (`WorkEvent`,
+Everything a guest handler can do goes through a `LoopHost`: five capabilities
+(`projectContext`, `createEffect`, `acknowledge`, `agentTurn`, `agentCancel`)
+whose arguments and results are portable JSON. The guest records (`WorkEvent`,
 `ContextProjection`, `WorkEffect`, and the rest) are written out in the
 package; `@openma/matter/runtime` checks at compile time that each one is
 identical to its core or runtime counterpart.
 
+- `work.acknowledge(context, input)` delivers an operation now, before the
+  Reaction, such as a reaction that tells the sender their message was picked
+  up. It is authorized like `work.effect` (the context must grant
+  `<integrationId>.<operation>`, and it may not carry a `mutation`), but it is
+  not durable: it is not in the outbox, it cannot be part of a Reaction, and a
+  retried Event may deliver it again under the same idempotency key
+  (`<event key>:ack:<n>`, counted apart from Effects). A delivery failure is
+  returned as `{ status: "failed" | "uncertain", reason }`, never thrown, so
+  the handler goes on. Use it only for an idempotent, low-stakes operation.
 - `app.loop()` accepts a guest Loop as well as a native one and runs it in
   process. Configuration is validated the same way.
 - `loadLoop(loop, config)` validates the configuration, runs `install` once,

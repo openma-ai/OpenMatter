@@ -2,6 +2,7 @@ import { resolveLoopConfig, type LoopConfig } from "./config.js";
 import { snapshotLoopDefinition, type LoopDefinition } from "./definition.js";
 import { isJsonValue, type JsonValue } from "./json.js";
 import type {
+  AcknowledgementResult,
   AgentCancellation,
   AgentSessionBinding,
   AgentTurnInput,
@@ -29,6 +30,10 @@ export interface LoopHost {
     context: ContextProjection,
     input: EffectInput,
   ) => Promise<WorkEffect>;
+  readonly acknowledge: (
+    context: ContextProjection,
+    input: EffectInput,
+  ) => Promise<AcknowledgementResult>;
   readonly agentTurn: (
     agentId: string,
     binding: AgentSessionBinding,
@@ -64,6 +69,16 @@ export interface LoopWork {
     context: ContextProjection,
     input: EffectInput,
   ) => Promise<WorkEffect>;
+  /**
+   * Delivers an authorized operation now, before the Reaction, for example a
+   * reaction telling the sender their message was picked up. Not durable: a
+   * failure is returned, not thrown, and a retried Event may deliver it
+   * again. Use it only for an idempotent, low-stakes operation.
+   */
+  readonly acknowledge: (
+    context: ContextProjection,
+    input: EffectInput,
+  ) => Promise<AcknowledgementResult>;
   readonly react: {
     readonly none: (reason?: string) => ReactionDraft;
     readonly effects: (
@@ -224,6 +239,7 @@ export const loadLoop = (loop: Loop, config?: JsonValue): LoadedLoop => {
         project: (input) => host.projectContext(input),
       },
       effect: (context, input) => host.createEffect(context, input),
+      acknowledge: (context, input) => host.acknowledge(context, input),
       react: {
         none: (reason) => draft([], reason),
         effects: (effects, reason) => draft(effects, reason),

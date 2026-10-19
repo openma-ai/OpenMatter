@@ -108,9 +108,15 @@ const makeHarness = (
   opts: {
     readonly replies?: readonly string[];
     readonly during?: () => readonly FeishuEventInput[];
+    /** Feishu's `code` for a reaction call (0: it is added). */
+    readonly reactionCode?: number;
   } = {},
 ) => {
   const posted: { url: string; body: Record<string, unknown> }[] = [];
+  /** Reactions added, kept apart from the messages in `posted`. */
+  const reactions: { url: string; body: Record<string, unknown> }[] = [];
+  /** What happened, in order: `turn` or `reaction`. */
+  const order: string[] = [];
   const contexts: ContextProjection[] = [];
   const sessions: unknown[] = [];
   let app: ReturnType<typeof createOpenMatter> | undefined;
@@ -133,16 +139,28 @@ const makeHarness = (
     ...worker.driver,
     turn: (input: Parameters<typeof worker.driver.turn>[0]) => {
       contexts.push(input.context);
+      order.push("turn");
       return worker.driver.turn(input);
     },
   };
   const feishu = makeFeishuIntegration({
     credentials: { baseUrl: "https://open.feishu.cn", token: "t-bot" },
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
-      posted.push({
+      const call = {
         url: String(input),
         body: JSON.parse(String(init?.body)) as Record<string, unknown>,
-      });
+      };
+      if (call.url.endsWith("/reactions")) {
+        reactions.push(call);
+        order.push("reaction");
+        const code = opts.reactionCode ?? 0;
+        return Response.json(
+          code === 0
+            ? { code, data: { reaction_id: `r_${reactions.length}` } }
+            : { code, msg: "no permission" },
+        );
+      }
+      posted.push(call);
       return Response.json({
         code: 0,
         data: { message_id: `om_reply_${posted.length}` },
@@ -162,7 +180,17 @@ const makeHarness = (
     worker
       .callbackResponses()
       .map((r) => r.result as unknown as OperationCallResult);
-  return { app, send, posted, contexts, sessions, worker, results };
+  return {
+    app,
+    send,
+    posted,
+    reactions,
+    order,
+    contexts,
+    sessions,
+    worker,
+    results,
+  };
 };
 
 const config = { agentId: "worker" };
@@ -181,9 +209,11 @@ describe("Feishu Loop templates", () => {
     expect(d.runAs).toBe("requester");
     expect(loopRunAs(d, "gitlab", "read")).toBe("requester");
     expect(loopRunAs(d, "feishu", "im_send")).toBe("app");
+    expect(loopRunAs(d, "feishu", "im_react")).toBe("app");
     // Tools and behaviour belong to the Agent, not the template.
     expect(d.requiredBonds!.map((b) => b.provider)).toEqual(["feishu"]);
     expect(Object.keys(d.configSchema!.properties).sort()).toEqual([
+      "acknowledge",
       "agentId",
       "chats",
       "freshness",
@@ -249,7 +279,7 @@ describe("Feishu Loop templates", () => {
     );
     expect(contexts[0]).toMatchObject({
       scopeId: "feishu:bond_fs:chat:oc_eng",
-      grants: ["feishu.message.reply"],
+      grants: ["feishu.message.reply", "feishu.reaction.add"],
     });
     expect(contexts[0]!.workThreadId).toMatch(/^thread:om_\d+$/);
     const instructions = String(
@@ -297,7 +327,7 @@ describe("Feishu Loop templates", () => {
   });
 
   it("stays quiet outside watched chats, for bots, other messages, and empty replies", async () => {
-    const { app, send, posted } = makeHarness();
+    const { app, send, posted, reactions } = makeHarness();
     app.loop(feishuAgent, { ...config, chats: ["chat:oc_eng"] });
     expect(
       (await send(message({ chatId: "oc_random" })))!.reaction.reason,
@@ -321,6 +351,9 @@ describe("Feishu Loop templates", () => {
     );
     expect(posted).toHaveLength(1);
 
+    // Only the direct message was taken, so only it was acknowledged.
+    expect(reactions).toHaveLength(1);
+
     const silent = makeHarness({ replies: [] });
     silent.app.loop(feishuAgent, config);
     expect((await silent.send(message()))!.reaction.reason).toBe(
@@ -336,6 +369,58 @@ describe("Feishu Loop templates", () => {
       reason: "A reply needs exactly one non-empty markdown string",
     });
     expect(blank.posted).toEqual([]);
+  });
+
+  it("acknowledges a message it takes with a reaction before the Agent works", async () => {
+    const t = makeHarness();
+    t.app.loop(feishuAgent, config);
+    await t.send(message());
+
+    expect(t.order).toEqual(["reaction", "turn"]);
+    expect(t.reactions).toEqual([
+      {
+        url: `https://open.feishu.cn/open-apis/im/v1/messages/om_${seq}/reactions`,
+        body: { reaction_type: { emoji_type: "OnIt" } },
+      },
+    ]);
+    // The Agent may still only reply.
+    expect(t.worker.turnInputs()[0]!.tools?.map((x) => x.name)).toEqual([
+      "feishu.message.reply",
+    ]);
+
+    const custom = makeHarness();
+    custom.app.loop(feishuAgent, { ...config, acknowledge: "THUMBSUP" });
+    await custom.send(message());
+    expect(custom.reactions[0]!.body).toEqual({
+      reaction_type: { emoji_type: "THUMBSUP" },
+    });
+
+    const off = makeHarness();
+    off.app.loop(feishuAgent, { ...config, acknowledge: "" });
+    await off.send(message());
+    expect(off.reactions).toEqual([]);
+    expect(off.contexts[0]!.grants).toEqual(["feishu.message.reply"]);
+    expect(off.posted).toHaveLength(1);
+
+    // Not an emoji_type name: refused before Feishu, and the answer goes on.
+    const bad = makeHarness();
+    bad.app.loop(feishuAgent, { ...config, acknowledge: "<b>" });
+    await bad.send(message());
+    expect(bad.reactions).toEqual([]);
+    expect(bad.posted).toHaveLength(1);
+  });
+
+  it("answers even when the acknowledgement fails", async () => {
+    const t = makeHarness({ reactionCode: 99991672 });
+    t.app.loop(feishuAgent, config);
+    const receipt = await t.send(message());
+
+    expect(t.reactions).toHaveLength(1);
+    expect(receipt!.reaction).toMatchObject({
+      status: "completed",
+      reason: "The Agent called the reply tool",
+    });
+    expect(t.posted).toHaveLength(1);
   });
 
   it("refuses a configuration without an Agent or with an unknown scope", () => {

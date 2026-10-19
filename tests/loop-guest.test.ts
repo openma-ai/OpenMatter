@@ -168,6 +168,7 @@ describe("guest Loops on the runtime", () => {
     ]);
     expect(hosts).toHaveLength(1);
     expect(Object.keys(hosts[0] as object).sort()).toEqual([
+      "acknowledge",
       "agentCancel",
       "agentTurn",
       "createEffect",

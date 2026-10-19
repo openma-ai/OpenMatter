@@ -45,6 +45,8 @@ import { installLoadedLoop } from "./guest-host.js";
 import {
   AgentAccessError,
   AuthorizationError,
+  type AcknowledgementResult,
+  type EffectInput,
   ContextProjectionError,
   EventBusyError,
   SessionBusyError,
@@ -122,6 +124,44 @@ export const createOpenMatter = (
   const runAgentTurn = agentTurns.run;
   const cancelAgentTurn = agentTurns.cancel;
 
+  /** Delivers one Effect now; a failure becomes a result, never an error. */
+  const deliverNow = (
+    integration: NonNullable<ReturnType<WorkIntegrationRegistry["get"]>>,
+    effect: WorkEffect,
+  ): Effect.Effect<AcknowledgementResult> =>
+    integration.deliver(effect).pipe(
+      Effect.map((delivered): AcknowledgementResult =>
+        Schema.is(ProviderDeliveryResultSchema)(delivered)
+          ? {
+              status: "delivered",
+              ...(delivered.providerReceipt === undefined
+                ? {}
+                : { receipt: delivered.providerReceipt }),
+            }
+          : {
+              status: "uncertain",
+              reason: "The provider returned a malformed result",
+            },
+      ),
+      Effect.catchAll((error: IntegrationError) =>
+        Effect.succeed<AcknowledgementResult>(
+          error.effectState === "not-applied"
+            ? {
+                status: "failed",
+                reason: error.message,
+                retryable: error.retryable,
+              }
+            : { status: "uncertain", reason: error.message },
+        ),
+      ),
+      Effect.catchAllDefect(() =>
+        Effect.succeed<AcknowledgementResult>({
+          status: "uncertain",
+          reason: "The integration failed while delivering",
+        }),
+      ),
+    );
+
   const makeWorkContext = (
     event: WorkEvent,
     store: OpenMatterStore,
@@ -134,6 +174,7 @@ export const createOpenMatter = (
     ) => Effect.Effect<ReactionDraft, AuthorizationError>;
   } => {
     let effectSequence = 0;
+    let acknowledgementSequence = 0;
     let agentTurnSequence = 0;
     const projectedContexts = new Map<string, string>();
     const authorizedEffects = new Map<string, string>();
@@ -153,6 +194,89 @@ export const createOpenMatter = (
             }),
           )
         : Effect.void;
+    };
+
+    const authorizeEffect = (
+      context: ContextProjection,
+      input: EffectInput,
+      nextKey: () => string,
+    ): Effect.Effect<WorkEffect, AuthorizationError | StoreError> => {
+      const contextSnapshot = structuredClone(context);
+      const effectInput = structuredClone(input);
+      return Effect.gen(function* () {
+        yield* authorizeContext(contextSnapshot, effectInput.operation);
+        const durableContext = yield* store.getContext(contextSnapshot.id);
+        if (durableContext === undefined) {
+          return yield* new AuthorizationError({
+            operation: effectInput.operation,
+            message: `ContextProjection is not durable: ${contextSnapshot.id}`,
+          });
+        }
+        if (!Schema.is(JsonValueSchema)(effectInput.input)) {
+          return yield* new AuthorizationError({
+            operation: effectInput.operation,
+            message: "WorkEffect input must be portable JSON data",
+          });
+        }
+        if (effectInput.mutation !== undefined) {
+          const guard = effectInput.mutation;
+          if (
+            guard.preconditions.some(
+              (condition) =>
+                condition.authority !== guard.authority ||
+                !durableContext.items.some(
+                  (item) =>
+                    item.observation !== undefined &&
+                    canonicalJson(item.observation) ===
+                      canonicalJson(condition),
+                ),
+            )
+          ) {
+            return yield* new AuthorizationError({
+              operation: effectInput.operation,
+              message:
+                "Mutation conditions must come from this authorized ContextProjection",
+            });
+          }
+        }
+        const capability = `${effectInput.integrationId}.${effectInput.operation}`;
+        if (!durableContext.grants.includes(capability)) {
+          return yield* new AuthorizationError({
+            operation: capability,
+            message: `Effect operation is not authorized by context grants: ${capability}`,
+          });
+        }
+        const integration = integrations.get(effectInput.integrationId);
+        if (integration === undefined) {
+          return yield* new AuthorizationError({
+            operation: effectInput.operation,
+            message: `Effect targets an unknown integration: ${effectInput.integrationId}`,
+          });
+        }
+        if (
+          !integration.manifest.operations.includes("*") &&
+          !integration.manifest.operations.includes(effectInput.operation)
+        ) {
+          return yield* new AuthorizationError({
+            operation: effectInput.operation,
+            message: `Integration does not declare operation: ${effectInput.operation}`,
+          });
+        }
+
+        const effect: WorkEffect = {
+          schemaVersion: "0.1",
+          id: makeId(),
+          eventId: event.id,
+          integrationId: effectInput.integrationId,
+          operation: effectInput.operation,
+          idempotencyKey: effectInput.idempotencyKey ?? nextKey(),
+          input: effectInput.input,
+          ...(effectInput.mutation === undefined
+            ? {}
+            : { mutation: effectInput.mutation }),
+        };
+        return effect;
+      });
     };
 
     const api: WorkContext = {
@@ -211,90 +335,46 @@ export const createOpenMatter = (
           });
         },
       },
-      effect: (context, input) => {
-        const contextSnapshot = structuredClone(context);
-        const effectInput = structuredClone(input);
-        return Effect.gen(function* () {
-          yield* authorizeContext(contextSnapshot, effectInput.operation);
-          const durableContext = yield* store.getContext(contextSnapshot.id);
-          if (durableContext === undefined) {
+      effect: (context, input) =>
+        authorizeEffect(
+          context,
+          input,
+          // Its own counter, so an acknowledgement never shifts Effect keys.
+          () => `${event.idempotencyKey}:effect:${++effectSequence}`,
+        ).pipe(
+          Effect.tap((effect) =>
+            // Capture value identity, not JS object identity: user code receives
+            // the object and may mutate it despite TypeScript's readonly types.
+            Effect.sync(() =>
+              authorizedEffects.set(effect.id, canonicalJson(effect)),
+            ),
+          ),
+        ),
+      acknowledge: (context, input) =>
+        Effect.gen(function* () {
+          if (input.mutation !== undefined) {
             return yield* new AuthorizationError({
-              operation: effectInput.operation,
-              message: `ContextProjection is not durable: ${contextSnapshot.id}`,
+              operation: input.operation,
+              message: "An acknowledgement cannot carry mutation preconditions",
             });
           }
-          if (!Schema.is(JsonValueSchema)(effectInput.input)) {
-            return yield* new AuthorizationError({
-              operation: effectInput.operation,
-              message: "WorkEffect input must be portable JSON data",
-            });
-          }
-          if (effectInput.mutation !== undefined) {
-            const guard = effectInput.mutation;
-            if (
-              guard.preconditions.some(
-                (condition) =>
-                  condition.authority !== guard.authority ||
-                  !durableContext.items.some(
-                    (item) =>
-                      item.observation !== undefined &&
-                      canonicalJson(item.observation) ===
-                        canonicalJson(condition),
-                  ),
-              )
-            ) {
-              return yield* new AuthorizationError({
-                operation: effectInput.operation,
-                message:
-                  "Mutation conditions must come from this authorized ContextProjection",
-              });
-            }
-          }
-          const capability = `${effectInput.integrationId}.${effectInput.operation}`;
-          if (!durableContext.grants.includes(capability)) {
-            return yield* new AuthorizationError({
-              operation: capability,
-              message: `Effect operation is not authorized by context grants: ${capability}`,
-            });
-          }
-          const integration = integrations.get(effectInput.integrationId);
+          // Not added to authorizedEffects: an acknowledgement is delivered
+          // now, and a Reaction cannot deliver it again.
+          const effect = yield* authorizeEffect(
+            context,
+            input,
+            () => `${event.idempotencyKey}:ack:${++acknowledgementSequence}`,
+          );
+          const integration = integrations.get(effect.integrationId);
           if (integration === undefined) {
-            return yield* new AuthorizationError({
-              operation: effectInput.operation,
-              message: `Effect targets an unknown integration: ${effectInput.integrationId}`,
-            });
+            return {
+              status: "failed",
+              reason: "Unknown integration",
+              retryable: false,
+            } as const;
           }
-          if (
-            !integration.manifest.operations.includes("*") &&
-            !integration.manifest.operations.includes(effectInput.operation)
-          ) {
-            return yield* new AuthorizationError({
-              operation: effectInput.operation,
-              message: `Integration does not declare operation: ${effectInput.operation}`,
-            });
-          }
-
-          effectSequence += 1;
-          const effect: WorkEffect = {
-            schemaVersion: "0.1",
-            id: makeId(),
-            eventId: event.id,
-            integrationId: effectInput.integrationId,
-            operation: effectInput.operation,
-            idempotencyKey:
-              effectInput.idempotencyKey ??
-              `${event.idempotencyKey}:effect:${effectSequence}`,
-            input: effectInput.input,
-            ...(effectInput.mutation === undefined
-              ? {}
-              : { mutation: effectInput.mutation }),
-          };
-          // Capture value identity, not JS object identity: user code receives
-          // the object and may mutate it despite TypeScript's readonly types.
-          authorizedEffects.set(effect.id, canonicalJson(effect));
-          return effect;
-        });
-      },
+          return yield* deliverNow(integration, effect);
+        }),
       react: {
         none: (reason) => ({
           status: "completed",

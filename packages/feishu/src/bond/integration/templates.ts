@@ -98,7 +98,8 @@ const contextFor = (event: WorkEvent): string => {
  * its other tools: what it may reach, such as GitLab projects, is its own
  * Bond grant, and the Session runs as the person who asked
  * (`runAs: "requester"`), so it sees only what they can. The reply itself is
- * always posted by the bot.
+ * always posted by the bot. When the template takes a message, it first
+ * adds the `acknowledge` reaction to it so the sender sees it was picked up.
  */
 export const feishuAgent = defineLoop(
   {
@@ -117,7 +118,7 @@ export const feishuAgent = defineLoop(
     // The Session acts for the person who asked; the reply is the bot's.
     runAs: "requester",
     requiredBonds: [
-      { provider: "feishu", operations: ["im_send"], runAs: "app" },
+      { provider: "feishu", operations: ["im_send", "im_react"], runAs: "app" },
     ],
     configSchema: {
       type: "object",
@@ -147,6 +148,14 @@ export const feishuAgent = defineLoop(
             "thread: one Session per topic thread; chat: one per chat; chat_user: one per person in each chat",
           "x-oma-widget": "select",
         },
+        acknowledge: {
+          type: "string",
+          maxLength: 64,
+          default: "OnIt",
+          title: "Acknowledgement",
+          description:
+            "Feishu emoji_type added to a message when the bot takes it, such as OnIt or THUMBSUP. Empty: none.",
+        },
         freshness: freshnessField(),
       },
       required: ["agentId"],
@@ -173,6 +182,7 @@ export const feishuAgent = defineLoop(
 
       const binding = sessionFor(work.event, work.config);
       const capability = "feishu.message.reply";
+      const acknowledge = text(work.config.acknowledge);
       const context = await work.context.project({
         scopeId: binding.scopeId,
         workThreadId: binding.workThreadId,
@@ -184,8 +194,23 @@ export const feishuAgent = defineLoop(
             provenance: [{ sourceType: "loop-template", sourceId: "feishu" }],
           }),
         ],
-        grants: [capability],
+        grants:
+          acknowledge === undefined
+            ? [capability]
+            : [capability, "feishu.reaction.add"],
       });
+      if (acknowledge !== undefined) {
+        // Best effort: a failed acknowledgement does not stop the answer.
+        await work.acknowledge(context, {
+          integrationId: "feishu",
+          operation: "reaction.add",
+          input: {
+            authority: work.event.source.authority,
+            messageId,
+            emoji: acknowledge,
+          },
+        });
+      }
       const turn = await work
         .agent(String(work.config.agentId))
         .session(binding)

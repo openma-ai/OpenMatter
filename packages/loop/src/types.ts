@@ -70,6 +70,16 @@ export interface EffectInput {
   readonly idempotencyKey?: string;
 }
 
+/** What became of an acknowledgement; it never fails the handler. */
+export type AcknowledgementResult =
+  | { readonly status: "delivered"; readonly receipt?: JsonValue }
+  | {
+      readonly status: "failed";
+      readonly reason: string;
+      readonly retryable: boolean;
+    }
+  | { readonly status: "uncertain"; readonly reason: string };
+
 export interface ReactionDraft {
   readonly status: "completed" | "failed" | "cancelled";
   readonly effects: readonly WorkEffect[];
