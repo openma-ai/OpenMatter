@@ -432,6 +432,62 @@ describe("Feishu event normalization", () => {
     expect(event.payload).toMatchObject({ text: "Release\nship v1" });
   });
 
+  it("carries the images of an image message and of a post", async () => {
+    const image = await one(
+      envelope(
+        "im.message.receive_v1",
+        textMessage({
+          message_type: "image",
+          chat_type: "p2p",
+          mentions: [],
+          content: JSON.stringify({ image_key: "img_v3_alone" }),
+        }),
+      ),
+    );
+    expect(image.type).toBe("feishu.message.mentioned");
+    expect(image.payload).toMatchObject({
+      messageType: "image",
+      images: [{ id: "img_v3_alone" }],
+    });
+    // An image alone has no text and no prompt.
+    expect(image.payload).not.toHaveProperty("text");
+    expect(image.payload).not.toHaveProperty("prompt");
+
+    const post = await one(
+      envelope(
+        "im.message.receive_v1",
+        textMessage({
+          message_type: "post",
+          content: JSON.stringify({
+            zh_cn: {
+              title: "",
+              content: [
+                [
+                  { tag: "at", user_id: "@_user_1", user_name: "OMA Bot" },
+                  { tag: "text", text: " what is this?" },
+                ],
+                [
+                  { tag: "img", image_key: "img_a" },
+                  { tag: "img", image_key: "img_b" },
+                  { tag: "img", image_key: "img_a" },
+                ],
+              ],
+            },
+          }),
+        }),
+      ),
+    );
+    expect(post.payload).toMatchObject({
+      images: [{ id: "img_a" }, { id: "img_b" }],
+    });
+    expect(post.payload).toMatchObject({
+      prompt: expect.stringContaining("what is this?"),
+    });
+
+    const plain = await one(envelope("im.message.receive_v1", textMessage()));
+    expect(plain.payload).not.toHaveProperty("images");
+  });
+
   it("normalizes recalls, reactions, bot membership, menus, and card actions", async () => {
     expect(
       (

@@ -9,6 +9,12 @@ export {
 
 export { makeSlackIntegration } from "./integration.js";
 
+export {
+  downloadSlackFile,
+  type SlackFile,
+  type SlackFileDownloadInput,
+} from "./file-download.js";
+
 export type {
   SlackHttpEndpointOptions,
   SlackHttpRequestOptions,

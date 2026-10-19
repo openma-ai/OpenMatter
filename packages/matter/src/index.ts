@@ -20,6 +20,14 @@ import {
 
 import { JsonValueSchema, type JsonValue } from "./json.js";
 export { JsonValueSchema, type JsonValue, type JsonPrimitive } from "./json.js";
+export {
+  MESSAGE_IMAGE_MAX_BYTES,
+  MessageImageSchema,
+  markdownImages,
+  messageImagesField,
+  readMessageImageBytes,
+  type MessageImage,
+} from "./message-images.js";
 
 export const SourceAnchorSchema = Schema.Struct({
   provider: Schema.String,

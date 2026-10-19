@@ -175,8 +175,10 @@ export const feishuAgent = defineLoop(
       if (!direct && chats.length > 0 && !chats.includes(resource)) {
         return work.react.none("Chat is not watched");
       }
+      // An image alone is a message; the Agent sees it in `payload.images`.
       const prompt = text(f.prompt);
-      if (prompt === undefined || prompt.trim() === "") {
+      const images = Array.isArray(f.images) ? f.images.length : 0;
+      if ((prompt === undefined || prompt.trim() === "") && images === 0) {
         return work.react.none("Empty message");
       }
 

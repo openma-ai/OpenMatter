@@ -1,5 +1,7 @@
 import {
   JsonValueSchema,
+  markdownImages,
+  messageImagesField,
   type JsonValue,
   type WorkEvent,
 } from "@openma/matter";
@@ -288,6 +290,18 @@ export const normalizeGitHubEvents = (
               ...(actorName === undefined ? {} : { name: actorName }),
             };
       const resource = resourceIdentity(webhook.eventName, payload);
+      // Images in a comment or review body; `id` is the URL as written.
+      const bodyOf = (value: unknown) =>
+        isRecord(value) && typeof value.body === "string"
+          ? value.body
+          : undefined;
+      const body =
+        webhook.eventName === "issue_comment" ||
+        webhook.eventName === "pull_request_review_comment"
+          ? bodyOf(payload.comment)
+          : webhook.eventName === "pull_request_review"
+            ? bodyOf(payload.review)
+            : undefined;
       const receivedAt = clock();
       const id = `github:${webhook.deliveryId}`;
       return [
@@ -341,6 +355,9 @@ export const normalizeGitHubEvents = (
                   parentResourceKey: `${repositoryName}#${resource.parentNumber}`,
                 }),
             ...(actor === undefined ? {} : { actor }),
+            ...messageImagesField(
+              body === undefined ? [] : markdownImages(body),
+            ),
           },
           raw: withoutGitHubCredentials(webhook.payload),
         },
