@@ -1,5 +1,7 @@
 import {
   JsonValueSchema,
+  markdownImages,
+  messageImagesField,
   type JsonValue,
   type SourceAnchor,
   type WorkEvent,
@@ -24,6 +26,14 @@ const stringAt = (
 ): string | undefined => {
   const candidate = value?.[key];
   return typeof candidate === "string" ? candidate : undefined;
+};
+
+/** Images in a comment body; `id` is the URL as written. */
+const commentImages = (
+  comment: Record<string, unknown> | undefined,
+): { readonly images?: JsonValue } => {
+  const body = stringAt(comment, "body");
+  return messageImagesField(body === undefined ? [] : markdownImages(body));
 };
 
 const actorSummary = (
@@ -284,6 +294,7 @@ export const normalizeLinearEvents = (
         ...(issueId === undefined ? {} : { issueId }),
         ...(commentId === undefined ? {} : { commentId }),
         ...(normalizedActor === undefined ? {} : { actor: normalizedActor }),
+        ...commentImages(comment),
       },
     });
   }
@@ -337,6 +348,7 @@ export const normalizeLinearEvents = (
         ...(typeof native.promptContext === "string"
           ? { promptContext: native.promptContext }
           : {}),
+        ...commentImages(comment),
       },
     });
   }
@@ -368,6 +380,10 @@ export const normalizeLinearEvents = (
       stringAt(data, "parentId") ?? stringAt(parent, "id");
     if (parentCommentId !== undefined)
       payload.parentCommentId = parentCommentId;
+  }
+  if (native.type === "Comment" && data) {
+    const { images } = commentImages(data);
+    if (images !== undefined) payload.images = images;
   }
   return makeEvent({
     type: semantic

@@ -45,6 +45,7 @@ export {
   checkFeishuAppSetup,
   encodeFeishuAddons,
   feishuAgentSetup,
+  feishuScopeApplyUrl,
   normalizeFeishuAddons,
   pollFeishuAppRegistration,
   type FeishuAppAddons,
@@ -52,6 +53,7 @@ export {
   type FeishuAppRegistrationInput,
   type FeishuAppRegistrationPoll,
   type FeishuAppRequirements,
+  type FeishuAppSetupLinks,
   type FeishuAppSetupReport,
 } from "./registration.js";
 

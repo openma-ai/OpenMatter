@@ -410,7 +410,8 @@ tenant_brand }`. A Lark tenant is reported on the Feishu origin; the poll then
 - No encrypt key or callback URL comes back, so a registered app uses the
   long connection.
 - `feishuAgentSetup()` returns the addons and the requirements of the
-  `feishu-agent` template: the message scopes, `im.message.receive_v1` and
+  `feishu-agent` template: the message scopes, `im:resource` (downloading
+  the images of a message), `im.message.receive_v1` and
   `im.message.recalled_v1`, and `application:application:self_manage`, which
   lets the app read its own version for the setup check. The sensitive
   `im:message.group_msg` is added only when asked for.
@@ -419,7 +420,10 @@ tenant_brand }`. A Lark tenant is reported on the Feishu origin; the poll then
   and the published version's bot ability and events
   (`applications/:app_id` → `app_versions/:version_id`), and returns the
   missing pieces as fixes for the setup page. Without `self_manage` the events
-  are reported as unknown, not as missing.
+  are reported as unknown, not as missing. `links` holds developer console
+  pages for the problems found: `scopes` (the scope-apply page with the
+  missing scopes pre-selected, also built by `feishuScopeApplyUrl`),
+  `events`, `bot`, and `publish` (the version page, needed after any fix).
 
 The host persists the result as a `self_built` ProviderApp with
 `provisioning.method = "app_registration"` and links the confirming user
@@ -553,6 +557,10 @@ interface FeishuMessagePayload {
   mentions: { key: string; openId?: string; name: string; isBot: boolean }[];
   fileKeys?: string[];
 }
+// As built: an `image` message, and `img` nodes of a `post`, become
+// `images: { id: image_key }[]` (the shared `MessageImage` of
+// `@openma/matter`); an image alone has no `text` or `prompt`. The bytes
+// come from `downloadFeishuMessageResource` (`im:resource`).
 interface FeishuReactionPayload {
   messageId: string;
   emojiType: string;

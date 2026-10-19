@@ -38,6 +38,11 @@ export {
   type FeishuWebhookOptions,
 } from "./http.js";
 export {
+  downloadFeishuMessageResource,
+  type FeishuMessageResource,
+  type FeishuMessageResourceInput,
+} from "./message-resource.js";
+export {
   makeFeishuIntegration,
   type FeishuIntegrationOptions,
 } from "./integration.js";

@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import {
   bearer,
   endpoints,
+  feishuEndpoints,
   feishuError,
   isoNow,
   isRecord,
@@ -440,7 +441,37 @@ export interface FeishuAppSetupReport {
   readonly missingEvents?: readonly string[];
   /** Human-readable fixes, one per problem, for the setup page. */
   readonly problems: readonly string[];
+  /**
+   * Developer console pages that fix the problems, present only for the
+   * problems found: `scopes` pre-selects the missing scopes, `publish` is
+   * the version page, needed after any fix.
+   */
+  readonly links?: FeishuAppSetupLinks;
 }
+
+export interface FeishuAppSetupLinks {
+  readonly scopes?: string;
+  readonly events?: string;
+  readonly bot?: string;
+  readonly publish?: string;
+}
+
+const consolePage = (baseUrl: string, appId: string, page: string): string =>
+  `${feishuEndpoints(baseUrl).open}/app/${encodeURIComponent(appId)}/${page}`;
+
+/**
+ * The developer console link that applies for tenant `scopes` on an app,
+ * with the scopes pre-selected. `baseUrl` selects Feishu or Lark like
+ * `feishuEndpoints`, and throws on any other origin.
+ */
+export const feishuScopeApplyUrl = (input: {
+  readonly baseUrl: string;
+  readonly appId: string;
+  readonly scopes: readonly string[];
+}): string =>
+  `${consolePage(input.baseUrl, input.appId, "auth")}?q=${encodeURIComponent(
+    input.scopes.join(","),
+  )}&op_from=openapi&token_type=tenant`;
 
 /** Reading the app's own version needs this scope, so presets include it. */
 export const SELF_MANAGE_SCOPE = "application:application:self_manage";
@@ -557,12 +588,32 @@ export const checkFeishuAppSetup = (
         `Subscribe these events and publish: ${missingEvents.join(", ")}.`,
       );
     }
+    const links: FeishuAppSetupLinks = {
+      ...(missingScopes.length === 0
+        ? {}
+        : {
+            scopes: feishuScopeApplyUrl({
+              baseUrl: app.baseUrl,
+              appId: app.appId,
+              scopes: missingScopes,
+            }),
+          }),
+      ...(missingEvents === undefined || missingEvents.length === 0
+        ? {}
+        : { events: consolePage(app.baseUrl, app.appId, "event") }),
+      ...(bot ? {} : { bot: consolePage(app.baseUrl, app.appId, "bot") }),
+      // Every fix above, and an unpublished app, takes a new version.
+      ...(problems.length === 0
+        ? {}
+        : { publish: consolePage(app.baseUrl, app.appId, "version") }),
+    };
     return {
       ready: problems.length === 0,
       bot,
       missingScopes,
       ...(missingEvents === undefined ? {} : { missingEvents }),
       problems,
+      ...(Object.keys(links).length === 0 ? {} : { links }),
     };
   });
 
@@ -583,6 +634,8 @@ export const feishuAgentSetup = (
     "im:message.group_at_msg:readonly",
     "im:message.p2p_msg:readonly",
     "im:message:send_as_bot",
+    // Downloading the images of a message the bot received.
+    "im:resource",
     ...(options.allGroupMessages === true ? ["im:message.group_msg"] : []),
     SELF_MANAGE_SCOPE,
   ];

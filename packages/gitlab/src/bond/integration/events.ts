@@ -1,5 +1,7 @@
 import {
   JsonValueSchema,
+  markdownImages,
+  messageImagesField,
   type JsonValue,
   type WorkEvent,
 } from "@openma/matter";
@@ -137,6 +139,22 @@ const mergeRequest = (attributes: Record<string, unknown>): Normalized => {
   };
 };
 
+/**
+ * The images of a note. GitLab writes uploads as `/uploads/<secret>/<file>`,
+ * relative to the project, so those are resolved against its `web_url`.
+ */
+const noteImages = (text: string, payload: Record<string, unknown>) => {
+  const project = isRecord(payload.project) ? payload.project : undefined;
+  const base = nonEmptyString(project?.web_url)
+    ? project.web_url.replace(/\/+$/, "")
+    : undefined;
+  return markdownImages(text).map((image) =>
+    base !== undefined && image.id.startsWith("/uploads/")
+      ? { ...image, id: `${base}${image.id}` }
+      : image,
+  );
+};
+
 const note = (
   attributes: Record<string, unknown>,
   payload: Record<string, unknown>,
@@ -220,6 +238,11 @@ const note = (
           : undefined,
       ),
       system: attributes.system === true,
+      ...messageImagesField(
+        typeof attributes.note === "string"
+          ? noteImages(attributes.note, payload)
+          : [],
+      ),
     },
   };
 };

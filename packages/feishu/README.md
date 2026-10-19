@@ -13,3 +13,9 @@ The Bond kernel it plugs into is `@openma/matter/bond`. See
 for the design and
 [docs/BONDS.md](https://github.com/openma-ai/OpenMatter/blob/main/docs/BONDS.md)
 for the flow, token custody, and security notes.
+
+Images in messages arrive on the Event as `payload.images: { id }[]`, where
+`id` is the `image_key`. `downloadFeishuMessageResource({ credentials,
+messageId, fileKey })` fetches the bytes (at most 10 MiB) with the tenant
+token; the app needs the `im:resource` scope, which `feishuAgentSetup`
+requests and `checkFeishuAppSetup` reports when missing.

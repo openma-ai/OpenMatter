@@ -1,6 +1,8 @@
 import {
   JsonValueSchema,
+  messageImagesField,
   type JsonValue,
+  type MessageImage,
   type WorkEvent,
 } from "@openma/matter";
 import { IntegrationError } from "@openma/matter/integration";
@@ -13,6 +15,35 @@ import {
   slackTimestamp,
   withoutSlackCredentials,
 } from "./shared.js";
+
+/**
+ * The `image/*` files of a message. `id` is the Slack file id;
+ * `downloadSlackFile` fetches it with the bot token.
+ */
+const slackImages = (files: unknown): MessageImage[] =>
+  Array.isArray(files)
+    ? files.flatMap((file) =>
+        isRecord(file) &&
+        typeof file.id === "string" &&
+        file.id.length > 0 &&
+        typeof file.mimetype === "string" &&
+        file.mimetype.toLowerCase().startsWith("image/")
+          ? [
+              {
+                id: file.id,
+                mimeType: file.mimetype,
+                ...(typeof file.name === "string" && file.name.length > 0
+                  ? { name: file.name }
+                  : {}),
+              },
+            ]
+          : [],
+      )
+    : [];
+
+/** A message subtype that is still a person's message: a file upload. */
+const isUserFileShare = (event: Record<string, unknown>): boolean =>
+  event.subtype === "file_share";
 
 export const normalizeSlackEvents = (
   input: unknown,
@@ -511,7 +542,11 @@ export const normalizeSlackEvents = (
           },
         ];
       }
-      if (event.type === "message" && event.subtype !== undefined) {
+      if (
+        event.type === "message" &&
+        event.subtype !== undefined &&
+        !isUserFileShare(event)
+      ) {
         const receivedAt = clock();
         const id = `slack:${input.event_id}`;
         return [
@@ -547,7 +582,8 @@ export const normalizeSlackEvents = (
       const isThreadMessage =
         event.type === "message" && typeof event.thread_ts === "string";
       const isChannelMessage =
-        event.type === "message" && event.subtype === undefined;
+        event.type === "message" &&
+        (event.subtype === undefined || isUserFileShare(event));
       if (
         !isMention &&
         !isDirectMessage &&
@@ -584,9 +620,17 @@ export const normalizeSlackEvents = (
           },
         ];
       }
+      const images = slackImages(event.files);
+      // A file upload may carry no text at all.
+      const text =
+        typeof event.text === "string"
+          ? event.text
+          : event.text === undefined && images.length > 0
+            ? ""
+            : undefined;
       if (
         typeof event.user !== "string" ||
-        typeof event.text !== "string" ||
+        text === undefined ||
         typeof event.ts !== "string" ||
         typeof event.channel !== "string"
       ) {
@@ -632,8 +676,9 @@ export const normalizeSlackEvents = (
             threadTs,
             messageTs: event.ts,
             userId: event.user,
-            text: event.text,
-            prompt: promptFrom(event.text, botUserId),
+            text,
+            prompt: promptFrom(text, botUserId),
+            ...messageImagesField(images),
           },
           raw: withoutSlackCredentials(input),
         },

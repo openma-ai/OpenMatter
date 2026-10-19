@@ -7,6 +7,7 @@ import {
   checkFeishuAppSetup,
   encodeFeishuAddons,
   feishuAgentSetup,
+  feishuScopeApplyUrl,
   pollFeishuAppRegistration,
   type FeishuAppAddons,
 } from "../packages/feishu/src/bond/index.js";
@@ -327,8 +328,8 @@ describe("one-click Feishu app registration", () => {
 
 describe("Feishu app setup check", () => {
   const { requirements } = feishuAgentSetup();
-  const app = (impl: typeof fetch) => ({
-    baseUrl: "https://open.feishu.cn",
+  const app = (impl: typeof fetch, baseUrl = "https://open.feishu.cn") => ({
+    baseUrl,
     appId: "cli_test_app",
     appSecret: "test-secret",
     fetch: impl,
@@ -429,9 +430,79 @@ describe("Feishu app setup check", () => {
       "im:message.group_at_msg:readonly",
       "im:message.p2p_msg:readonly",
       "im:message:send_as_bot",
+      "im:resource",
     ]);
     expect(report.missingEvents).toEqual(["im.message.recalled_v1"]);
     expect(report.problems).toHaveLength(3);
+    expect(report.links).toEqual({
+      scopes:
+        "https://open.feishu.cn/app/cli_test_app/auth?q=" +
+        "im%3Amessage.group_at_msg%3Areadonly%2Cim%3Amessage.p2p_msg%3Areadonly" +
+        "%2Cim%3Amessage%3Asend_as_bot%2Cim%3Aresource" +
+        "&op_from=openapi&token_type=tenant",
+      events: "https://open.feishu.cn/app/cli_test_app/event",
+      bot: "https://open.feishu.cn/app/cli_test_app/bot",
+      publish: "https://open.feishu.cn/app/cli_test_app/version",
+    });
+  });
+
+  it("links only the console pages for the problems found, on the app's brand", async () => {
+    // Lark, one missing scope, events and bot fine.
+    const { impl } = fakeFetch(
+      server({
+        granted: requirements.scopes.filter((s) => s !== "im:resource"),
+        versionId: "oav_1",
+        events: requirements.events,
+        bot: true,
+      }),
+    );
+    const report = await run(
+      checkFeishuAppSetup(
+        app(impl, "https://open.larksuite.com"),
+        requirements,
+      ),
+    );
+    expect(report.missingScopes).toEqual(["im:resource"]);
+    expect(report.links).toEqual({
+      scopes:
+        "https://open.larksuite.com/app/cli_test_app/auth?q=im%3Aresource" +
+        "&op_from=openapi&token_type=tenant",
+      publish: "https://open.larksuite.com/app/cli_test_app/version",
+    });
+
+    // Only the bot ability is missing.
+    const noBot = fakeFetch(
+      server({
+        granted: requirements.scopes,
+        versionId: "oav_1",
+        events: requirements.events,
+        bot: false,
+      }),
+    );
+    expect(
+      (await run(checkFeishuAppSetup(app(noBot.impl), requirements))).links,
+    ).toEqual({
+      bot: "https://open.feishu.cn/app/cli_test_app/bot",
+      publish: "https://open.feishu.cn/app/cli_test_app/version",
+    });
+
+    // The accounts origin selects the same console; other hosts are refused.
+    expect(
+      feishuScopeApplyUrl({
+        baseUrl: "https://accounts.larksuite.com",
+        appId: "cli_x",
+        scopes: ["im:resource", "im:message"],
+      }),
+    ).toBe(
+      "https://open.larksuite.com/app/cli_x/auth?q=im%3Aresource%2Cim%3Amessage&op_from=openapi&token_type=tenant",
+    );
+    expect(() =>
+      feishuScopeApplyUrl({
+        baseUrl: "https://example.com",
+        appId: "cli_x",
+        scopes: [],
+      }),
+    ).toThrow();
   });
 
   it("reports events as unknown when the version cannot be read", async () => {
@@ -461,6 +532,11 @@ describe("Feishu app setup check", () => {
     );
     expect(draft.missingEvents).toBeUndefined();
     expect(draft.problems).toContain("Publish a version of the app.");
+  });
+
+  it("asks for im:resource so the bot can download message images", () => {
+    expect(feishuAgentSetup().requirements.scopes).toContain("im:resource");
+    expect(feishuAgentSetup().addons.scopes?.tenant).toContain("im:resource");
   });
 
   it("asks for the read-all-group-messages scope only when chosen", () => {

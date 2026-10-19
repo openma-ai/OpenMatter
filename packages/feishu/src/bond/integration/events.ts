@@ -1,6 +1,8 @@
 import {
   JsonValueSchema,
+  messageImagesField,
   type JsonValue,
+  type MessageImage,
   type WorkEvent,
 } from "@openma/matter";
 import { IntegrationError } from "@openma/matter/integration";
@@ -69,13 +71,17 @@ const mentionsOf = (value: unknown): Mention[] =>
       })
     : [];
 
-/** Flattens a `post` body, with or without a locale wrapper. */
-const postText = (content: Rec): string | undefined => {
-  const body = Array.isArray(content.content)
+/** A `post` body, with or without a locale wrapper. */
+const postBody = (content: Rec): Rec | undefined =>
+  Array.isArray(content.content)
     ? content
     : Object.values(content).find(
         (v): v is Rec => isRecord(v) && Array.isArray(v.content),
       );
+
+/** Flattens a `post` body, with or without a locale wrapper. */
+const postText = (content: Rec): string | undefined => {
+  const body = postBody(content);
   if (body === undefined) return undefined;
   const lines = (body.content as unknown[]).map((line) =>
     Array.isArray(line)
@@ -97,23 +103,56 @@ const postText = (content: Rec): string | undefined => {
   return [title, ...lines].filter((l) => l.length > 0).join("\n");
 };
 
-/** The readable text of a `text` or `post` message; undefined for others. */
-const messageText = (
-  messageType: unknown,
-  content: unknown,
-): string | undefined => {
+/** The `img` nodes of a `post` body, in order. */
+const postImages = (content: Rec): MessageImage[] => {
+  const body = postBody(content);
+  if (body === undefined) return [];
+  return (body.content as unknown[]).flatMap((line) =>
+    Array.isArray(line)
+      ? line.flatMap((node) =>
+          isRecord(node) && node.tag === "img" && nonEmptyString(node.image_key)
+            ? [{ id: node.image_key }]
+            : [],
+        )
+      : [],
+  );
+};
+
+const parsedContent = (content: unknown): Rec | undefined => {
   if (typeof content !== "string") return undefined;
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    const parsed: unknown = JSON.parse(content);
+    return isRecord(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
-  if (!isRecord(parsed)) return undefined;
+};
+
+/** The readable text of a `text` or `post` message; undefined for others. */
+const messageText = (
+  messageType: unknown,
+  content: Rec | undefined,
+): string | undefined => {
+  if (content === undefined) return undefined;
   if (messageType === "text")
-    return typeof parsed.text === "string" ? parsed.text : undefined;
-  if (messageType === "post") return postText(parsed);
+    return typeof content.text === "string" ? content.text : undefined;
+  if (messageType === "post") return postText(content);
   return undefined;
+};
+
+/**
+ * The images of an `image` message or of a `post` body. `id` is the
+ * `image_key`; `downloadFeishuMessageResource` fetches it with the message id.
+ */
+const messageImages = (
+  messageType: unknown,
+  content: Rec | undefined,
+): MessageImage[] => {
+  if (content === undefined) return [];
+  if (messageType === "image")
+    return nonEmptyString(content.image_key) ? [{ id: content.image_key }] : [];
+  if (messageType === "post") return postImages(content);
+  return [];
 };
 
 /**
@@ -162,7 +201,9 @@ const messageReceived = (
   const mentioned =
     botOpenId !== undefined && mentions.some((m) => m.openId === botOpenId);
   const threadId = str(message.thread_id) ?? str(message.root_id) ?? messageId;
-  const text = messageText(message.message_type, message.content);
+  const content = parsedContent(message.content);
+  const text = messageText(message.message_type, content);
+  const images = messageImages(message.message_type, content);
   const senderIds = userIds(sender.sender_id);
   return {
     type:
@@ -194,6 +235,7 @@ const messageReceived = (
         "prompt",
         text === undefined ? undefined : promptOf(text, mentions, botOpenId),
       ),
+      ...messageImagesField(images),
       ...(senderIds === undefined ? {} : { sender: senderIds }),
       ...optional("senderType", str(sender.sender_type)),
       mentions: mentions.map((m) => ({

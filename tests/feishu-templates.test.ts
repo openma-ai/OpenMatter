@@ -32,6 +32,8 @@ const message = (
     readonly senderType?: string;
     readonly rootId?: string;
     readonly threadId?: string;
+    /** An `image` message with this image_key instead of text. */
+    readonly image?: string;
   } = {},
 ): FeishuEventInput => {
   seq += 1;
@@ -60,12 +62,18 @@ const message = (
           ...(opts.threadId === undefined ? {} : { thread_id: opts.threadId }),
           chat_id: opts.chatId ?? "oc_eng",
           chat_type: opts.chatType ?? "group",
-          message_type: "text",
-          content: JSON.stringify({
-            text:
-              opts.text ??
-              (mentionBot ? "@_user_1 why does login 500?" : "lunch anyone?"),
-          }),
+          message_type: opts.image === undefined ? "text" : "image",
+          content: JSON.stringify(
+            opts.image === undefined
+              ? {
+                  text:
+                    opts.text ??
+                    (mentionBot
+                      ? "@_user_1 why does login 500?"
+                      : "lunch anyone?"),
+                }
+              : { image_key: opts.image },
+          ),
           mentions: mentionBot
             ? [{ key: "@_user_1", id: { open_id: BOT }, name: "OMA Bot" }]
             : [],
@@ -369,6 +377,18 @@ describe("Feishu Loop templates", () => {
       reason: "A reply needs exactly one non-empty markdown string",
     });
     expect(blank.posted).toEqual([]);
+  });
+
+  it("takes a message that is only an image, and acknowledges it", async () => {
+    const { app, send, posted, reactions, contexts } = makeHarness();
+    app.loop(feishuAgent, config);
+    const receipt = await send(
+      message({ chatType: "p2p", mentionBot: false, image: "img_v3_only" }),
+    );
+    expect(receipt!.reaction.reason).toBe("The Agent called the reply tool");
+    expect(reactions).toHaveLength(1);
+    expect(posted).toHaveLength(1);
+    expect(JSON.stringify(contexts[0])).toContain("img_v3_only");
   });
 
   it("acknowledges a message it takes with a reaction before the Agent works", async () => {
