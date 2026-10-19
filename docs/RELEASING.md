@@ -4,7 +4,8 @@ Every package under `packages/` that is not `private` is published to npm,
 all at the same version. Today that is `@openma/matter` (the kernel, one
 subpath export per port), `@openma/matter-loop` (the Loop guest SDK),
 `@openma/matter-gitlab`, `@openma/matter-feishu`, and the Node.js host
-adapters `@openma/matter-store-sqlite`, `@openma/matter-inbox-sqlite`, and
+adapters `@openma/matter-store-sqlite`, `@openma/matter-inbox-sqlite`,
+`@openma/matter-store-mysql`, `@openma/matter-inbox-mysql`, and
 `@openma/matter-host-local`. Consumers install exact
 versions from npm; git dependencies on this repository are not supported.
 

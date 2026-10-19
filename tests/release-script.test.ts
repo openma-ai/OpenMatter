@@ -13,7 +13,7 @@ describe("scripts/release.mjs", () => {
     const result = run("check");
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
-    expect(result.stdout).toMatch(/^7 packages at \d+\.\d+\.\d+\n$/);
+    expect(result.stdout).toMatch(/^9 packages at \d+\.\d+\.\d+\n$/);
   });
 
   it("refuses a tag that does not match the package versions", () => {
