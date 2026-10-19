@@ -1,7 +1,13 @@
 {
   "name": "@openma/matter-store-mysql",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.4",
+  "description": "MySQL store for OpenMatter: many host replicas share one database, partitioned by tenant.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openma-ai/OpenMatter.git",
+    "directory": "packages/store-mysql"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -15,6 +21,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@openma/matter": "workspace:*",

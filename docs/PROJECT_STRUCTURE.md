@@ -44,8 +44,9 @@ packages/
 │   private (not published)
 ├── store-memory         process-local Store reference adapter
 ├── store-sqlite         embedded Node Store adapter
-├── store-mysql          MySQL Store adapter for hosted Projects
 ├── inbox-sqlite         embedded Node durable-inbox adapter
+├── store-mysql          MySQL Store adapter shared by stateless host replicas
+├── inbox-mysql          MySQL durable-inbox adapter shared by stateless host replicas
 ├── integration-mock     executable work-platform reference adapter
 ├── agent-mock           executable Agent Driver reference adapter
 ├── orchestration        built-in application-level Loops (coordinator, Claude tag, Linear)
@@ -86,7 +87,7 @@ Everything else depends on `@openma/matter`:
 ```text
 gitlab ──────────→ matter + @openma/matter-loop (templates)
 feishu ──────────→ matter + @openma/matter-loop (templates)
-store-* / inbox-sqlite / *-mock → matter
+store-* / inbox-* / *-mock → matter
 slack / github / linear → matter
 orchestration ───→ matter/runtime
 project ─────────→ matter + orchestration

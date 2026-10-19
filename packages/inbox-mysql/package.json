@@ -1,0 +1,39 @@
+{
+  "name": "@openma/matter-inbox-mysql",
+  "version": "0.2.4",
+  "description": "MySQL durable inbox for OpenMatter: many host replicas share one database and claim items under leases.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openma-ai/OpenMatter.git",
+    "directory": "packages/inbox-mysql"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@openma/matter": "workspace:*",
+    "mysql2": "3.15.3"
+  },
+  "peerDependencies": {
+    "effect": "^3.22.1"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

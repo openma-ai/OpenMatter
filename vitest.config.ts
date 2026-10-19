@@ -52,6 +52,10 @@ export default defineConfig({
         replacement: fromRoot("./packages/host-local/src/runtime/index.ts"),
       },
       {
+        find: /^@openma\/matter-inbox-mysql$/,
+        replacement: fromRoot("./packages/inbox-mysql/src/index.ts"),
+      },
+      {
         find: /^@openma\/matter-inbox-sqlite$/,
         replacement: fromRoot("./packages/inbox-sqlite/src/index.ts"),
       },

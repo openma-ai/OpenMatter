@@ -170,6 +170,15 @@ importers:
         specifier: 7.29.0
         version: 7.29.0
 
+  packages/inbox-mysql:
+    dependencies:
+      "@openma/matter":
+        specifier: workspace:*
+        version: link:../matter
+      mysql2:
+        specifier: 3.15.3
+        version: 3.15.3
+
   packages/inbox-sqlite:
     dependencies:
       "@openma/matter":

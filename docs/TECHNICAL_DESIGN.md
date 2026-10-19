@@ -64,6 +64,7 @@ claim token, or fencing token.
 @openma/matter-store-memory      in-process reference Store
 @openma/matter/inbox             durable transport-envelope port
 @openma/matter-inbox-sqlite      embedded Node inbox adapter
+@openma/matter-inbox-mysql       MySQL inbox shared by host replicas
 @openma/matter/integration       WorkIntegration port
 @openma/matter-integration-mock  reference work adapter
 @openma/matter/agent             AgentDriver and OpenMAEvent port
