@@ -1,6 +1,6 @@
 {
   "name": "@openma/matter-store-mysql",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "MySQL store for OpenMatter: many host replicas share one database, partitioned by tenant.",
   "license": "Apache-2.0",
   "repository": {
