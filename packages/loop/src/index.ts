@@ -17,6 +17,12 @@ export {
   type FreshnessPreset,
 } from "./freshness.js";
 export {
+  SESSION_SCOPES,
+  sessionBinding,
+  sessionScopeField,
+  type SessionScope,
+} from "./session.js";
+export {
   loopObserves,
   loopRunAs,
   snapshotLoopDefinition,

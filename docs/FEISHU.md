@@ -677,8 +677,9 @@ became one template, `feishu-agent`. It answers a direct message or a group
   mention is an attended event, which is what `requester` needs.
 - **Config.** `agentId` (`x-oma-widget: "agent"`), `chats` (`bond-resources`
   for `feishu`; empty means every group the bot is in, and direct messages
-  are always answered), `sessionScope` (`thread` default, `chat`,
-  `chat_user`; `select`), and `freshness` (`freshnessField()`: `thread`
+  are always answered), `sessionScope` (`sessionScopeField()`: `work-item`
+  default, one Session per topic thread; `global`, one per chat;
+  `chat_user`; `request`), and `freshness` (`freshnessField()`: `thread`
   default, `thread_requester`, `conversation`, `off`), and `acknowledge`
   (a Feishu `emoji_type`, `OnIt` default; empty for none).
 - **Acknowledgement.** Once the template takes a message, and before the

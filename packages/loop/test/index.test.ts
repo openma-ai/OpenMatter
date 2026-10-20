@@ -6,6 +6,8 @@ import {
   isGuestLoop,
   loadLoop,
   loopRunAs,
+  sessionBinding,
+  sessionScopeField,
   type ContextProjection,
   type LoopHost,
   type WorkEffect,
@@ -374,5 +376,50 @@ describe("@openma/matter-loop", () => {
       );
     expect(specifiers.length).toBeGreaterThan(0);
     expect(specifiers.filter((s) => !s?.startsWith("./"))).toEqual([]);
+  });
+});
+
+describe("session scope", () => {
+  it("renders the offered scopes as one session control", () => {
+    const field = sessionScopeField({
+      scopes: ["work-item", "global", "chat_user"],
+      describe: { chat_user: "chat_user: one per person" },
+    });
+    expect(field).toMatchObject({
+      type: "string",
+      enum: ["work-item", "global", "chat_user"],
+      default: "work-item",
+      "x-oma-widget": "session-scope",
+      "x-oma-section": "session",
+    });
+    expect(field.description).toBe(
+      "work-item: one Session per work item; global: one Session for everything; chat_user: one per person",
+    );
+    expect(() =>
+      sessionScopeField({ scopes: ["global"], default: "request" }),
+    ).toThrow(TypeError);
+  });
+
+  it("binds the configured scope to its WorkThread, or the default", () => {
+    const input = {
+      scopeId: "chat:1",
+      default: "work-item",
+      threads: {
+        global: "all",
+        "work-item": "thread:7",
+        request: "request:e1",
+      },
+    };
+    expect(sessionBinding("global", input)).toEqual({
+      scopeId: "chat:1",
+      workThreadId: "all",
+      privacyPartition: "chat:1",
+    });
+    expect(sessionBinding("request", input).workThreadId).toBe("request:e1");
+    expect(sessionBinding("unknown", input).workThreadId).toBe("thread:7");
+    expect(
+      sessionBinding(undefined, { ...input, privacyPartition: "p" })
+        .privacyPartition,
+    ).toBe("p");
   });
 });

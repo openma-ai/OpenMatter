@@ -322,16 +322,26 @@ describe("Feishu Loop templates", () => {
     expect(contexts[2]!.workThreadId).toBe("thread:om_root");
   });
 
-  it("scopes Sessions per chat or per person when configured", async () => {
+  it("scopes Sessions per chat, per person or per request when configured", async () => {
     const perUser = makeHarness();
     perUser.app.loop(feishuAgent, { ...config, sessionScope: "chat_user" });
     await perUser.send(message({ sender: "ou_bob" }));
     expect(perUser.contexts[0]!.workThreadId).toBe("user:ou_bob");
 
     const perChat = makeHarness();
-    perChat.app.loop(feishuAgent, { ...config, sessionScope: "chat" });
+    perChat.app.loop(feishuAgent, { ...config, sessionScope: "global" });
     await perChat.send(message());
     expect(perChat.contexts[0]!.workThreadId).toBe("chat");
+
+    const perRequest = makeHarness();
+    perRequest.app.loop(feishuAgent, { ...config, sessionScope: "request" });
+    await perRequest.send(message());
+    expect(perRequest.contexts[0]!.workThreadId).toMatch(/^request:/);
+
+    // The old names are gone; a host migrates saved configurations.
+    expect(() =>
+      makeHarness().app.loop(feishuAgent, { ...config, sessionScope: "chat" }),
+    ).toThrow(/sessionScope/);
   });
 
   it("stays quiet outside watched chats, for bots, other messages, and empty replies", async () => {

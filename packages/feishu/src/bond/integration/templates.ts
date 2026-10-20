@@ -6,6 +6,8 @@ import {
   defineLoop,
   freshnessField,
   freshnessPolicy,
+  sessionBinding,
+  sessionScopeField,
   type JsonValue,
   type LoopConfig,
   type WorkEvent,
@@ -63,13 +65,21 @@ const sessionFor = (
   const chatId = text(f.chatId) ?? "unknown";
   const scopeId = `feishu:${event.source.authority}:chat:${chatId}`;
   const sender = isObject(f.sender) ? text(f.sender.openId) : undefined;
-  const workThreadId =
-    config.sessionScope === "chat"
-      ? "chat"
-      : config.sessionScope === "chat_user"
-        ? `user:${sender ?? "unknown"}`
-        : `thread:${text(f.threadId) ?? text(f.messageId) ?? "unknown"}`;
-  return { scopeId, workThreadId, privacyPartition: scopeId };
+  const binding = sessionBinding(config.sessionScope, {
+    scopeId,
+    default: "work-item",
+    threads: {
+      global: "chat",
+      "work-item": `thread:${text(f.threadId) ?? text(f.messageId) ?? "unknown"}`,
+      chat_user: `user:${sender ?? "unknown"}`,
+      request: `request:${event.id}`,
+    },
+  });
+  return {
+    scopeId: binding.scopeId,
+    workThreadId: binding.workThreadId,
+    privacyPartition: binding.privacyPartition,
+  };
 };
 
 /**
@@ -139,15 +149,14 @@ export const feishuAgent = defineLoop(
           "x-oma-widget": "bond-resources",
           "x-bond-provider": "feishu",
         },
-        sessionScope: {
-          type: "string",
-          enum: ["thread", "chat", "chat_user"],
-          default: "thread",
-          title: "Conversation memory",
-          description:
-            "thread: one Session per topic thread; chat: one per chat; chat_user: one per person in each chat",
-          "x-oma-widget": "select",
-        },
+        sessionScope: sessionScopeField({
+          scopes: ["work-item", "global", "chat_user", "request"],
+          describe: {
+            "work-item": "work-item: one Session per topic thread",
+            global: "global: one Session per chat",
+            chat_user: "chat_user: one Session per person in each chat",
+          },
+        }),
         acknowledge: {
           type: "string",
           maxLength: 64,
