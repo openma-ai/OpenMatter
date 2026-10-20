@@ -1,6 +1,6 @@
 {
   "name": "@openma/matter-store-sqlite",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Embedded SQLite store for OpenMatter on Node.js (node:sqlite): Turns, Agent sessions, operation calls, conversation entries, and effect deliveries for a single-process host.",
   "license": "Apache-2.0",
   "repository": {
