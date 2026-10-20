@@ -180,6 +180,16 @@ describe("GitLab Loop templates", () => {
     );
   });
 
+  it("opens a fresh Session per Event when the session scope is request", async () => {
+    const { app, send, contexts } = makeHarness();
+    app.loop(gitlabMergeRequestReview, {
+      ...reviewConfig,
+      sessionScope: "request",
+    });
+    await send(mergeRequest(), "Merge Request Hook");
+    expect(contexts[0]?.workThreadId).toMatch(/^request:/);
+  });
+
   it("skips edits without commits, drafts, and unwatched projects", async () => {
     const { app, send, posted } = makeHarness();
     app.loop(gitlabMergeRequestReview, {

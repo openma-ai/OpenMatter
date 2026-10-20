@@ -8,6 +8,8 @@
 
 import {
   defineLoop,
+  sessionBinding,
+  sessionScopeField,
   type JsonValue,
   type LoopConfig,
   type LoopWork,
@@ -75,18 +77,25 @@ const mergeRequestTarget = (
 };
 
 /**
- * One Session per merge request: both templates continue the same Work
- * Thread, so an Agent that reviewed a merge request remembers it when
- * mentioned there later.
+ * By default one Session per merge request: both templates continue the same
+ * Work Thread, so an Agent that reviewed a merge request remembers it when
+ * mentioned there later. `request` starts a fresh Session for each Event.
  */
-const sessionFor = (target: MergeRequestTarget) => {
-  const scopeId = `gitlab:${target.authority}:project:${target.projectId}`;
-  return {
-    scopeId,
-    workThreadId: `merge_request:${target.mergeRequestIid}`,
-    privacyPartition: scopeId,
-  };
-};
+const sessionFor = (target: MergeRequestTarget, work: LoopWork) =>
+  sessionBinding(work.config.sessionScope, {
+    scopeId: `gitlab:${target.authority}:project:${target.projectId}`,
+    default: "work-item",
+    threads: {
+      "work-item": `merge_request:${target.mergeRequestIid}`,
+      request: `request:${work.event.id}`,
+    },
+  });
+
+/** The session scope both templates offer. */
+const sessionScope = sessionScopeField({
+  scopes: ["work-item", "request"],
+  describe: { "work-item": "work-item: one Session per merge request" },
+});
 
 /** Runs one Agent Turn and posts its output as a merge request note. */
 const answer = async (
@@ -100,7 +109,7 @@ const answer = async (
         readonly discussionId: string;
       },
 ): Promise<ReactionDraft> => {
-  const binding = sessionFor(target);
+  const binding = sessionFor(target, work);
   const capability = `gitlab.${reply.operation}`;
   const context = await work.context.project({
     scopeId: binding.scopeId,
@@ -182,6 +191,7 @@ export const gitlabMergeRequestReview = defineLoop(
           default: true,
           title: "Skip draft merge requests",
         },
+        sessionScope,
         instructions: instructionsField,
       },
       required: ["agentId", "projects"],
@@ -263,6 +273,7 @@ export const gitlabMention = defineLoop(
           description:
             "The app principal's username, without @. Comments that mention it are answered.",
         },
+        sessionScope,
         instructions: instructionsField,
       },
       required: ["agentId", "projects", "username"],

@@ -151,6 +151,60 @@ const answer = defineLoop(
 A Loop written as code may pass any `FreshnessPolicy`, including a list of
 sender ids.
 
+## Session scope
+
+Which Events share one Agent Session is the Loop's choice: it passes a
+binding to `work.agent(id).session(binding)`, and Events with the same
+`scopeId` and `workThreadId` continue the same Session. To let the person
+configuring a Loop choose, offer `sessionScopeField()` and turn the value into
+a binding with `sessionBinding()`. Every template names the common scopes the
+same way, so a console renders one control (`x-oma-widget: "session-scope"`,
+grouped with the session settings by `x-oma-section: "session"`):
+
+- `global`: one Session for every Event the Loop takes in its scope;
+- `work-item`: one Session per work item, which the template defines (a
+  topic thread, an issue, a merge request);
+- `request`: a fresh Session for every Event.
+
+A template offers the scopes that make sense for it and may add its own:
+
+```ts
+const issueTriage = defineLoop(
+  {
+    id: "issue-triage",
+    configSchema: {
+      type: "object",
+      properties: {
+        sessionScope: sessionScopeField({
+          scopes: ["work-item", "request"],
+          describe: { "work-item": "work-item: one Session per issue" },
+        }),
+      },
+    },
+  },
+  (app) =>
+    app.on("linear.issue.updated", async (work) => {
+      const binding = sessionBinding(work.config.sessionScope, {
+        scopeId: "linear:team:eng",
+        default: "work-item",
+        threads: {
+          "work-item": `issue:${issueId(work.event)}`,
+          request: `request:${work.event.id}`,
+        },
+      });
+      const turn = await work
+        .agent("triager")
+        .session(binding)
+        .turn({ context });
+      return work.react.none();
+    }),
+);
+```
+
+Keep WorkThread ids stable across versions: changing one starts new
+Sessions. A Loop that never varies its Sessions can pass a fixed binding and
+skip the field.
+
 ## Guest Loops
 
 `@openma/matter-loop` is the package Loop code imports when it should run
