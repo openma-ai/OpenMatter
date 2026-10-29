@@ -101,6 +101,18 @@ const widenedColumns = [
   { table: "openmatter_store_records", column: "parent_id", definition: "VARCHAR(512) NULL" },
 ] as const;
 
+/** Longest value each key column holds; longer values are refused by name
+ * before MySQL sees them, instead of failing as a generic write error. */
+const KEY_LIMITS = { id: 191, scope_id: 191, parent_id: 512, unique_key: 191, lease_id: 512 } as const;
+
+const checkKey = (column: keyof typeof KEY_LIMITS, kind: string, value: string | null) => {
+  if (value !== null && value.length > KEY_LIMITS[column]) {
+    throw new StoreError({
+      message: `MySQL store ${kind} ${column} is ${value.length} characters; the limit is ${KEY_LIMITS[column]}`,
+    });
+  }
+};
+
 const asNumber = (value: unknown): number =>
   typeof value === "bigint" ? Number(value) : Number(value);
 
@@ -197,7 +209,7 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
         cause instanceof StoreError
           ? cause
           : new StoreError({
-              message: "MySQL store operation failed",
+              message: `MySQL store operation failed: ${cause instanceof Error ? cause.message : String(cause)}`,
               cause,
             }),
     });
@@ -272,6 +284,10 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
     parent: string | null = null,
     key: string | null = null,
   ) => {
+    checkKey("id", kind, id);
+    checkKey("scope_id", kind, scope);
+    checkKey("parent_id", kind, parent);
+    checkKey("unique_key", kind, key);
     await conn.query(
       `INSERT INTO openmatter_store_records (tenant_id, kind, id, scope_id, parent_id, unique_key, data)
        VALUES (?,?,?,?,?,?,?)
@@ -317,6 +333,7 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
     request: LeaseRequest,
     attempt = 0,
   ): Promise<WorkLease> => {
+    checkKey("lease_id", kind, id);
     const row = await leaseRow(conn, kind, id);
     const next: LeaseRow = {
       token: randomUUID(),

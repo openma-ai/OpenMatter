@@ -97,6 +97,27 @@ describe("mysql store", () => {
   });
 });
 
+describe("mysql store key limits", () => {
+  it("refuses a key longer than its column by name", async (ctx) => {
+    if (!mysqlUrl) {
+      ctx.skip("MySQL tests need PROJECT_WORKER_MYSQL_URL");
+      return;
+    }
+    const pool = createPool(mysqlUrl);
+    const store = makeMysqlStore({ pool, tenantId: randomUUID() });
+    try {
+      await expect(
+        Effect.runPromise(
+          store.claimSession("k".repeat(600), { ownerId: "w1", durationMs: 60_000 }),
+        ),
+      ).rejects.toThrow(/session lease_id is 600 characters; the limit is 512/);
+    } finally {
+      await Effect.runPromise(store.close);
+      await pool.end();
+    }
+  });
+});
+
 describe("mysql store conformance", () => {
   const pool = mysqlUrl ? createPool(mysqlUrl) : undefined;
   afterAll(async () => {
