@@ -62,7 +62,7 @@ const schema = [
     kind VARCHAR(64) NOT NULL,
     id VARCHAR(191) NOT NULL,
     scope_id VARCHAR(191) NULL,
-    parent_id VARCHAR(191) NULL,
+    parent_id VARCHAR(512) NULL,
     unique_key VARCHAR(191) NULL,
     data LONGTEXT NOT NULL,
     seq BIGINT NOT NULL AUTO_INCREMENT,
@@ -75,7 +75,7 @@ const schema = [
   `CREATE TABLE IF NOT EXISTS openmatter_store_leases (
     tenant_id VARCHAR(191) NOT NULL,
     kind VARCHAR(64) NOT NULL,
-    id VARCHAR(191) NOT NULL,
+    id VARCHAR(512) NOT NULL,
     token VARCHAR(64) NOT NULL,
     owner_id VARCHAR(191) NOT NULL,
     expires_ms BIGINT NOT NULL,
@@ -90,6 +90,16 @@ const schema = [
     PRIMARY KEY (tenant_id, binding_key)
   )`,
 ];
+
+/**
+ * Columns that hold a session binding key, which can exceed 191 characters
+ * (a Feishu chat plus thread binding is about 250). Tables created before the
+ * widening are altered once, on first use.
+ */
+const widenedColumns = [
+  { table: "openmatter_store_leases", column: "id", definition: "VARCHAR(512) NOT NULL" },
+  { table: "openmatter_store_records", column: "parent_id", definition: "VARCHAR(512) NULL" },
+] as const;
 
 const asNumber = (value: unknown): number =>
   typeof value === "bigint" ? Number(value) : Number(value);
@@ -121,6 +131,16 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
     const conn = await pool.getConnection();
     try {
       for (const statement of schema) await conn.query(statement);
+      for (const { table, column, definition } of widenedColumns) {
+        const [rows] = await conn.query<RowDataPacket[]>(
+          `SELECT CHARACTER_MAXIMUM_LENGTH AS length FROM information_schema.COLUMNS
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+          [table, column],
+        );
+        if (asNumber(rows[0]?.length) < 512) {
+          await conn.query(`ALTER TABLE ${table} MODIFY ${column} ${definition}`);
+        }
+      }
       initialized.add(pool);
     } finally {
       conn.release();

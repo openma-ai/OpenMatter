@@ -289,6 +289,45 @@ export const storeConformanceCases = (
       },
     },
     {
+      name: "a long Session binding key is claimed, saved, and handed to the next generation",
+      run: async () => {
+        const store = await fresh();
+        // A Feishu chat plus thread binding is about 250 characters.
+        const chat = `feishu:cli_${"a".repeat(16)}:chat:oc_${"b".repeat(32)}`;
+        const bindingKey = JSON.stringify([
+          `agent_${"c".repeat(21)}#${"d".repeat(12)}`,
+          `cli_${"a".repeat(16)}`,
+          chat,
+          `thread:om_${"e".repeat(40)}`,
+          chat,
+        ]).padEnd(300, " ");
+        const claim = await run(
+          store.claimSession(bindingKey, { ownerId: "w1", durationMs: LONG }),
+        );
+        assert(claim._tag === "Acquired", "a long binding key is claimed");
+        if (claim._tag !== "Acquired") return;
+        const session = (id: string, generation: number) => ({
+          id,
+          bindingKey,
+          agentId: "agent-1",
+          authority: "workspace-1",
+          scopeId: "scope-1",
+          workThreadId: "thread-1",
+          privacyPartition: "default",
+          driverId: "mock",
+          generation,
+          state: "open" as const,
+          createdAt: "2026-08-20T08:00:01.000Z",
+          lastUsedAt: "2026-08-20T08:00:01.000Z",
+        });
+        await run(store.saveSession(session("session-long-1", 1), claim.lease.token));
+        await run(store.saveSession(session("session-long-2", 2), claim.lease.token));
+        const next = await run(store.getSession("session-long-2"));
+        assert(next?.bindingKey === bindingKey, "the session keeps its long binding key");
+        await run(store.releaseSession(bindingKey, claim.lease.token));
+      },
+    },
+    {
       name: "Turn and Agent event writes are fenced by the Session lease, and a terminal event wins",
       run: async () => {
         const store = await fresh();
