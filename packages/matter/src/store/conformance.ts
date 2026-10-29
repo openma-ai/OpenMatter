@@ -289,6 +289,96 @@ export const storeConformanceCases = (
       },
     },
     {
+      name: "a long Session binding key is claimed, saved across generations, found again, and released",
+      run: async () => {
+        const store = await fresh();
+        // Binding keys are opaque and may exceed any indexable column width.
+        // Two keys that share their first 300 characters must stay distinct.
+        const prefix = `["agent-1","workspace-1","chat:${"c".repeat(240)}·`;
+        const key = `${prefix}${"t".repeat(60)}","thread-1","partition"]`;
+        const sibling = `${prefix}${"u".repeat(60)}","thread-1","partition"]`;
+        assert(key.length > 300, "the binding key is longer than 300 chars");
+        const unseen = await run(store.getSessionBinding(key));
+        assert(
+          unseen.session === undefined && unseen.lease === undefined,
+          "an unclaimed binding has no Session and no lease",
+        );
+        const claim = await run(
+          store.claimSession(key, { ownerId: "w1", durationMs: LONG }),
+        );
+        assert(claim._tag === "Acquired", "a long binding key is claimed");
+        if (claim._tag !== "Acquired") return;
+        const held = await run(store.getSessionBinding(key));
+        assert(
+          held.lease?.held === true &&
+            held.lease.ownerId === "w1" &&
+            held.lease.revision === claim.lease.revision &&
+            held.lease.expiresAt === claim.lease.expiresAt &&
+            !("token" in held.lease) &&
+            held.session === undefined,
+          "the lookup reports the live lease without its token",
+        );
+        const busy = await run(
+          store.claimSession(key, { ownerId: "w2", durationMs: LONG }),
+        );
+        assert(busy._tag === "Busy", "a live long-key lease reports Busy");
+        const other = await run(
+          store.claimSession(sibling, { ownerId: "w2", durationMs: LONG }),
+        );
+        assert(
+          other._tag === "Acquired" && other.session === undefined,
+          "a key sharing a long prefix is a different binding",
+        );
+        const session = (id: string, generation: number) => ({
+          id,
+          bindingKey: key,
+          agentId: "agent-1",
+          authority: "workspace-1",
+          scopeId: "scope-long",
+          workThreadId: "thread-1",
+          privacyPartition: "partition",
+          driverId: "mock",
+          generation,
+          state: "open" as const,
+          createdAt: "2026-08-20T08:00:01.000Z",
+          lastUsedAt: "2026-08-20T08:00:01.000Z",
+        });
+        await run(
+          store.saveSession(session("session-long-1", 1), claim.lease.token),
+        );
+        await run(
+          store.saveSession(session("session-long-2", 2), claim.lease.token),
+        );
+        assert(
+          (await run(store.getSession("session-long-1")))?.state === "closed",
+          "the previous generation is closed",
+        );
+        const saved = await run(store.getSessionBinding(key));
+        assert(
+          saved.session?.id === "session-long-2" &&
+            saved.session.bindingKey === key,
+          "the lookup finds the latest generation with its full key",
+        );
+        assert(
+          (await run(store.getSessionBinding(sibling))).session === undefined,
+          "the sibling binding has no Session",
+        );
+        await run(store.releaseSession(key, claim.lease.token));
+        const released = await run(store.getSessionBinding(key));
+        assert(
+          released.lease === undefined || released.lease.held === false,
+          "a released lease is not held",
+        );
+        const next = await run(
+          store.claimSession(key, { ownerId: "w2", durationMs: LONG }),
+        );
+        assert(
+          next._tag === "Acquired" && next.session?.id === "session-long-2",
+          "the next claim resumes the latest generation",
+        );
+      },
+    },
+    {
       name: "Turn and Agent event writes are fenced by the Session lease, and a terminal event wins",
       run: async () => {
         const store = await fresh();

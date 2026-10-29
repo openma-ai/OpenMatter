@@ -24,6 +24,7 @@ import {
   type LeaseRequest,
   type WorkLease,
   type PendingEffectClaim,
+  type SessionBinding,
 } from "@openma/matter/store";
 import { ThreadGoalStatusSchema } from "@openma/matter";
 import { Effect, Schema } from "effect";
@@ -635,20 +636,31 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
             previous.id,
             { ...previous, state: "closed" },
             previous.scopeId,
-            previous.bindingKey,
           );
-        put(
-          "session",
-          session.id,
-          session,
-          session.scopeId,
-          session.bindingKey,
-        );
+        put("session", session.id, session, session.scopeId);
         db.prepare(
           "INSERT INTO openmatter_store_bindings VALUES(?,?) ON CONFLICT(binding_key) DO UPDATE SET session_id=excluded.session_id",
         ).run(session.bindingKey, session.id);
       }, true),
     getSession: (id) => op(() => get<AgentSession>("session", id)),
+    getSessionBinding: (key) =>
+      op((): SessionBinding => {
+        const row = leaseRow("session", key);
+        const session = activeSession(key);
+        return {
+          ...(session ? { session } : {}),
+          ...(row
+            ? {
+                lease: {
+                  ownerId: row.owner_id,
+                  expiresAt: new Date(row.expires_ms).toISOString(),
+                  revision: row.revision,
+                  held: row.expires_ms > clock(),
+                },
+              }
+            : {}),
+        };
+      }),
     renewSessionLease: (key, token, request) =>
       renew("session", key, token, request.durationMs),
     releaseSession: (key, token) =>

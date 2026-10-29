@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Reaction, WorkEvent } from "@openma/matter";
 import { Effect } from "effect";
-import { createPool } from "mysql2/promise";
+import { createPool, type RowDataPacket } from "mysql2/promise";
 import { storeConformanceCases } from "@openma/matter/store";
 import { afterAll, describe, expect, it } from "vitest";
 import { makeMysqlStore } from "../src/index.js";
@@ -94,6 +94,74 @@ describe("mysql store", () => {
     await Effect.runPromise(reopened.close);
     await Effect.runPromise(foreign.close);
     await pool.end();
+  });
+});
+
+describe("mysql store binding keys", () => {
+  it("indexes a Session binding key by its digest and keeps the full key in the Session", async (ctx) => {
+    if (!mysqlUrl) {
+      ctx.skip("MySQL tests need PROJECT_WORKER_MYSQL_URL");
+      return;
+    }
+    const pool = createPool(mysqlUrl);
+    const tenant = randomUUID();
+    const store = makeMysqlStore({ pool, tenantId: tenant });
+    try {
+      const key = JSON.stringify([
+        "agent-1",
+        "workspace-1",
+        `chat:${"c".repeat(200)}`,
+        `thread:${"t".repeat(60)}`,
+        `chat:${"c".repeat(200)}`,
+      ]);
+      const digest = createHash("sha256").update(key, "utf8").digest("hex");
+      const claim = await Effect.runPromise(
+        store.claimSession(key, { ownerId: "w1", durationMs: 60_000 }),
+      );
+      if (claim._tag !== "Acquired") throw new Error("claim is Acquired");
+      await Effect.runPromise(
+        store.saveSession(
+          {
+            id: "session-digest",
+            bindingKey: key,
+            agentId: "agent-1",
+            authority: "workspace-1",
+            scopeId: "scope-1",
+            workThreadId: "thread-1",
+            privacyPartition: "default",
+            driverId: "mock",
+            generation: 1,
+            state: "open",
+            createdAt: "2026-08-20T08:00:01.000Z",
+            lastUsedAt: "2026-08-20T08:00:01.000Z",
+          },
+          claim.lease.token,
+        ),
+      );
+      const [leases] = await pool.query<RowDataPacket[]>(
+        "SELECT id FROM openmatter_store_leases WHERE tenant_id=? AND kind='session'",
+        [tenant],
+      );
+      const [bindings] = await pool.query<RowDataPacket[]>(
+        "SELECT binding_key FROM openmatter_store_bindings WHERE tenant_id=?",
+        [tenant],
+      );
+      const [records] = await pool.query<RowDataPacket[]>(
+        "SELECT parent_id, data FROM openmatter_store_records WHERE tenant_id=? AND kind='session'",
+        [tenant],
+      );
+      expect(leases.map((row) => row.id)).toEqual([digest]);
+      expect(bindings.map((row) => row.binding_key)).toEqual([digest]);
+      expect(records).toHaveLength(1);
+      expect(records[0]!.parent_id).toBeNull();
+      expect(JSON.parse(records[0]!.data as string).bindingKey).toBe(key);
+      const found = await Effect.runPromise(store.getSessionBinding(key));
+      expect(found.session?.id).toBe("session-digest");
+      expect(found.lease).toMatchObject({ ownerId: "w1", held: true });
+    } finally {
+      await Effect.runPromise(store.close);
+      await pool.end();
+    }
   });
 });
 

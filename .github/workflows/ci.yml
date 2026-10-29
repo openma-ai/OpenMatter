@@ -12,7 +12,7 @@ jobs:
     env:
       PROJECT_WORKER_MYSQL_URL: mysql://openmatter:openmatter@127.0.0.1:3306/openmatter_projects
     services:
-      # MariaDB 10.11 matches the store tests. PROJECT_WORKER_MYSQL_URL makes them run.
+      # MariaDB 10.11 runs the whole suite. PROJECT_WORKER_MYSQL_URL makes the MySQL cases run.
       mariadb:
         image: mariadb:10.11
         env:
@@ -28,6 +28,23 @@ jobs:
           --health-timeout=5s
           --health-retries=12
           --health-start-period=20s
+      # Production runs MySQL 8.0 (strict mode, utf8mb4). The MySQL-backed
+      # suites run against it again in their own step below.
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: openmatter_projects
+          MYSQL_USER: openmatter
+          MYSQL_PASSWORD: openmatter
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+          --health-start-period=30s
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -41,3 +58,7 @@ jobs:
       - run: pnpm build:projects
       - run: pnpm typecheck
       - run: pnpm test
+      - name: MySQL 8.0 store and inbox tests
+        env:
+          PROJECT_WORKER_MYSQL_URL: mysql://openmatter:openmatter@127.0.0.1:3307/openmatter_projects
+        run: pnpm exec vitest run packages/store-mysql packages/inbox-mysql packages/project-worker
