@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   createPool,
   type Pool,
@@ -28,6 +28,7 @@ import {
   type LeaseRequest,
   type OpenMatterStore,
   type PendingEffectClaim,
+  type SessionBinding,
   type StoreSnapshot,
   type WorkLease,
 } from "@openma/matter/store";
@@ -90,6 +91,15 @@ const schema = [
     PRIMARY KEY (tenant_id, binding_key)
   )`,
 ];
+
+/**
+ * The indexed form of a Session binding key: its SHA-256 hex digest. The key is
+ * opaque to the store and may be longer than any indexable column, so the
+ * session lease id and `openmatter_store_bindings.binding_key` hold this
+ * fixed 64-character digest. The full key stays in the Session JSON.
+ */
+const bindingId = (key: string): string =>
+  createHash("sha256").update(key, "utf8").digest("hex");
 
 const asNumber = (value: unknown): number =>
   typeof value === "bigint" ? Number(value) : Number(value);
@@ -350,7 +360,7 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
     const row = await one<{ session_id: string }>(
       conn,
       "SELECT session_id FROM openmatter_store_bindings WHERE tenant_id=? AND binding_key=?",
-      [tenantId, key],
+      [tenantId, bindingId(key)],
     );
     return row ? get<AgentSession>(conn, "session", row.session_id) : undefined;
   };
@@ -772,19 +782,20 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
       renew("effect", id, token, request.durationMs),
     claimSession: (key, request) =>
       op(async (conn) => {
-        const current = await leaseRow(conn, "session", key);
+        const id = bindingId(key);
+        const current = await leaseRow(conn, "session", id);
         if (current && current.expires_ms > (await clock(conn)))
           return { _tag: "Busy" as const, lease: asLease(current) };
         const session = await activeSession(conn, key);
         return {
           _tag: "Acquired" as const,
-          lease: await acquire(conn, "session", key, request),
+          lease: await acquire(conn, "session", id, request),
           ...(session ? { session } : {}),
         };
       }, true),
     saveSession: (session, token) =>
       op(async (conn) => {
-        await fence(conn, "session", session.bindingKey, token);
+        await fence(conn, "session", bindingId(session.bindingKey), token);
         const previous = await activeSession(conn, session.bindingKey);
         if (
           previous &&
@@ -797,33 +808,44 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
             previous.id,
             { ...previous, state: "closed" },
             previous.scopeId,
-            previous.bindingKey,
           );
-        await put(
-          conn,
-          "session",
-          session.id,
-          session,
-          session.scopeId,
-          session.bindingKey,
-        );
+        await put(conn, "session", session.id, session, session.scopeId);
         await conn.query(
           `INSERT INTO openmatter_store_bindings (tenant_id, binding_key, session_id) VALUES (?,?,?)
            ON DUPLICATE KEY UPDATE session_id=VALUES(session_id)`,
-          [tenantId, session.bindingKey, session.id],
+          [tenantId, bindingId(session.bindingKey), session.id],
         );
       }, true),
     getSession: (id) => op((conn) => get<AgentSession>(conn, "session", id)),
+    getSessionBinding: (key) =>
+      op(async (conn): Promise<SessionBinding> => {
+        const row = await leaseRow(conn, "session", bindingId(key));
+        const session = await activeSession(conn, key);
+        return {
+          ...(session ? { session } : {}),
+          ...(row
+            ? {
+                lease: {
+                  ownerId: row.owner_id,
+                  expiresAt: new Date(row.expires_ms).toISOString(),
+                  revision: row.revision,
+                  held: row.expires_ms > (await clock(conn)),
+                },
+              }
+            : {}),
+        };
+      }),
     renewSessionLease: (key, token, request) =>
-      renew("session", key, token, request.durationMs),
+      renew("session", bindingId(key), token, request.durationMs),
     releaseSession: (key, token) =>
       op(async (conn) => {
-        await fence(conn, "session", key, token);
-        await release(conn, "session", key);
+        const id = bindingId(key);
+        await fence(conn, "session", id, token);
+        await release(conn, "session", id);
       }, true),
     saveTurn: (turn, key, token) =>
       op(async (conn) => {
-        await fence(conn, "session", key, token);
+        await fence(conn, "session", bindingId(key), token);
         if (
           (await get<AgentSession>(conn, "session", turn.sessionId))
             ?.bindingKey !== key
@@ -898,7 +920,7 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
       ),
     commitPermissionDecision: (decision, key, token) =>
       op(async (conn) => {
-        await fence(conn, "session", key, token);
+        await fence(conn, "session", bindingId(key), token);
         const turn = await get<Turn>(conn, "turn", decision.turnId);
         if (
           !turn ||
@@ -922,7 +944,7 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
       ),
     beginOperationCall: (call, key, token) =>
       casOp(async (conn) => {
-        await fence(conn, "session", key, token);
+        await fence(conn, "session", bindingId(key), token);
         const turn = await get<Turn>(conn, "turn", call.turnId);
         if (
           !turn ||
@@ -987,7 +1009,7 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
       ),
     completeOperationCall: (turnId, callId, result, completedAt, key, token) =>
       op(async (conn) => {
-        await fence(conn, "session", key, token);
+        await fence(conn, "session", bindingId(key), token);
         const id = JSON.stringify([turnId, callId]);
         const existing = await get<OperationCall>(conn, "operationCall", id);
         if (!existing) fail(`Unknown operation call: ${turnId}/${callId}`);
@@ -1002,7 +1024,7 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
       }, true),
     appendAgentEvent: (event, key, token) =>
       op(async (conn) => {
-        await fence(conn, "session", key, token);
+        await fence(conn, "session", bindingId(key), token);
         const turnId = event.turn_id;
         if (!turnId || event.seq === undefined)
           return fail("Agent event requires turn identity and sequence");

@@ -362,6 +362,27 @@ export const makeMemoryStore = (
         return session === undefined ? undefined : copy(session);
       }),
 
+    getSessionBinding: (bindingKey) =>
+      Effect.sync(() => {
+        const lease = sessionClaims.get(bindingKey);
+        const sessionId = activeSessionByBinding.get(bindingKey);
+        const session =
+          sessionId === undefined ? undefined : sessions.get(sessionId);
+        return {
+          ...(session === undefined ? {} : { session: copy(session) }),
+          ...(lease === undefined
+            ? {}
+            : {
+                lease: {
+                  ownerId: lease.ownerId,
+                  expiresAt: lease.expiresAt,
+                  revision: lease.revision,
+                  held: !expired(lease, clock()),
+                },
+              }),
+        };
+      }),
+
     renewSessionLease: (bindingKey, leaseToken, renewal) =>
       storeTry(() => {
         const now = clock();

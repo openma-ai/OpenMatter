@@ -147,5 +147,6 @@ PROJECT_WORKER_MYSQL_URL=mysql://openmatter:openmatter@127.0.0.1:3306/openmatter
 Without `PROJECT_WORKER_MYSQL_URL`, MySQL cases skip and say why. SQLite
 covers the same worker routes. CI starts MariaDB 10.11 and sets
 `PROJECT_WORKER_MYSQL_URL`, so the fencing, reopen, and tenant-isolation tests
-run there. CI does not set `PROJECT_WORKER_WORKSPACE_ID`; that remains the
+run there; it runs the MySQL-backed suites again against MySQL 8.0, the
+production engine. CI does not set `PROJECT_WORKER_WORKSPACE_ID`; that remains the
 deploy-time switch for current backchat.

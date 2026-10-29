@@ -93,6 +93,22 @@ export type SessionClaim =
     }
   | { readonly _tag: "Busy"; readonly lease: WorkLease };
 
+/** A Session lease as seen by `getSessionBinding`. It carries no token. */
+export interface SessionLeaseState {
+  readonly ownerId: string;
+  readonly expiresAt: string;
+  readonly revision: number;
+  /** Whether the lease is live by the Store's own clock. */
+  readonly held: boolean;
+}
+
+/** What a Session binding key resolves to: the Session a claim would resume
+ * and the Session lease that a claim would contend with. */
+export interface SessionBinding {
+  readonly session?: AgentSession;
+  readonly lease?: SessionLeaseState;
+}
+
 export type TerminalReactionCommit =
   | { readonly _tag: "Committed"; readonly reaction: Reaction }
   | { readonly _tag: "Existing"; readonly reaction: Reaction };
@@ -204,6 +220,11 @@ export interface OpenMatterStore {
   readonly getSession: (
     sessionId: string,
   ) => Effect.Effect<AgentSession | undefined, StoreError>;
+  /** Read-only. Resolves a raw binding key the way `claimSession` does, so
+   * nobody has to know how an adapter indexes binding keys. */
+  readonly getSessionBinding: (
+    bindingKey: string,
+  ) => Effect.Effect<SessionBinding, StoreError>;
   readonly renewSessionLease: (
     bindingKey: string,
     leaseToken: string,
