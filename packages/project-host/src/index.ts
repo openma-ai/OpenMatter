@@ -100,7 +100,10 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
     this.#deps = deps;
     mkdirSync(deps.directory, { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(join(deps.directory, "projects.db"));
-    this.workspaces = new ProjectWorkspaceRegistry(this.db);
+    this.workspaces = new ProjectWorkspaceRegistry(
+      this.db,
+      (projectId) => this.config(projectId)?.workspace !== "none",
+    );
     this.store = makeSqliteStore({ database: this.db });
     this.#mutations = makeSqliteMutationStore({
       database: this.db,
@@ -165,6 +168,11 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
       throw new Error("Choose both agents, or leave both empty for a draft");
     if (!["per-scope", "per-run"].includes(config.continuity))
       throw new Error("Invalid continuity");
+    if (
+      config.workspace !== undefined &&
+      !["thread", "none"].includes(config.workspace)
+    )
+      throw new Error("Invalid workspace mode");
     if (
       !Array.isArray(config.controls) ||
       config.controls.some(
@@ -295,7 +303,9 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
       project,
       config: this.config(id),
       facts: await Effect.runPromise(this.store.inspectScope(id)),
-      workspaces: this.workspaces.list(id),
+      ...(this.config(id)?.workspace === "none"
+        ? {}
+        : { workspaces: this.workspaces.list(id) }),
       pending: this.#pending(id),
       error: error?.error ?? null,
     };
@@ -853,12 +863,16 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
                   : []),
               ];
             })(),
-            work.context.value({
-              id: `${id}:workspaces`,
-              kind: "project-workspaces",
-              value: this.workspaces.list(id) as unknown as JsonValue,
-              provenance: [{ sourceType: "project", sourceId: id }],
-            }),
+            ...(config.workspace === "none"
+              ? []
+              : [
+                  work.context.value({
+                    id: `${id}:workspaces`,
+                    kind: "project-workspaces",
+                    value: this.workspaces.list(id) as unknown as JsonValue,
+                    provenance: [{ sourceType: "project", sourceId: id }],
+                  }),
+                ]),
             work.context.value({
               id: `${id}:instructions`,
               kind: "project-instructions",

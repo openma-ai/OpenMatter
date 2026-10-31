@@ -11,7 +11,10 @@ export interface ProjectWorkspaceBinding {
 }
 /** Thread-owned identity. Session generations and agent selection do not own a checkout. */
 export class ProjectWorkspaceRegistry {
-  constructor(readonly db: DatabaseSync) {
+  constructor(
+    readonly db: DatabaseSync,
+    readonly enabled: (projectId: string) => boolean = () => true,
+  ) {
     db.exec(
       "CREATE TABLE IF NOT EXISTS openmatter_project_workspaces(id TEXT PRIMARY KEY,project_id TEXT NOT NULL,thread_id TEXT NOT NULL,spec TEXT NOT NULL,location TEXT,UNIQUE(project_id,thread_id))",
     );
@@ -23,6 +26,8 @@ export class ProjectWorkspaceRegistry {
   ): ProjectWorkspaceBinding {
     if (!projectId || !workThreadId)
       throw new Error("Workspace requires a project and WorkThread");
+    if (!this.enabled(projectId))
+      throw new Error("Workspaces are disabled for this project");
     const id =
       "thread-" +
       createHash("sha256")
