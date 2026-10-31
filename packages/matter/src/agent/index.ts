@@ -91,6 +91,28 @@ export interface AgentTurnInput {
   readonly tools?: readonly AgentTool[];
 }
 
+/** One instruction injected into a running Turn. */
+export interface AgentSteerInput {
+  readonly session: AgentSessionHandle;
+  readonly sessionId: string;
+  /** The running Turn the instruction targets. */
+  readonly turnId: string;
+  /** Stable per logical steer (the WorkEvent idempotency key). Repeated
+   * delivery of one steerId MUST be applied at most once. */
+  readonly steerId: string;
+  readonly context: ContextProjection;
+}
+
+/**
+ * The driver's answer to a live steer. `accepted` promises the instruction
+ * reaches the Agent inside `turnId` (before its terminal event). Anything the
+ * driver cannot promise, such as a Turn that already finished, is `rejected`,
+ * and the runtime falls back to a new Turn.
+ */
+export type AgentSteerAck =
+  | { readonly status: "accepted" }
+  | { readonly status: "rejected"; readonly reason: string };
+
 export class AgentDriverError extends Data.TaggedError("AgentDriverError")<{
   readonly message: string;
   readonly cause?: unknown;
@@ -135,6 +157,12 @@ export interface AgentDriver {
     readonly callbackId: string;
     readonly result: JsonValue;
   }) => Effect.Effect<void, AgentDriverError>;
+  /** Injects an instruction into the running Turn. Required when
+   * capabilities include `steering`. Repeated calls for one steerId must be
+   * idempotent. */
+  readonly steer?: (
+    input: AgentSteerInput,
+  ) => Effect.Effect<AgentSteerAck, AgentDriverError>;
   /** Repeated cancellation for one Session/Turn must be idempotent. */
   readonly cancel: (input: {
     readonly session: AgentSessionHandle;
@@ -155,6 +183,9 @@ export interface AgentCapabilities {
   /** The driver exposes `AgentTurnInput.tools` to the Agent and reports calls
    * as `OPERATION_CALL_METHOD` callbacks. */
   readonly operations?: boolean;
+  /** The driver implements `steer`: an instruction can reach a running Turn
+   * instead of waiting for the next one. */
+  readonly steering?: boolean;
 }
 
 export type AgentDriverRegistry = ReadonlyMap<string, AgentDriver>;
