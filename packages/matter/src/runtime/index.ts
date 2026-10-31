@@ -123,6 +123,7 @@ export const createOpenMatter = (
   });
   const runAgentTurn = agentTurns.run;
   const cancelAgentTurn = agentTurns.cancel;
+  const steerAgentTurn = agentTurns.steer;
 
   /** Delivers one Effect now; a failure becomes a result, never an error. */
   const deliverNow = (
@@ -406,6 +407,33 @@ export const createOpenMatter = (
               Effect.provideService(StoreService, store),
               Effect.provideService(AgentDrivers, drivers),
             ),
+          steer: (input) => {
+            const sealed = structuredClone({ context: input.context });
+            if (
+              sealed.context.scopeId !== scopeId ||
+              sealed.context.workThreadId !== workThreadId
+            ) {
+              return Effect.fail(
+                new ContextProjectionError({
+                  message:
+                    "Context projection does not match the agent session binding",
+                }),
+              );
+            }
+            return authorizeContext(sealed.context, "agent.steer").pipe(
+              Effect.zipRight(
+                steerAgentTurn(
+                  event,
+                  agentId,
+                  authority,
+                  scopeId,
+                  workThreadId,
+                  privacyPartition,
+                  sealed,
+                ),
+              ),
+            );
+          },
           turn: (input) => {
             const invocation = ++agentTurnSequence;
             const sealedInput = structuredClone({

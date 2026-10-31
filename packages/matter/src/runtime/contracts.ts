@@ -112,6 +112,30 @@ export interface AgentCancellationResult {
   readonly turnId?: string;
 }
 
+/**
+ * What became of a steer (`session.steer`). `live` means the driver accepted
+ * the instruction into the running Turn `turnId`; nothing else needs to run.
+ * `queued` means it did not reach a running Turn, and the caller should run
+ * it as a new Turn (the pre-steering behaviour). `reason` says why:
+ * - `idle`: no Turn of this Session is running in this process;
+ * - `unsupported`: the driver does not declare `steering`;
+ * - `rejected`: the driver declined, e.g. the Turn just finished;
+ * - `failed`: the driver call failed.
+ */
+export type AgentSteerResult =
+  | { readonly status: "live"; readonly turnId: string }
+  | {
+      readonly status: "queued";
+      readonly reason: "idle" | "unsupported" | "rejected" | "failed";
+      readonly turnId?: string;
+      readonly detail?: string;
+    };
+
+export interface AgentSteerOptions {
+  /** The instruction, projected like a Turn's context. */
+  readonly context: ContextProjection;
+}
+
 export interface AgentPermissionRequest {
   readonly agentId: string;
   readonly requestId: string;
@@ -174,6 +198,18 @@ export interface WorkContext {
       readonly cancel: () => Effect.Effect<
         AgentCancellationResult,
         AgentAccessError | AgentDriverError | StoreError
+      >;
+      /** Injects an instruction into this Session's running Turn when the
+       * driver supports steering; otherwise reports `queued` and changes
+       * nothing. Idempotent per WorkEvent. */
+      readonly steer: (
+        input: AgentSteerOptions,
+      ) => Effect.Effect<
+        AgentSteerResult,
+        | AgentAccessError
+        | AuthorizationError
+        | ContextProjectionError
+        | StoreError
       >;
       readonly turn: (
         input: AgentTurnOptions,

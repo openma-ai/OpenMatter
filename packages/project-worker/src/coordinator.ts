@@ -493,6 +493,7 @@ export class ProjectWorker {
           ),
         ],
         cancelSources: ["project.worker.cancel.requested"],
+        steerSources: ["project.worker.steered"],
         controls: stored.config.controls,
         associate: associateProjectEvent,
         onTurnFinished: ({ context, turn }) => {
