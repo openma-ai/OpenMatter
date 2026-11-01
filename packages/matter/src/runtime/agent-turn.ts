@@ -10,6 +10,7 @@ import {
   isTurnTerminalEvent,
   OPERATION_CALL_METHOD,
   turnTerminalStatus,
+  type AgentDriver,
   type AgentDriverRegistry,
   type AgentSessionHandle,
   type AgentTool,
@@ -52,6 +53,8 @@ import {
   type AgentPermissionPolicy,
   type AgentPermissionRequest,
   type AgentCancellationResult,
+  type AgentSteerOptions,
+  type AgentSteerResult,
   type AgentTurnOptions,
   type AgentTurnResult,
 } from "./contracts.js";
@@ -71,6 +74,15 @@ export interface AgentTurnRuntime {
     AgentAccessError | AgentDriverError | StoreError,
     OpenMatterStore | AgentDriverRegistry
   >;
+  readonly steer: (
+    event: WorkEvent,
+    agentId: string,
+    authority: string,
+    scopeId: string,
+    workThreadId: string,
+    privacyPartition: string,
+    input: AgentSteerOptions,
+  ) => Effect.Effect<AgentSteerResult>;
   readonly run: (
     event: WorkEvent,
     agentId: string,
@@ -113,6 +125,31 @@ export const makeAgentTurnRuntime = (options: {
       workThreadId,
       privacyPartition,
     ]);
+
+  // Turns this process is streaming right now, by Session binding. A live
+  // steer can only reach a Turn whose driver stream this process owns; the
+  // Session lease guarantees at most one such Turn per binding.
+  const liveTurns = new Map<
+    string,
+    {
+      readonly turnId: string;
+      readonly sessionId: string;
+      readonly handle: AgentSessionHandle;
+      readonly driver: AgentDriver;
+      readonly steering: boolean;
+    }
+  >();
+  // Steer outcomes by steerId, so a retried steer Event (for example after
+  // its follow-up work failed) answers the same way instead of injecting the
+  // instruction twice. Bounded; outlives the Turn it reached.
+  const steerOutcomes = new Map<string, AgentSteerResult>();
+  const rememberSteer = (steerId: string, result: AgentSteerResult) => {
+    steerOutcomes.set(steerId, result);
+    if (steerOutcomes.size > 1024) {
+      steerOutcomes.delete(steerOutcomes.keys().next().value!);
+    }
+    return result;
+  };
 
   const decidePermission = (
     request: AgentPermissionRequest,
@@ -587,6 +624,14 @@ export const makeAgentTurnRuntime = (options: {
             };
           }
 
+          liveTurns.set(bindingKey, {
+            turnId,
+            sessionId: session.id,
+            handle,
+            driver,
+            steering:
+              capabilities.steering === true && driver.steer !== undefined,
+          });
           const lastSequence = storedEvents.at(-1)?.seq ?? 0;
           const interpreted = driver
             .turn({
@@ -840,7 +885,18 @@ export const makeAgentTurnRuntime = (options: {
               };
             }),
           );
-          const streamState = yield* Effect.raceFirst(interpreted, cancelled);
+          const streamState = yield* Effect.raceFirst(
+            interpreted,
+            cancelled,
+          ).pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                if (liveTurns.get(bindingKey)?.turnId === turnId) {
+                  liveTurns.delete(bindingKey);
+                }
+              }),
+            ),
+          );
           yield* store.appendAgentEvent(
             streamState.terminal,
             bindingKey,
@@ -967,7 +1023,77 @@ export const makeAgentTurnRuntime = (options: {
       return { status: "requested" as const, turnId: cancellation.turnId };
     });
 
-  return { cancel, run };
+  const steer: AgentTurnRuntime["steer"] = (
+    event,
+    agentId,
+    authority,
+    scopeId,
+    workThreadId,
+    privacyPartition,
+    input,
+  ) =>
+    Effect.gen(function* () {
+      const steerId = event.idempotencyKey;
+      const known = steerOutcomes.get(steerId);
+      if (known !== undefined) return known;
+      const bindingKey = bindingKeyFor(
+        agentId,
+        authority,
+        scopeId,
+        workThreadId,
+        privacyPartition,
+      );
+      const live = liveTurns.get(bindingKey);
+      if (live === undefined) {
+        return { status: "queued" as const, reason: "idle" as const };
+      }
+      if (!live.steering) {
+        return {
+          status: "queued" as const,
+          reason: "unsupported" as const,
+          turnId: live.turnId,
+        };
+      }
+      const ack = yield* live.driver.steer!({
+        session: live.handle,
+        sessionId: live.sessionId,
+        turnId: live.turnId,
+        steerId,
+        context: input.context,
+      }).pipe(
+        Effect.map((ack): AgentSteerResult =>
+          ack.status === "accepted"
+            ? { status: "live", turnId: live.turnId }
+            : {
+                status: "queued",
+                reason: "rejected",
+                turnId: live.turnId,
+                detail: ack.reason,
+              },
+        ),
+        Effect.catchAll((error) =>
+          Effect.succeed<AgentSteerResult>({
+            status: "queued",
+            reason: "failed",
+            turnId: live.turnId,
+            detail: error.message,
+          }),
+        ),
+        Effect.catchAllDefect((defect) =>
+          Effect.succeed<AgentSteerResult>({
+            status: "queued",
+            reason: "failed",
+            turnId: live.turnId,
+            detail: String(defect),
+          }),
+        ),
+      );
+      // Only a live outcome is final; a refused steer may be retried as a
+      // new Turn, which is idempotent by the Event.
+      return ack.status === "live" ? rememberSteer(steerId, ack) : ack;
+    });
+
+  return { cancel, run, steer };
 };
 
 /** The allowed operations whose integration describes them as tools. */
