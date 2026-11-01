@@ -3,6 +3,8 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import {
   JsonValueSchema,
   type AgentSession,
+  type AskAnswer,
+  type AskReceipt,
   type ContextProjection,
   type ConversationEntry,
   type EffectDeliveryReceipt,
@@ -332,6 +334,9 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
       ),
       conversationEntries: rows<ConversationEntry>("conversationEntry").filter(
         (e) => scopeId === undefined || eventIds.has(e.eventId),
+      ),
+      openAsks: rows<AskReceipt>("openAsk").filter(
+        (ask) => scopeId === undefined || turnIds.has(ask.turnId),
       ),
       turnCancellationRequests: rows<TurnCancellationRequest>(
         "cancellation",
@@ -806,6 +811,57 @@ export const makeSqliteStore = (options: SqliteStoreOptions): SqliteStore => {
           .filter((e) => e.revision > afterRevision)
           .sort((a, b) => a.revision - b.revision),
       ),
+    recordOpenAsk: (ask) =>
+      op(() => {
+        const existing = get<AskReceipt>("openAsk", ask.outboxId);
+        if (existing) return existing;
+        put(
+          "openAsk",
+          ask.outboxId,
+          ask,
+          null,
+          ask.conversationKey,
+          ask.outboxId,
+        );
+        return ask;
+      }, true),
+    getOpenAsk: (outboxId) => op(() => get<AskReceipt>("openAsk", outboxId)),
+    listOpenAsks: (conversationKey, options = {}) =>
+      op(() =>
+        rows<AskReceipt>("openAsk", "AND parent_id=?", [conversationKey])
+          .filter(
+            (ask) =>
+              (options.threadId === undefined ||
+                ask.threadId === options.threadId) &&
+              ask.status === (options.status ?? "open"),
+          )
+          .sort((left, right) =>
+            left.createdAt === right.createdAt
+              ? left.outboxId.localeCompare(right.outboxId)
+              : left.createdAt.localeCompare(right.createdAt),
+          ),
+      ),
+    completeOpenAsk: (outboxId, answer: AskAnswer, completedAt) =>
+      op(() => {
+        const existing = get<AskReceipt>("openAsk", outboxId);
+        if (!existing) return fail(`Unknown open ask: ${outboxId}`);
+        if (existing.status !== "open") return existing;
+        const answered: AskReceipt = {
+          ...existing,
+          status: "answered",
+          answer,
+          updatedAt: completedAt,
+        };
+        put(
+          "openAsk",
+          outboxId,
+          answered,
+          null,
+          existing.conversationKey,
+          outboxId,
+        );
+        return answered;
+      }, true),
     completeOperationCall: (turnId, callId, result, completedAt, key, token) =>
       op(() => {
         fence("session", key, token);

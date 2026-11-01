@@ -13,7 +13,10 @@ import {
   WorkEffectSchema,
   WorkEventSchema,
   MutationResultSchema,
+  matchOpenAsk,
+  withAskAnswer,
   type ContextProjection,
+  type ConversationEntry,
   type EffectDeliveryReceipt,
   type JsonValue,
   type Reaction,
@@ -719,22 +722,24 @@ export const createOpenMatter = (
     event: WorkEvent,
     store: OpenMatterStore,
     integrations: WorkIntegrationRegistry,
-  ): Effect.Effect<void, StoreError> =>
+  ): Effect.Effect<ConversationEntry | undefined, StoreError> =>
     Effect.gen(function* () {
-      if (!observed.has(event.type) && !handlers.has(event.type)) return;
+      if (!observed.has(event.type) && !handlers.has(event.type)) {
+        return undefined;
+      }
       const integration = integrations.get(event.source.provider);
-      if (integration?.observe === undefined) return;
+      if (integration?.observe === undefined) return undefined;
       let observation: unknown;
       try {
         observation = integration.observe(event);
       } catch {
-        return;
+        return undefined;
       }
       if (
         observation === undefined ||
         !Schema.is(ConversationObservationSchema)(observation)
       ) {
-        return;
+        return undefined;
       }
       const conversationKey = JSON.stringify([
         event.source.provider,
@@ -753,7 +758,7 @@ export const createOpenMatter = (
         threadId ??= recalled?.threadId;
         sender ??= recalled?.sender;
       }
-      yield* store.recordConversationEntry({
+      return yield* store.recordConversationEntry({
         conversationKey,
         eventId: event.id,
         kind: observation.kind,
@@ -791,9 +796,21 @@ export const createOpenMatter = (
       const store = yield* StoreService;
       const integrations = yield* WorkIntegrations;
       const drivers = yield* AgentDrivers;
-      yield* recordConversation(event, store, integrations);
+      const entry = yield* recordConversation(event, store, integrations);
+      const matched =
+        entry === undefined
+          ? undefined
+          : matchOpenAsk(
+              entry,
+              yield* store.listOpenAsks(entry.conversationKey),
+            );
+      const answeredAt = matched === undefined ? undefined : clock();
+      const acceptedEvent =
+        matched === undefined || answeredAt === undefined
+          ? event
+          : withAskAnswer(event, matched, answeredAt);
       const claim = yield* store.claimEvent(
-        event,
+        acceptedEvent,
         leaseRequest(options.eventLeaseMs ?? 60_000),
       );
 
@@ -823,7 +840,17 @@ export const createOpenMatter = (
         };
       }
 
-      const workEvent = claim.event;
+      if (matched !== undefined && answeredAt !== undefined) {
+        yield* store.completeOpenAsk(
+          matched.ask.outboxId,
+          { ...matched.answer, answeredAt },
+          answeredAt,
+        );
+      }
+      const workEvent =
+        matched === undefined || answeredAt === undefined
+          ? claim.event
+          : withAskAnswer(claim.event, matched, answeredAt);
       const handler = handlers.get(workEvent.type) ?? handlers.get("*");
       const work = makeWorkContext(workEvent, store, drivers, integrations);
       const handlerProgram =

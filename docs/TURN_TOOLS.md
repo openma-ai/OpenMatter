@@ -213,6 +213,56 @@ The write itself is remote, so a message can still arrive between the check
 and the provider accepting the send. Conversation freshness is
 `best-effort` in STATE_PROTECTION.md terms.
 
+## Asking for a reply
+
+Implemented (kernel). An outbound `send_message` / `message.reply` tool call can
+say that it expects an answer. The marker is part of the operation input, not a
+new tool or protocol:
+
+```ts
+// Either a top-level flag...
+input: { text: "Which environment?", expectReply: true }
+input: { text: "Which environment?", ask: true }
+// ...or an opaque host marker under _meta.
+input: { text: "Which environment?", _meta: { expectReply: true } }
+```
+
+The kernel reads the flag; the host owns every other `_meta` field. When the
+delivery result is `delivered`, the runtime records an `AskReceipt`
+(`StoreSnapshot.openAsks`) bound to:
+
+- `outboxId`, the delivery identity `${turnId}:call:${callId}` (the same id as
+  the WorkEffect);
+- the sending `turnId` and `callId`;
+- `conversationKey`, optional `threadId`, and `triggerEventId`;
+- `seenRevision`, the conversation revision the sender had seen when the reply
+  went out;
+- `status` (`open`, `answered`, or `cancelled`), timestamps, an optional
+  `answer`, and opaque `_meta`.
+
+A delivered ask whose trigger event has no conversation context is not
+recorded; a reply still delivers. Ask receipts are insert-once by `outboxId`,
+so a replayed callback or crash recovery cannot open two asks for one send.
+
+**Matching an answer.** After a human message is recorded, `matchOpenAsk(entry,
+openAsks)` matches the same `conversationKey` and `threadId`, a `human` sender,
+and a non-recall entry newer than the ask's `seenRevision`. The earliest
+still-open ask wins, so a burst cannot answer two asks with one message. The
+runtime completes that ask with the answer event id, revision, message id, and
+thread, and attaches the binding to the event under
+`WorkEvent.extensions["openma.ask"]` (`AskAnswerBinding`). Hosts may also call
+`matchOpenAsk` themselves against `ConversationObservation` or a recorded
+entry.
+
+**The Turn protocol does not change.** The human message is still an ordinary
+WorkEvent: it opens a new Turn when a handler asks for one. Nothing is merged
+into a running Turn and there is no busy-merge path. The answered ask does not
+make the sender's old Turn fresh either: if a newer human message arrived after
+the ask, a later reply from that old Turn still returns the usual
+`not-applied` freshness conflict. `recordOpenAsk`, `getOpenAsk`,
+`listOpenAsks`, and `completeOpenAsk` are the Store port; the memory, SQLite,
+and MySQL adapters implement them.
+
 ## A Turn that ends without a reply
 
 Nothing is posted. The Reaction records that the Agent did not reply. The

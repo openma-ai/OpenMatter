@@ -1,5 +1,7 @@
 import type {
   AgentSession,
+  AskAnswer,
+  AskReceipt,
   ContextProjection,
   ConversationEntry,
   EffectDeliveryReceipt,
@@ -66,6 +68,7 @@ export const makeMemoryStore = (
   const operationCalls = new Map<string, OperationCall>();
   const conversationEntries = new Map<string, ConversationEntry>();
   const conversationLogs = new Map<string, ConversationEntry[]>();
+  const openAsks = new Map<string, AskReceipt>();
   const goals = new Map<string, ThreadGoal>();
   const goalUsage = new Map<string, AccountThreadGoalInput>();
   const cancellations = new Map<string, TurnCancellationRequest>();
@@ -531,6 +534,51 @@ export const makeMemoryStore = (
           .map(copy),
       ),
 
+    recordOpenAsk: (ask) =>
+      storeTry(() => {
+        const existing = openAsks.get(ask.outboxId);
+        if (existing !== undefined) return copy(existing);
+        const durableAsk = copy(ask);
+        openAsks.set(ask.outboxId, durableAsk);
+        return copy(durableAsk);
+      }),
+
+    getOpenAsk: (outboxId) =>
+      Effect.sync(() => {
+        const ask = openAsks.get(outboxId);
+        return ask === undefined ? undefined : copy(ask);
+      }),
+
+    listOpenAsks: (conversationKey, options = {}) =>
+      Effect.sync(() =>
+        [...openAsks.values()]
+          .filter(
+            (ask) =>
+              ask.conversationKey === conversationKey &&
+              (options.threadId === undefined ||
+                ask.threadId === options.threadId) &&
+              ask.status === (options.status ?? "open"),
+          )
+          .map(copy),
+      ),
+
+    completeOpenAsk: (outboxId, answer: AskAnswer, completedAt) =>
+      storeTry(() => {
+        const existing = openAsks.get(outboxId);
+        if (existing === undefined) {
+          return fail(`Unknown open ask: ${outboxId}`);
+        }
+        if (existing.status !== "open") return copy(existing);
+        const answered: AskReceipt = {
+          ...existing,
+          status: "answered",
+          answer: copy(answer),
+          updatedAt: completedAt,
+        };
+        openAsks.set(outboxId, answered);
+        return copy(answered);
+      }),
+
     completeOperationCall: (
       turnId,
       callId,
@@ -783,6 +831,7 @@ export const makeMemoryStore = (
       permissionDecisions: [...permissionDecisions.values()].map(copy),
       operationCalls: [...operationCalls.values()].map(copy),
       conversationEntries: [...conversationEntries.values()].map(copy),
+      openAsks: [...openAsks.values()].map(copy),
     })),
   };
 };

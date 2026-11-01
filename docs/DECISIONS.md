@@ -122,3 +122,10 @@ This document records the active v0 decisions. Earlier briefs that conflict with
 - **Optional extension**: `AgentDriver.steer` (capability `steering`) and opaque `_meta` (on `AgentSteerInput` / `AgentSteerOptions`, and conventionally under `WorkEvent.extensions`) exist so hosts can pass host-defined payloads or offer mid-turn injection. **Payload semantics are host-defined**; OpenMatter does not interpret `_meta`.
 - **Explicit worker steer** via `steerSources` (e.g. `project.worker.steered`) remains a control-command path, not a busy-merge policy for ordinary coordinator Events.
 - Hosts that want mid-turn injection for inbox bursts (e.g. pi-bot backlog) call `AgentDriver.steer` themselves; they must not rely on OpenMatter to skip the new-Turn path for coordinator messages.
+
+## Ask / expect-reply receipts (2026-11-01)
+
+- **Ask is a reply flag, not a protocol.** A `send_message` / `message.reply` operation input may set `expectReply: true` or `ask: true`, or carry the flag in opaque `_meta`. OpenMatter reads only that marker; other host fields remain host-defined.
+- **Receipt identity.** A delivered ask is an `AskReceipt` bound to its `outboxId` (`${turnId}:call:${callId}`), the sending Turn/call, the conversation key/thread, and the `seenRevision` at send. Receipts are persisted by the Store (`recordOpenAsk`, `getOpenAsk`, `listOpenAsks`, `completeOpenAsk`) and exposed as `StoreSnapshot.openAsks`.
+- **An answer is still a new Turn.** After a human message is recorded, `matchOpenAsk` may bind it to the earliest open ask in the same conversation and thread, mark the ask `answered`, and attach `AskAnswerBinding` under `WorkEvent.extensions["openma.ask"]`. The WorkEvent still follows the normal new-Turn path; no running Turn is merged or resumed.
+- **Freshness is unchanged.** A human message after the ask is still newer for the old Turn, so its later reply returns `not-applied`/`newer_messages`. There is no busy-merge or `steerCoordinator` semantics in this feature.

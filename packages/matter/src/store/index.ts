@@ -1,5 +1,7 @@
 import type {
   AgentSession,
+  AskAnswer,
+  AskReceipt,
   ContextProjection,
   ConversationEntry,
   EffectDeliveryReceipt,
@@ -152,6 +154,7 @@ export interface StoreSnapshot {
   readonly permissionDecisions: readonly PermissionDecision[];
   readonly operationCalls: readonly OperationCall[];
   readonly conversationEntries: readonly ConversationEntry[];
+  readonly openAsks: readonly AskReceipt[];
 }
 
 export interface OpenMatterStore {
@@ -298,6 +301,31 @@ export interface OpenMatterStore {
     conversationKey: string,
     afterRevision: number,
   ) => Effect.Effect<readonly ConversationEntry[], StoreError>;
+
+  /** Inserts an ask receipt once by `outboxId`; a replay returns the stored
+   * receipt unchanged. */
+  readonly recordOpenAsk: (
+    ask: AskReceipt,
+  ) => Effect.Effect<AskReceipt, StoreError>;
+  readonly getOpenAsk: (
+    outboxId: string,
+  ) => Effect.Effect<AskReceipt | undefined, StoreError>;
+  /** Asks for a conversation, newest storage order first-come. Defaults to
+   * open asks; a status selects another state. */
+  readonly listOpenAsks: (
+    conversationKey: string,
+    options?: {
+      readonly threadId?: string;
+      readonly status?: AskReceipt["status"];
+    },
+  ) => Effect.Effect<readonly AskReceipt[], StoreError>;
+  /** Answers an open ask once. Answering an already answered ask returns the
+   * existing receipt, so an Event replay cannot bind it twice. */
+  readonly completeOpenAsk: (
+    outboxId: string,
+    answer: AskAnswer,
+    completedAt: string,
+  ) => Effect.Effect<AskReceipt, StoreError>;
 
   /** Completes a `pending` call under the Session fence. A completed call is
    * returned unchanged; a missing call fails. */

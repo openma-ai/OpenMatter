@@ -27,7 +27,10 @@ import {
   DEFAULT_FRESHNESS,
   JsonValueSchema,
   WorkEffectSchema,
+  conversationIdFromKey,
+  findAskMarker,
   type AgentSession,
+  type AskMarker,
   type ConversationEntry,
   type ConversationMessage,
   type FreshnessPolicy,
@@ -1217,6 +1220,15 @@ const asMessage = (entry: ConversationEntry): ConversationMessage => ({
 /** How many times a guarded call re-checks a conversation that keeps moving. */
 const FRESHNESS_ATTEMPTS = 5;
 
+const sourceConversationKey = (event: WorkEvent): string | undefined =>
+  event.source.conversationId === undefined
+    ? undefined
+    : JSON.stringify([
+        event.source.provider,
+        event.source.authority,
+        event.source.conversationId,
+      ]);
+
 const callOperationOnce = (input: {
   readonly store: OpenMatterStore;
   readonly integrations: WorkIntegrationRegistry;
@@ -1235,6 +1247,12 @@ const callOperationOnce = (input: {
   Effect.gen(function* () {
     const { store, turnId, callId, fingerprint, bindingKey, leaseToken } =
       input;
+    const params = isRecord(input.params) ? input.params : {};
+    const integrationId =
+      typeof params.integrationId === "string" ? params.integrationId : "";
+    const operation =
+      typeof params.operation === "string" ? params.operation : "";
+    const callInput = params.input;
     const complete = (result: OperationCallResult) =>
       store
         .completeOperationCall(
@@ -1247,6 +1265,54 @@ const callOperationOnce = (input: {
         )
         .pipe(Effect.map((call) => call.result ?? result));
 
+    /**
+     * A delivered reply that asks for one leaves an open ask bound to its
+     * outbox identity, Turn, and the conversation revision it was sent at.
+     * Replays call this again; the Store inserts once by outbox id.
+     */
+    const recordAsk = (
+      result: OperationCallResult,
+      marker: AskMarker | undefined,
+      options: {
+        readonly trigger?: ConversationEntry;
+        readonly seenRevision?: number;
+        readonly call?: OperationCall;
+      } = {},
+    ): Effect.Effect<void, StoreError> =>
+      Effect.gen(function* () {
+        if (result.status !== "delivered" || marker === undefined) return;
+        const trigger =
+          options.trigger ??
+          (yield* store.getConversationEntry(input.trigger.id));
+        const conversationKey =
+          trigger?.conversationKey ?? sourceConversationKey(input.trigger);
+        if (conversationKey === undefined) return;
+        const seenRevision =
+          options.seenRevision ??
+          options.call?.conversation?.revision ??
+          trigger?.revision ??
+          input.seen.revision;
+        const conversationId = conversationIdFromKey(conversationKey);
+        const now = input.clock();
+        yield* store.recordOpenAsk({
+          schemaVersion: "0.1",
+          conversationKey,
+          ...(conversationId === undefined ? {} : { conversationId }),
+          ...(trigger?.threadId === undefined
+            ? {}
+            : { threadId: trigger.threadId }),
+          outboxId: `${turnId}:call:${callId}`,
+          triggerEventId: input.trigger.id,
+          turnId,
+          callId,
+          seenRevision,
+          status: "open",
+          createdAt: now,
+          updatedAt: now,
+          ...(marker._meta === undefined ? {} : { _meta: marker._meta }),
+        });
+      });
+
     const stored = yield* store.getOperationCall(turnId, callId);
     if (stored !== undefined && stored.fingerprint !== fingerprint) {
       return yield* new AgentDriverError({
@@ -1254,6 +1320,11 @@ const callOperationOnce = (input: {
       });
     }
     if (stored?.state === "completed" && stored.result !== undefined) {
+      yield* recordAsk(
+        stored.result,
+        findAskMarker(params, callInput, stored.input),
+        { call: stored },
+      );
       return stored.result;
     }
     if (stored?.state === "pending") {
@@ -1264,12 +1335,6 @@ const callOperationOnce = (input: {
       });
     }
 
-    const params = isRecord(input.params) ? input.params : {};
-    const integrationId =
-      typeof params.integrationId === "string" ? params.integrationId : "";
-    const operation =
-      typeof params.operation === "string" ? params.operation : "";
-    const callInput = params.input;
     const name = `${integrationId}.${operation}`;
     const integration = input.integrations.get(integrationId);
     const unbound =
@@ -1311,12 +1376,14 @@ const callOperationOnce = (input: {
       state: "pending",
       startedAt,
     };
+    const askMarker = findAskMarker(params, callInput, deliveredInput);
     const guarded =
       refusal === undefined &&
       integration?.manifest.tools?.[operation]?.freshness !== undefined;
-    const trigger = guarded
-      ? yield* store.getConversationEntry(input.trigger.id)
-      : undefined;
+    const trigger =
+      guarded || askMarker !== undefined
+        ? yield* store.getConversationEntry(input.trigger.id)
+        : undefined;
 
     // A guarded call is inserted only while its conversation is still at the
     // revision it was checked at, so the check and the record are one store
@@ -1406,6 +1473,11 @@ const callOperationOnce = (input: {
       });
     }
     if (begun.state === "completed" && begun.result !== undefined) {
+      yield* recordAsk(
+        begun.result,
+        findAskMarker(params, callInput, begun.input),
+        { call: begun },
+      );
       return begun.result;
     }
     if (begun.startedAt !== startedAt) {
@@ -1421,6 +1493,20 @@ const callOperationOnce = (input: {
       });
     }
     if (conflict !== undefined) return yield* complete(conflict);
+
+    // The ask binds the revision its sender had seen when the reply went out.
+    // A guarded call already checked that revision; an unguarded ask reads the
+    // conversation once, just before delivery.
+    let askSeenRevision = call.conversation?.revision ?? input.seen.revision;
+    if (askMarker !== undefined && call.conversation === undefined) {
+      if (trigger !== undefined) {
+        const entries = yield* store.listConversationEntries(
+          trigger.conversationKey,
+          0,
+        );
+        askSeenRevision = entries.at(-1)?.revision ?? trigger.revision;
+      }
+    }
 
     const effectId = `${turnId}:call:${callId}`;
     const effect: WorkEffect = {
@@ -1473,5 +1559,11 @@ const callOperationOnce = (input: {
         }),
       ),
     );
-    return yield* complete(result);
+    const completed = yield* complete(result);
+    yield* recordAsk(completed, askMarker, {
+      ...(trigger === undefined ? {} : { trigger }),
+      seenRevision: askSeenRevision,
+      call,
+    });
+    return completed;
   });
