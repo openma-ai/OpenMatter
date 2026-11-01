@@ -57,7 +57,40 @@ sources remain replaceable. [Explore the full architecture →](docs/ARCHITECTUR
 - **Deployment stays yours.** OpenMatter owns no mandatory server, queue,
   scheduler, database, credential service, Hub, or SaaS control plane.
 
+## Core concepts
+
+- **Loop** — the application declares which events it subscribes to and how
+  they route to a WorkThread and Session. The handler decides whether an event
+  starts work or is only recorded.
+- **Bond** — an identity plus `SecretRef`s. A Bond stores no secret values; a
+  `CredentialResolver` fetches them when an operation needs them. See
+  [Bonds](docs/BONDS.md) and [Credentials](docs/CREDENTIALS.md).
+- **Turn** — a new message opens a new Turn, queued behind a running one by
+  default. A driver that declares `capabilities.steering` and implements
+  `AgentDriver.steer` can receive a steer into the running Turn; the steer
+  payload is host-defined, and drivers without it fall back to a queued Turn.
+- **Reply as an in-Turn tool** — replies are operation calls. Before sending,
+  the runtime checks freshness against the conversation revision the Turn has
+  seen; if newer human messages arrived, the call returns a conflict with
+  `effect: "not-applied"`. A delivered reply records a receipt. An `ask` /
+  `expectReply` marker on a reply records an ask receipt that binds the next
+  human answer in the same thread, and the answer still opens a new Turn. See
+  [Turn tool calls](docs/TURN_TOOLS.md).
+- **Coordinator and workers** — `@openma/matter-project-host` runs Projects
+  where a coordinator delegates, steers, and cancels worker threads; a steer
+  reaches a running worker live only when its driver supports steering. Projects may use `workspace: "none"` when no git
+  workspace is needed. See [Projects worker](docs/PROJECTS_WORKER.md).
+
+A longer walkthrough in Chinese, with figures, is
+[用 OpenMatter 在任意 harness 上搭 Super-agent](https://github.com/clash-art/draft/blob/openmatter-super-agent-v6.49/content/openmatter-super-agent/article.zh.md).
+
 ## Run the executable example
+
+Published packages are on npm at `0.2.8`:
+
+```sh
+pnpm add @openma/matter @openma/matter-orchestration
+```
 
 The repository targets Node.js 22.5+, TypeScript 6, and Effect 3.
 
@@ -235,10 +268,12 @@ other implicitly. Read the [identity model](docs/IDENTITY_MODEL.md).
 | `@openma/matter-store-mysql`  | MySQL store shared by stateless host replicas, partitioned by tenant                                                                                                                                                                                                                                                                 |
 | `@openma/matter-inbox-mysql`  | MySQL durable inbox shared by stateless host replicas (leased claims)                                                                                                                                                                                                                                                                |
 | `@openma/matter-host-local`   | Long-connection host for a long-running Node.js process: the generic runtime (`/runtime`) and Slack Socket Mode                                                                                                                                                                                                                      |
+| `@openma/matter-orchestration` | Orchestration presets: `claudeTag()`, coordinator Loops, multi-agent patterns                                                                                                                                                                                                                                                                       |
+| `@openma/matter-project`      | Project identity, goals, worker control commands, and `ProjectWorkService` contracts                                                                                                                                                                                                                                                                                                 |
+| `@openma/matter-project-host` | Local Node.js Project host: SQLite store and inbox, project runtime, `workspace: "none"`, integration and Turn-grant injection                                                                                                                                                                                                                                         |
 
-Reference adapters (`store-memory`, `*-mock`), the Slack, GitHub, and Linear providers
-(`@openma/matter-<provider>/bond`, like GitLab),
-`orchestration`, the Projects packages, the other hosts, and the Fastify/Hono components
+All packages above are published at `0.2.8`. Reference adapters (`store-memory`, `*-mock`), the Slack, GitHub, and Linear providers
+(`@openma/matter-<provider>/bond`, like GitLab), `project-mcp`, `project-worker`, the other hosts, and the Fastify/Hono components
 live in this repository as private workspace packages.
 
 The dependency direction and ownership of every package are documented in
