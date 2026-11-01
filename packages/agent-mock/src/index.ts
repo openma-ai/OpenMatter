@@ -3,6 +3,7 @@ import {
   createOpenMAEvent,
   OPERATION_CALL_METHOD,
   type AgentDriver,
+  type AgentSteerInput,
   type AgentTurnInput,
   type OpenMAEvent,
 } from "@openma/matter/agent";
@@ -20,6 +21,8 @@ export interface MockAgentDriver {
   }[];
   readonly turnInputs: () => readonly AgentTurnInput[];
   readonly cancelledTurns: () => readonly string[];
+  /** Steers the driver accepted, in order, deduplicated by steerId. */
+  readonly steerInputs: () => readonly AgentSteerInput[];
   readonly createdSessions: () => number;
 }
 
@@ -47,7 +50,13 @@ export const makeMockAgentDriver = (options: {
   /** Awaited at the start of each Turn, before any event: the world moving
    * while the Agent works. */
   readonly beforeEvents?: (input: AgentTurnInput) => Promise<void>;
+  /** Declares `steering` and implements `steer`: a steer is accepted while
+   * its Turn has not emitted its output, and shows up in that Turn as an
+   * `agent.message` with `steered` before the output. */
+  readonly steering?: boolean;
 }): MockAgentDriver => {
+  const steerInputs: AgentSteerInput[] = [];
+  const openTurns = new Map<string, AgentSteerInput[]>();
   let nextSession = 1;
   const permissionResponses: Array<{
     readonly requestId: string;
@@ -70,6 +79,9 @@ export const makeMockAgentDriver = (options: {
         permissions: true,
         concurrentTurns: false,
         operations: options.operations ?? options.operationCalls !== undefined,
+        ...(options.steering === undefined
+          ? {}
+          : { steering: options.steering }),
       }),
     createSession: ({ idempotencyKey }) =>
       Effect.sync(() => {
@@ -82,6 +94,7 @@ export const makeMockAgentDriver = (options: {
     resumeSession: (handle) => Effect.succeed(handle),
     turn: (input) => {
       turnInputs.push(input);
+      openTurns.set(input.turnId, []);
       if (options.neverComplete) return Stream.never;
       const timestamp = new Date().toISOString();
       let seq = 0;
@@ -100,41 +113,55 @@ export const makeMockAgentDriver = (options: {
           source: { kind: "harness", harness: options.id },
           data,
         } as Parameters<typeof createOpenMAEvent>[0]) as OpenMAEvent;
-      const events: readonly OpenMAEvent[] = [
-        ...(options.permissionRequestId === undefined
-          ? []
-          : [
-              event("permission", "callback.requested", {
-                callback_id: options.permissionRequestId,
-                fingerprint: `${input.turnId}:${options.permissionRequestId}`,
-                method: "permission.request",
-                category: "permission",
-              }),
-            ]),
-        ...(options.operationCalls ?? []).map((call) =>
-          event(`call:${call.callId}`, "callback.requested", {
-            callback_id: call.callId,
-            fingerprint: `${input.turnId}:${call.callId}:${JSON.stringify([
-              call.integrationId,
-              call.operation,
-              call.input,
-            ])}`,
-            method: OPERATION_CALL_METHOD,
-            category: "extension",
-            params: {
-              integrationId: call.integrationId,
-              operation: call.operation,
-              input: call.input,
-            },
-          }),
+      const build = (): readonly OpenMAEvent[] => {
+        const steered = openTurns.get(input.turnId) ?? [];
+        openTurns.delete(input.turnId);
+        return [
+          ...(options.permissionRequestId === undefined
+            ? []
+            : [
+                event("permission", "callback.requested", {
+                  callback_id: options.permissionRequestId,
+                  fingerprint: `${input.turnId}:${options.permissionRequestId}`,
+                  method: "permission.request",
+                  category: "permission",
+                }),
+              ]),
+          ...(options.operationCalls ?? []).map((call) =>
+            event(`call:${call.callId}`, "callback.requested", {
+              callback_id: call.callId,
+              fingerprint: `${input.turnId}:${call.callId}:${JSON.stringify([
+                call.integrationId,
+                call.operation,
+                call.input,
+              ])}`,
+              method: OPERATION_CALL_METHOD,
+              category: "extension",
+              params: {
+                integrationId: call.integrationId,
+                operation: call.operation,
+                input: call.input,
+              },
+            }),
+          ),
+          ...steered.map((steer) =>
+            event(`steer:${steer.steerId}`, "agent.message", {
+              text: `steered:${steer.steerId}`,
+              steered: steer.steerId,
+            }),
+          ),
+          event("output", "agent.message", { text: options.output }),
+          ...(options.omitTerminal
+            ? []
+            : [
+                event("terminal", options.terminalType ?? "turn.completed", {}),
+              ]),
+        ];
+      };
+      const stream = Stream.suspend(() =>
+        Stream.fromIterable(
+          build().filter((item) => (item.seq ?? 0) > input.afterSequence),
         ),
-        event("output", "agent.message", { text: options.output }),
-        ...(options.omitTerminal
-          ? []
-          : [event("terminal", options.terminalType ?? "turn.completed", {})]),
-      ];
-      const stream = Stream.fromIterable(
-        events.filter((item) => (item.seq ?? 0) > input.afterSequence),
       );
       const before = options.beforeEvents;
       return before === undefined
@@ -151,6 +178,25 @@ export const makeMockAgentDriver = (options: {
       Effect.sync(() => {
         callbackResponses.push({ callbackId, result });
       }),
+    ...(options.steering
+      ? {
+          steer: (input: AgentSteerInput) =>
+            Effect.sync(() => {
+              const open = openTurns.get(input.turnId);
+              if (open === undefined) {
+                return {
+                  status: "rejected" as const,
+                  reason: "Turn is not running",
+                };
+              }
+              if (!steerInputs.some((s) => s.steerId === input.steerId)) {
+                steerInputs.push(input);
+                open.push(input);
+              }
+              return { status: "accepted" as const };
+            }),
+        }
+      : {}),
     cancel: ({ turnId }) =>
       Effect.sync(() => {
         cancelledTurns.push(turnId);
@@ -164,6 +210,7 @@ export const makeMockAgentDriver = (options: {
     callbackResponses: () => [...callbackResponses],
     turnInputs: () => [...turnInputs],
     cancelledTurns: () => [...cancelledTurns],
+    steerInputs: () => [...steerInputs],
     createdSessions: () => nextSession - 1,
   };
 };

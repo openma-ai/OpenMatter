@@ -220,6 +220,7 @@ export const makeConnectorAgentDriver = (
         // A connector with custom tools receives the Turn's tools and reports
         // calls as OPERATION_CALL_METHOD callbacks.
         operations: value.customTools === true,
+        steering: value.steering === true,
       })),
     );
 
@@ -368,6 +369,17 @@ export const makeConnectorAgentDriver = (
           }),
         catch: (cause) =>
           driverError("Could not answer Claude Agent callback", cause),
+      }),
+    steer: ({ session, context }) =>
+      Effect.tryPromise({
+        try: async () => {
+          await connector.send(connectorHandleFrom(session), {
+            type: "turn.steer",
+            content: projectContent(context),
+          });
+          return { status: "accepted" as const };
+        },
+        catch: (cause) => driverError("Could not steer Agent Turn", cause),
       }),
     cancel: ({ session, turnId }) =>
       Effect.tryPromise({

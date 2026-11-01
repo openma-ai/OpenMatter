@@ -359,7 +359,7 @@ export const makeProjectMcpServer = (
       "project.steer",
       {
         description:
-          "Queue a follow-up instruction on an existing worker Session.",
+          "Steer an existing worker. A running worker Turn receives the instruction live when its Agent supports steering; otherwise it runs as the worker's next Turn. The outcome (live or queued) arrives as a coordinator-worker-steer context item.",
         inputSchema: z.object({
           workerId: z.string().min(1),
           instruction: z.string().min(1),

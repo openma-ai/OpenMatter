@@ -844,6 +844,7 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
             ),
           ],
           cancelSources: ["project.worker.cancel.requested"],
+          steerSources: ["project.worker.steered"],
           controls: config.controls,
           associate: associateProjectEvent,
           ...(this.#deps.grants

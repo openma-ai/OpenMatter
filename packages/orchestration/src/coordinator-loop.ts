@@ -55,6 +55,14 @@ export interface CoordinatorLoopOptions {
       }) => CallbackResult<string>);
   /** Agent-facing control surface. A simple Router needs only `delegate`. */
   readonly controls?: readonly CoordinatorControl[];
+  /**
+   * Event types that steer a worker. When the worker's Session has a running
+   * Turn and its driver supports steering, the instruction is injected into
+   * that Turn; otherwise it runs as a new worker Turn. Either way the
+   * coordinator's next Turn sees a `coordinator-worker-steer` item saying
+   * `live` or `queued`.
+   */
+  readonly steerSources?: string | readonly string[];
   /** Event types that request cancellation instead of starting another Turn. */
   readonly cancelSources?: string | readonly string[];
   readonly goal?: JsonValue;
@@ -203,6 +211,13 @@ const makeCoordinatorLoop = (
         ? [options.cancelSources]
         : options.cancelSources,
   );
+  const steerSources = new Set(
+    options.steerSources === undefined
+      ? []
+      : typeof options.steerSources === "string"
+        ? [options.steerSources]
+        : options.steerSources,
+  );
   const workerAgent = options.workerAgent;
   const workerAgentDefinition =
     workerAgent === undefined
@@ -248,6 +263,9 @@ const makeCoordinatorLoop = (
           ...(cancelSources.size === 0
             ? {}
             : { cancelSources: [...cancelSources] }),
+          ...(steerSources.size === 0
+            ? {}
+            : { steerSources: [...steerSources] }),
         },
         context:
           options.context === undefined
@@ -298,7 +316,7 @@ const makeCoordinatorLoop = (
               }),
             );
           };
-          const runProjectTurn = (
+          const projectTarget = (
             target: CoordinatorAssociation,
             resultItems: readonly ContextItem[] = [],
           ) =>
@@ -348,17 +366,26 @@ const makeCoordinatorLoop = (
                 ],
                 grants,
               });
-              const turn = yield* work
-                .agent(agentId)
-                .session({
-                  scopeId: target.scopeId,
-                  workThreadId,
-                  ...(target.authority === undefined
-                    ? {}
-                    : { authority: target.authority }),
-                  privacyPartition: target.privacyPartition ?? target.scopeId,
-                })
-                .turn({ context, allow: grants });
+              const session = work.agent(agentId).session({
+                scopeId: target.scopeId,
+                workThreadId,
+                ...(target.authority === undefined
+                  ? {}
+                  : { authority: target.authority }),
+                privacyPartition: target.privacyPartition ?? target.scopeId,
+              });
+              return { context, session };
+            });
+          const runProjectTurn = (
+            target: CoordinatorAssociation,
+            resultItems: readonly ContextItem[] = [],
+          ) =>
+            Effect.gen(function* () {
+              const { context, session } = yield* projectTarget(
+                target,
+                resultItems,
+              );
+              const turn = yield* session.turn({ context, allow: grants });
               if (options.onTurnFinished)
                 yield* resolve(() =>
                   options.onTurnFinished!({
@@ -417,14 +444,46 @@ const makeCoordinatorLoop = (
               ],
             );
           } else {
-            const first = yield* runProjectTurn(association);
-            if (association.thread.kind === "coordinator") {
+            let steerItems: readonly ContextItem[] = [];
+            if (
+              association.thread.kind === "worker" &&
+              steerSources.has(work.event.type)
+            ) {
+              const { context, session } = yield* projectTarget(association);
+              const steered = yield* session.steer({ context });
+              steerItems = [
+                work.context.value({
+                  id: `${options.id}:worker-steer:${association.thread.id}`,
+                  kind: "coordinator-worker-steer",
+                  value: {
+                    workerId: association.thread.id,
+                    ...steered,
+                  },
+                  provenance: [
+                    { sourceType: "work-event", sourceId: work.event.id },
+                  ],
+                }),
+              ];
+            }
+            const steeredLive =
+              steerItems.length > 0 &&
+              (steerItems[0]!.value as { status?: string }).status === "live";
+            const first = steeredLive
+              ? undefined
+              : yield* runProjectTurn(association);
+            if (first === undefined) {
+              completed = yield* runProjectTurn(
+                { ...association, thread: { kind: "coordinator" } },
+                steerItems,
+              );
+            } else if (association.thread.kind === "coordinator") {
               completed = first;
             } else {
               workerTurn = first.turn;
               completed = yield* runProjectTurn(
                 { ...association, thread: { kind: "coordinator" } },
                 [
+                  ...steerItems,
                   work.context.value({
                     id: `${options.id}:worker-result:${association.thread.id}`,
                     kind: "coordinator-worker-result",
