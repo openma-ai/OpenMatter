@@ -1,6 +1,6 @@
 {
   "name": "@openma/matter-project",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "OpenMatter Project work surface: project identity, goals, worker control commands, and the ProjectWorkService contracts.",
   "license": "Apache-2.0",
   "repository": {

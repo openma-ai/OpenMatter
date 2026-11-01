@@ -1,6 +1,6 @@
 {
   "name": "@openma/matter-project-host",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Local Node.js host for OpenMatter Projects: SQLite store and inbox, project runtime, and host injection points for integrations and Turn grants.",
   "license": "Apache-2.0",
   "repository": {
