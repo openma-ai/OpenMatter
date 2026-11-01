@@ -115,3 +115,10 @@ This document records the active v0 decisions. Earlier briefs that conflict with
 - Long-lived AsyncIterable sources and request/serverless input enter the same `acceptEffect` program.
 - Integration ingress maps native observations to WorkEvents; integration egress interprets WorkEffects.
 - Photon informs the coherence of the integration boundary only. OpenMatter does not adopt Spectrum's messaging object model, provider-authoring API, or managed connector plane.
+
+## Turn protocol vs optional steer / `_meta` (2026-10-31)
+
+- **Protocol**: each WorkEvent still opens a **new Turn**. OpenMatter does not encode "busy human/coordinator message merges into the running Turn" as protocol meaning.
+- **Optional extension**: `AgentDriver.steer` (capability `steering`) and opaque `_meta` (on `AgentSteerInput` / `AgentSteerOptions`, and conventionally under `WorkEvent.extensions`) exist so hosts can pass host-defined payloads or offer mid-turn injection. **Payload semantics are host-defined**; OpenMatter does not interpret `_meta`.
+- **Explicit worker steer** via `steerSources` (e.g. `project.worker.steered`) remains a control-command path, not a busy-merge policy for ordinary coordinator Events.
+- Hosts that want mid-turn injection for inbox bursts (e.g. pi-bot backlog) call `AgentDriver.steer` themselves; they must not rely on OpenMatter to skip the new-Turn path for coordinator messages.

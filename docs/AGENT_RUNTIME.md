@@ -108,6 +108,9 @@ A channel may have multiple WorkThreads and Sessions. Multiple channels may cont
 
 A Turn is one agent invocation inside a Session.
 
+Protocol Events always open a **new** Turn. Optional `AgentDriver.steer` and opaque `_meta` / `WorkEvent.extensions` are host-interpreted extension surfaces; OpenMatter does not treat "busy message merges into the running Turn" as protocol meaning. See [DECISIONS.md](./DECISIONS.md#turn-protocol-vs-optional-steer--_meta-2026-10-31).
+
+
 ```text
 queued → running → completed
                 ↘ failed

@@ -21,13 +21,6 @@ export interface ProjectWorkConfig {
    * `none`: non-git work; no workspace registration, branch naming, or context.
    */
   workspace?: "thread" | "none";
-  /**
-   * Enable coordinator-thread live steering for this project. When true, a
-   * message arriving while the coordinator Turn is running joins that Turn
-   * instead of waiting for another one. Requires a coordinator driver that
-   * declares `steering` and implements `steer`.
-   */
-  steerCoordinator?: boolean;
   controls: ("delegate" | "steer" | "cancel" | "complete")[];
 }
 export interface ProjectWorkView<

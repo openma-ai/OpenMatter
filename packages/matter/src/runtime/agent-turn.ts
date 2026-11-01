@@ -1060,6 +1060,7 @@ export const makeAgentTurnRuntime = (options: {
         turnId: live.turnId,
         steerId,
         context: input.context,
+        ...(input._meta === undefined ? {} : { _meta: input._meta }),
       }).pipe(
         Effect.map((ack): AgentSteerResult =>
           ack.status === "accepted"

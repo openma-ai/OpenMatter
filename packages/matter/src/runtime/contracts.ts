@@ -134,6 +134,11 @@ export type AgentSteerResult =
 export interface AgentSteerOptions {
   /** The instruction, projected like a Turn's context. */
   readonly context: ContextProjection;
+  /**
+   * Host-defined opaque bag forwarded to `AgentDriver.steer` as `_meta`.
+   * OpenMatter does not interpret it.
+   */
+  readonly _meta?: JsonValue;
 }
 
 export interface AgentPermissionRequest {
