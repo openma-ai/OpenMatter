@@ -1,7 +1,13 @@
 {
   "name": "@openma/matter-project",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.7",
+  "description": "OpenMatter Project work surface: project identity, goals, worker control commands, and the ProjectWorkService contracts.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openma-ai/OpenMatter.git",
+    "directory": "packages/project"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -22,5 +28,9 @@
   },
   "peerDependencies": {
     "effect": "^3.22.1"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

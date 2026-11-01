@@ -1,7 +1,13 @@
 {
   "name": "@openma/matter-project-host",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.7",
+  "description": "Local Node.js host for OpenMatter Projects: SQLite store and inbox, project runtime, and host injection points for integrations and Turn grants.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openma-ai/OpenMatter.git",
+    "directory": "packages/project-host"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -28,5 +34,9 @@
   },
   "engines": {
     "node": ">=22.13"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
