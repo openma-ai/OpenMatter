@@ -91,4 +91,68 @@ describe("project host", () => {
     ).toBeNull();
     await resumed.close();
   });
+
+  for (const mode of ["thread", "none", undefined] as const)
+    it(`workspace mode ${mode ?? "default"} controls workspace context and registration`, async () => {
+      const directory = await mkdtemp(join(tmpdir(), "openmatter-project-"));
+      directories.push(directory);
+      const project = { id: "project-ws", name: "Docs" };
+      const mocks: ReturnType<typeof makeMockAgentDriver>[] = [];
+      const service = new ProjectWorkService({
+        directory,
+        getProject: (id) => (id === project.id ? project : null),
+        driver: (id) => {
+          const mock = makeMockAgentDriver({ id, output: `done:${id}` });
+          mocks.push(mock);
+          return mock.driver;
+        },
+      });
+      await service.save({
+        ...configFor(project.id),
+        ...(mode ? { workspace: mode } : {}),
+      });
+      await service.submit({
+        projectId: project.id,
+        commandId: "message-ws",
+        type: "message",
+        text: "Write the release notes",
+      });
+      await service.drain();
+      const view = await service.view(project.id);
+      expect(view.error).toBeNull();
+      expect(view.facts.turns.length).toBeGreaterThan(0);
+      const inputs = JSON.stringify(mocks.flatMap((m) => m.turnInputs()));
+      expect(inputs).toContain("project-instructions");
+      if (mode === "none") {
+        expect(inputs).not.toContain("project-workspaces");
+        expect(view.workspaces).toBeUndefined();
+        expect(() =>
+          service.workspaces.reserve(project.id, "thread-1", {}),
+        ).toThrow(/disabled/);
+      } else {
+        expect(inputs).toContain("project-workspaces");
+        expect(view.workspaces).toEqual([]);
+        expect(
+          service.workspaces.reserve(project.id, "thread-1", {}).branch,
+        ).toMatch(/^openmatter\/thread-/);
+      }
+      await service.close();
+    });
+
+  it("rejects an unknown workspace mode", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "openmatter-project-"));
+    directories.push(directory);
+    const service = new ProjectWorkService({
+      directory,
+      getProject: (id) => ({ id, name: "x" }),
+      driver: (id) => makeMockAgentDriver({ id, output: "ok" }).driver,
+    });
+    await expect(
+      service.save({
+        ...configFor("p"),
+        workspace: "git" as unknown as "none",
+      }),
+    ).rejects.toThrow(/workspace mode/);
+    await service.close();
+  });
 });

@@ -14,6 +14,12 @@ export interface ProjectWorkConfig {
   workerEnvironment?: string;
   workerAgent: string;
   continuity: "per-scope" | "per-run";
+  /**
+   * `thread` (default): each WorkThread owns a workspace binding (branch
+   * `openmatter/<id>`) and the list is injected as `project-workspaces` context.
+   * `none`: non-git work; no workspace registration, branch naming, or context.
+   */
+  workspace?: "thread" | "none";
   controls: ("delegate" | "steer" | "cancel" | "complete")[];
 }
 export interface ProjectWorkView<
