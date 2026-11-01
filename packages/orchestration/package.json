@@ -1,7 +1,13 @@
 {
   "name": "@openma/matter-orchestration",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.7",
+  "description": "Shared orchestration presets and helpers for OpenMatter: coordinator loops and multi-agent work patterns built on the kernel contracts.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openma-ai/OpenMatter.git",
+    "directory": "packages/orchestration"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -21,5 +27,9 @@
   },
   "peerDependencies": {
     "effect": "^3.22.1"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
