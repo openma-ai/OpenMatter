@@ -91,7 +91,12 @@ export interface AgentTurnInput {
   readonly tools?: readonly AgentTool[];
 }
 
-/** One instruction injected into a running Turn. */
+/**
+ * One instruction offered to a running Turn via the optional `steer` method.
+ * OpenMatter does not assign busy-merge meaning to this call: protocol Events
+ * still open a new Turn. Whether a host invokes `steer`, and what `context` /
+ * `_meta` mean, is host-defined.
+ */
 export interface AgentSteerInput {
   readonly session: AgentSessionHandle;
   readonly sessionId: string;
@@ -101,6 +106,12 @@ export interface AgentSteerInput {
    * delivery of one steerId MUST be applied at most once. */
   readonly steerId: string;
   readonly context: ContextProjection;
+  /**
+   * Host-defined opaque bag. OpenMatter does not interpret this field; hosts
+   * may put hints such as UI provenance or merge policy under keys they own
+   * (often nested as `_meta` on `WorkEvent.extensions` as well).
+   */
+  readonly _meta?: JsonValue;
 }
 
 /**
@@ -157,9 +168,12 @@ export interface AgentDriver {
     readonly callbackId: string;
     readonly result: JsonValue;
   }) => Effect.Effect<void, AgentDriverError>;
-  /** Injects an instruction into the running Turn. Required when
+  /**
+   * Optional extension: offer an instruction to a running Turn. Required when
    * capabilities include `steering`. Repeated calls for one steerId must be
-   * idempotent. */
+   * idempotent. OpenMatter protocol still opens a new Turn per Event; hosts
+   * decide when to call this and what `context` / `_meta` mean.
+   */
   readonly steer?: (
     input: AgentSteerInput,
   ) => Effect.Effect<AgentSteerAck, AgentDriverError>;
@@ -183,8 +197,12 @@ export interface AgentCapabilities {
   /** The driver exposes `AgentTurnInput.tools` to the Agent and reports calls
    * as `OPERATION_CALL_METHOD` callbacks. */
   readonly operations?: boolean;
-  /** The driver implements `steer`: an instruction can reach a running Turn
-   * instead of waiting for the next one. */
+  /**
+   * The driver implements optional `steer`. This is an extension capability,
+   * not a protocol busy-merge: Events still open new Turns unless a host (or
+   * an explicit control path such as worker steerSources) chooses to call
+   * `steer`.
+   */
   readonly steering?: boolean;
 }
 

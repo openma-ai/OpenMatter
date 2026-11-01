@@ -56,11 +56,17 @@ export interface CoordinatorLoopOptions {
   /** Agent-facing control surface. A simple Router needs only `delegate`. */
   readonly controls?: readonly CoordinatorControl[];
   /**
-   * Event types that steer a worker. When the worker's Session has a running
-   * Turn and its driver supports steering, the instruction is injected into
-   * that Turn; otherwise it runs as a new worker Turn. Either way the
-   * coordinator's next Turn sees a `coordinator-worker-steer` item saying
-   * `live` or `queued`.
+   * Event types that are explicit worker-steer *commands* (e.g.
+   * `project.worker.steered`). When the worker Session has a running Turn and
+   * its driver supports steering, the instruction may be injected into that
+   * Turn; otherwise it runs as a new worker Turn. Either way the coordinator's
+   * next Turn sees a `coordinator-worker-steer` item saying `live` or
+   * `queued`.
+   *
+   * This is not a busy-merge policy for ordinary coordinator/human Events:
+   * those still open a new Turn. Optional mid-turn injection for human
+   * messages is a host interpretation of `AgentDriver.steer` /
+   * `WorkEvent.extensions` (e.g. `_meta`), not OpenMatter protocol.
    */
   readonly steerSources?: string | readonly string[];
   /** Event types that request cancellation instead of starting another Turn. */

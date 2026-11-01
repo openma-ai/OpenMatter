@@ -74,6 +74,8 @@ const setup = (steering: boolean) => {
   return { app, store, worker, coordinator, started, release, firstTurn };
 };
 
+
+
 const steerItem = (inputs: readonly AgentTurnInput[]) =>
   inputs
     .flatMap((input) => input.context.items)
@@ -169,6 +171,7 @@ describe("live steer", () => {
     });
   });
 });
+
 
 describe("connector steering", () => {
   it("maps connector `steering` to a driver that sends turn.steer", async () => {
