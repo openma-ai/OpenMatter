@@ -32,7 +32,7 @@ the reasoning.
 
 ## The Loop
 
-[<img src="brand/assets/openmatter-loop.svg" alt="The OpenMatter Loop: a work event passes through a replaceable integration, the OpenMatter composition boundary, a replaceable agent runtime, and a durable reaction back to the work system." />](docs/ARCHITECTURE_SNAPSHOT.md)
+[<img src="brand/assets/openmatter-architecture.svg" alt="OpenMatter architecture: work systems connect through WorkIntegrations and Bonds; an application-declared Loop routes events to WorkThreads and Sessions; the Turn protocol queues new messages as new Turns, offers steer only when the driver declares steering, and makes replies in-Turn operations with a freshness check and receipt; an optional Project host runs a coordinator with workers; replaceable AgentDrivers connect agent runtimes; every step is recorded as a durable fact." />](docs/ARCHITECTURE_SNAPSHOT.md)
 
 Every domain-complete accepted `WorkEvent` reaches one immutable terminal
 `Reaction`, including the explicit no-op case. Infrastructure failures remain
@@ -57,6 +57,35 @@ sources remain replaceable. [Explore the full architecture →](docs/ARCHITECTUR
 - **Deployment stays yours.** OpenMatter owns no mandatory server, queue,
   scheduler, database, credential service, Hub, or SaaS control plane.
 
+## Why the decisions live outside the agent
+
+A long-running agent that a person works with across Slack, GitHub, and other
+tools has to settle four decisions. Existing products and the DeepSeek Harness
+team's [Super-agent design post](https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg)
+differ mainly in how they settle them:
+
+- **Which work thread and session a new event goes to**, and whether a
+  coordinator delegates it further. Merging sessions keeps context continuous
+  but queues the work. Splitting them allows concurrency, but the results do
+  not share context.
+- **Whether an event wakes the agent at all** or is only recorded, so the agent
+  can act on unmentioned events and stay quiet when it is not needed.
+- **How a new message enters when the person changes their mind mid-Turn.**
+- **How results reach the user**, so the user keeps seeing one agent.
+
+OpenMatter moves these decisions out of the agent. The first two are written
+by the application as a Loop. The last two get protocol defaults the
+application can change: a new message opens a new Turn queued behind the
+running one, and steering into the running Turn is an optional driver
+extension. A reply is an operation the agent calls inside its Turn, checked for
+newer messages before it is sent and recorded with a receipt after. Durability
+is a separate question: events, Turn inputs, decisions, effects, and receipts
+are durable OpenMatter facts, so a coordinator can resume its Session on a
+different runtime.
+
+The full argument, in Chinese, is in
+[用 OpenMatter 在任意 harness 上搭 Super-agent](https://github.com/clash-art/draft/blob/openmatter-super-agent-v6.49/content/openmatter-super-agent/article.zh.md).
+
 ## Core concepts
 
 - **Loop** — the application declares which events it subscribes to and how
@@ -78,8 +107,8 @@ sources remain replaceable. [Explore the full architecture →](docs/ARCHITECTUR
   [Turn tool calls](docs/TURN_TOOLS.md).
 - **Coordinator and workers** — `@openma/matter-project-host` runs Projects
   where a coordinator delegates, steers, and cancels worker threads; a steer
-  reaches a running worker live only when its driver supports steering. Projects may use `workspace: "none"` when no git
-  workspace is needed. See [Projects worker](docs/PROJECTS_WORKER.md).
+  reaches a running worker live only when its driver supports steering. A Project can set `workspace: "none"` when it needs no
+  per-thread workspace.
 
 A longer walkthrough in Chinese, with figures, is
 [用 OpenMatter 在任意 harness 上搭 Super-agent](https://github.com/clash-art/draft/blob/openmatter-super-agent-v6.49/content/openmatter-super-agent/article.zh.md).

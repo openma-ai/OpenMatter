@@ -1,0 +1,111 @@
+<svg width="1600" height="860" viewBox="0 0 1600 860" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description">
+  <title id="title">OpenMatter architecture</title>
+  <desc id="description">Work systems connect through Bonds and WorkIntegrations. An application-declared Loop routes each event to a WorkThread and Session and decides whether to run a Turn. The Turn protocol queues new messages as new Turns, offers steer only when the driver declares steering, and makes replies in-Turn operations with a freshness check and a receipt. A Project host runs a coordinator with workers. Replaceable AgentDrivers connect harnesses. Every step is a durable fact in a replaceable Store.</desc>
+  <rect x="1" y="1" width="1598" height="858" rx="15" fill="#FDFDFB" stroke="#E4E5E7" stroke-width="2"/>
+  <g font-family="Geist, Arial, sans-serif">
+  <text x="64" y="70" fill="#5D5F63" font-size="18" font-weight="600" letter-spacing="2.4">THE OPENMATTER LOOP</text>
+  <text x="64" y="128" fill="#11110F" font-family="Source Serif 4, Source Serif Pro, Georgia, serif" font-size="48" font-weight="600" letter-spacing="-1.2">One event. One durable outcome.</text>
+  <text x="64" y="166" fill="#5D5F63" font-size="21">The application declares the Loop. The agent keeps the mind.</text>
+
+  <!-- Work system -->
+  <rect x="64" y="230" width="200" height="360" rx="10" fill="#FFFFFF" stroke="#CECFD1" stroke-width="2"/>
+  <text x="88" y="270" fill="#11110F" font-size="20" font-weight="650">Work system</text>
+  <line x1="88" y1="289" x2="240" y2="289" stroke="#E4E5E7" stroke-width="2"/>
+  <circle cx="100" cy="328" r="7" fill="#1034A6"/><text x="120" y="335" fill="#11110F" font-size="18">Slack</text>
+  <circle cx="100" cy="372" r="7" fill="#1034A6" fill-opacity="0.85"/><text x="120" y="379" fill="#11110F" font-size="18">Feishu</text>
+  <circle cx="100" cy="416" r="7" fill="#1034A6" fill-opacity="0.7"/><text x="120" y="423" fill="#11110F" font-size="18">GitHub</text>
+  <circle cx="100" cy="460" r="7" fill="#1034A6" fill-opacity="0.55"/><text x="120" y="467" fill="#11110F" font-size="18">GitLab</text>
+  <circle cx="100" cy="504" r="7" fill="#1034A6" fill-opacity="0.4"/><text x="120" y="511" fill="#11110F" font-size="18">Linear</text>
+  <circle cx="100" cy="548" r="7" fill="#1034A6" fill-opacity="0.24"/><text x="120" y="555" fill="#11110F" font-size="18">Schedules</text>
+
+  <!-- arrows work <-> integration -->
+  <path d="M264 350H306" stroke="#1034A6" stroke-width="3"/><path d="M298 341L308 350L298 359" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="268" y="334" fill="#5D5F63" font-size="12" font-weight="600">EVENT</text>
+  <path d="M308 470H266" stroke="#1034A6" stroke-width="3"/><path d="M276 462L266 470L276 478" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="266" y="454" fill="#5D5F63" font-size="12" font-weight="600">EFFECT</text>
+
+  <!-- Integration + Bond -->
+  <text x="318" y="220" fill="#7A7C80" font-size="14" font-weight="600" letter-spacing="1.4">REPLACEABLE</text>
+  <rect x="308" y="230" width="250" height="360" rx="10" fill="#F7F7F6" stroke="#CECFD1" stroke-width="2"/>
+  <text x="330" y="270" fill="#11110F" font-size="20" font-weight="650">WorkIntegration</text>
+  <text x="330" y="300" fill="#5D5F63" font-size="16">normalize events</text>
+  <text x="330" y="324" fill="#5D5F63" font-size="16">read context</text>
+  <text x="330" y="348" fill="#5D5F63" font-size="16">deliver effects</text>
+  <line x1="330" y1="372" x2="536" y2="372" stroke="#E4E5E7" stroke-width="2"/>
+  <text x="330" y="406" fill="#11110F" font-size="20" font-weight="650">Bond</text>
+  <text x="330" y="436" fill="#5D5F63" font-size="16">identity · SecretRefs</text>
+  <text x="330" y="460" fill="#5D5F63" font-size="16">stores no secret values</text>
+  <rect x="330" y="488" width="206" height="74" rx="8" fill="#FFFFFF" stroke="#E4E5E7" stroke-width="2"/>
+  <text x="346" y="518" fill="#11110F" font-size="16" font-weight="600">CredentialResolver</text>
+  <text x="346" y="542" fill="#5D5F63" font-size="14">fetches values when needed</text>
+
+  <path d="M558 410H600" stroke="#1034A6" stroke-width="3"/><path d="M592 401L602 410L592 419" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Composition -->
+  <text x="612" y="220" fill="#1034A6" font-size="14" font-weight="600" letter-spacing="1.4">APP-DECLARED · OPENMATTER RUNTIME</text>
+  <rect x="602" y="230" width="640" height="360" rx="10" fill="#FFFFFF" stroke="#1034A6" stroke-width="2.5"/>
+  <text x="626" y="270" fill="#11110F" font-size="20" font-weight="650">Loop</text>
+  <text x="626" y="300" fill="#5D5F63" font-size="16">subscriptions</text>
+  <text x="626" y="324" fill="#5D5F63" font-size="16">route to WorkThread · Session</text>
+  <text x="626" y="348" fill="#5D5F63" font-size="16">handler: run a Turn or record</text>
+  <text x="626" y="372" fill="#5D5F63" font-size="16">context · grants</text>
+
+  <text x="930" y="270" fill="#11110F" font-size="20" font-weight="650">Turn protocol</text>
+  <text x="930" y="300" fill="#5D5F63" font-size="16">new message → new Turn, queued</text>
+  <text x="930" y="324" fill="#5D5F63" font-size="16">steer: optional, capabilities.steering</text>
+  <text x="930" y="348" fill="#5D5F63" font-size="16">reply: in-Turn operation</text>
+  <text x="946" y="372" fill="#5D5F63" font-size="16">freshness check → send → receipt</text>
+  <line x1="914" y1="250" x2="914" y2="384" stroke="#E4E5E7" stroke-width="2"/>
+  <text x="930" y="396" fill="#5D5F63" font-size="16">ask receipt binds the next answer</text>
+
+  <rect x="626" y="420" width="592" height="146" rx="8" fill="#F7F7F6" stroke="#E4E5E7" stroke-width="2"/>
+  <text x="646" y="452" fill="#11110F" font-size="18" font-weight="650">Project host</text>
+  <text x="776" y="452" fill="#7A7C80" font-size="14">optional · workspace: "thread" or "none"</text>
+  <rect x="646" y="472" width="170" height="74" rx="8" fill="#FFFFFF" stroke="#1034A6" stroke-width="2"/>
+  <text x="664" y="506" fill="#11110F" font-size="17" font-weight="600">Coordinator</text>
+  <text x="664" y="530" fill="#5D5F63" font-size="14">talks to the user</text>
+  <path d="M816 509H880" stroke="#1034A6" stroke-width="2.5"/><path d="M872 501L882 509L872 517" stroke="#1034A6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="822" y="496" fill="#5D5F63" font-size="11" font-weight="600">DELEGATE</text>
+  <rect x="884" y="472" width="314" height="74" rx="8" fill="#FFFFFF" stroke="#CECFD1" stroke-width="2"/>
+  <text x="902" y="502" fill="#11110F" font-size="17" font-weight="600">Workers</text>
+  <text x="902" y="528" fill="#5D5F63" font-size="14">steer · cancel · complete · results return</text>
+
+  <path d="M1242 360H1284" stroke="#1034A6" stroke-width="3"/><path d="M1276 351L1286 360L1276 369" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1246" y="344" fill="#5D5F63" font-size="12" font-weight="600">TURN</text>
+  <path d="M1286 460H1244" stroke="#1034A6" stroke-width="3"/><path d="M1254 452L1244 460L1254 468" stroke="#1034A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1246" y="444" fill="#5D5F63" font-size="12" font-weight="600">EVENTS</text>
+
+  <!-- Agent -->
+  <text x="1296" y="220" fill="#7A7C80" font-size="14" font-weight="600" letter-spacing="1.4">REPLACEABLE</text>
+  <rect x="1286" y="230" width="250" height="360" rx="10" fill="#F7F7F6" stroke="#CECFD1" stroke-width="2"/>
+  <text x="1308" y="270" fill="#11110F" font-size="20" font-weight="650">AgentDriver</text>
+  <text x="1308" y="300" fill="#5D5F63" font-size="16">turn · optional steer</text>
+  <text x="1308" y="324" fill="#5D5F63" font-size="16">declares capabilities</text>
+  <line x1="1308" y1="348" x2="1514" y2="348" stroke="#E4E5E7" stroke-width="2"/>
+  <text x="1308" y="382" fill="#11110F" font-size="20" font-weight="650">Agent runtime</text>
+  <text x="1308" y="412" fill="#5D5F63" font-size="16">ACP · managed runtime</text>
+  <text x="1308" y="436" fill="#5D5F63" font-size="16">in-process SDK · custom</text>
+  <text x="1308" y="460" fill="#5D5F63" font-size="16">reasoning · private tools</text>
+  <rect x="1308" y="488" width="206" height="74" rx="8" fill="#FFFFFF" stroke="#E4E5E7" stroke-width="2"/>
+  <text x="1324" y="518" fill="#11110F" font-size="16" font-weight="600">OpenMAEvent</text>
+  <text x="1324" y="542" fill="#5D5F63" font-size="14">immutable stream</text>
+
+  <!-- Durable facts -->
+  <text x="64" y="650" fill="#7A7C80" font-size="14" font-weight="600" letter-spacing="1.4">DURABLE FACTS</text>
+  <rect x="64" y="664" width="1472" height="140" rx="10" fill="#FFFFFF" stroke="#CECFD1" stroke-width="2"/>
+  <g font-size="18" fill="#11110F" font-weight="600">
+    <text x="96" y="726">WorkEvent</text>
+    <text x="256" y="726" fill="#1034A6">→</text>
+    <text x="296" y="726">ContextProjection</text>
+    <text x="490" y="726" fill="#1034A6">→</text>
+    <text x="530" y="726">Session · Turn</text>
+    <text x="690" y="726" fill="#1034A6">→</text>
+    <text x="730" y="726">Permission decision</text>
+    <text x="930" y="726" fill="#1034A6">→</text>
+    <text x="970" y="726">Reaction</text>
+    <text x="1070" y="726" fill="#1034A6">→</text>
+    <text x="1110" y="726">Effect · Receipt</text>
+  </g>
+  <text x="96" y="770" fill="#5D5F63" font-size="16">DurableInbox · leased claims · fenced writes. Store is replaceable.</text>
+  </g>
+</svg>
