@@ -9,6 +9,8 @@ import {
   JsonValueSchema,
   ThreadGoalStatusSchema,
   type AgentSession,
+  type AskAnswer,
+  type AskReceipt,
   type ContextProjection,
   type ConversationEntry,
   type EffectDeliveryReceipt,
@@ -476,6 +478,9 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
       conversationEntries: (
         await rows<ConversationEntry>(conn, "conversationEntry")
       ).filter((entry) => scopeId === undefined || eventIds.has(entry.eventId)),
+      openAsks: (await rows<AskReceipt>(conn, "openAsk")).filter(
+        (ask) => scopeId === undefined || turnIds.has(ask.turnId),
+      ),
       turnCancellationRequests: (
         await rows<TurnCancellationRequest>(conn, "cancellation")
       ).filter(
@@ -1007,6 +1012,64 @@ export const makeMysqlStore = (options: MysqlStoreOptions): MysqlStore => {
           .filter((e) => e.revision > afterRevision)
           .sort((a, b) => a.revision - b.revision),
       ),
+    recordOpenAsk: (ask) =>
+      op(async (conn) => {
+        const existing = await get<AskReceipt>(conn, "openAsk", ask.outboxId);
+        if (existing) return existing;
+        await put(
+          conn,
+          "openAsk",
+          ask.outboxId,
+          ask,
+          null,
+          ask.conversationKey,
+          ask.outboxId,
+        );
+        return ask;
+      }, true),
+    getOpenAsk: (outboxId) =>
+      op((conn) => get<AskReceipt>(conn, "openAsk", outboxId)),
+    listOpenAsks: (conversationKey, options = {}) =>
+      op(async (conn) =>
+        (
+          await rows<AskReceipt>(conn, "openAsk", "AND parent_id=?", [
+            conversationKey,
+          ])
+        )
+          .filter(
+            (ask) =>
+              (options.threadId === undefined ||
+                ask.threadId === options.threadId) &&
+              ask.status === (options.status ?? "open"),
+          )
+          .sort((left, right) =>
+            left.createdAt === right.createdAt
+              ? left.outboxId.localeCompare(right.outboxId)
+              : left.createdAt.localeCompare(right.createdAt),
+          ),
+      ),
+    completeOpenAsk: (outboxId, answer: AskAnswer, completedAt) =>
+      op(async (conn) => {
+        const existing = await get<AskReceipt>(conn, "openAsk", outboxId);
+        if (!existing) fail(`Unknown open ask: ${outboxId}`);
+        if (existing!.status !== "open") return existing!;
+        const answered: AskReceipt = {
+          ...existing!,
+          status: "answered",
+          answer,
+          updatedAt: completedAt,
+        };
+        await put(
+          conn,
+          "openAsk",
+          outboxId,
+          answered,
+          null,
+          existing!.conversationKey,
+          outboxId,
+        );
+        return answered;
+      }, true),
     completeOperationCall: (turnId, callId, result, completedAt, key, token) =>
       op(async (conn) => {
         await fence(conn, "session", bindingId(key), token);

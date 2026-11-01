@@ -372,3 +372,21 @@ export const OperationCallSchema = Schema.Struct({
 }).annotations({ identifier: "OperationCall" });
 
 export type OperationCall = typeof OperationCallSchema.Type;
+
+export {
+  ASK_ANSWER_EXTENSION,
+  AskAnswerBindingSchema,
+  AskAnswerSchema,
+  AskReceiptSchema,
+  AskStatusSchema,
+  conversationIdFromKey,
+  findAskMarker,
+  matchOpenAsk,
+  withAskAnswer,
+  type AskAnswer,
+  type AskAnswerBinding,
+  type AskMarker,
+  type AskMatch,
+  type AskReceipt,
+  type AskStatus,
+} from "./ask.js";
