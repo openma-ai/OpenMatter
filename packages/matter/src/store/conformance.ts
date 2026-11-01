@@ -1,5 +1,11 @@
 import { createOpenMAEvent, type OpenMAEvent } from "../agent/index.js";
-import type { Reaction, Turn, WorkEffect, WorkEvent } from "../index.js";
+import type {
+  AskReceipt,
+  Reaction,
+  Turn,
+  WorkEffect,
+  WorkEvent,
+} from "../index.js";
 import { Effect, Either } from "effect";
 import { ConversationChangedError, type OpenMatterStore } from "./index.js";
 
@@ -725,6 +731,94 @@ export const storeConformanceCases = (
           (await run(store.findConversationMessage(other, "m-1"))) ===
             undefined,
           "a message is found only in its own conversation",
+        );
+      },
+    },
+    {
+      name: "an ask receipt is recorded once, listed open, and answered once",
+      run: async () => {
+        const store = await fresh();
+        const key = '["chat","workspace-1","room-ask"]';
+        const ask: AskReceipt = {
+          schemaVersion: "0.1",
+          conversationKey: key,
+          conversationId: "room-ask",
+          threadId: "thread-ask",
+          outboxId: "turn-ask:call:ask-1",
+          triggerEventId: "event-ask",
+          turnId: "turn-ask",
+          callId: "ask-1",
+          seenRevision: 2,
+          status: "open",
+          createdAt: "2026-08-20T08:00:03.000Z",
+          updatedAt: "2026-08-20T08:00:03.000Z",
+          _meta: { host: "opaque" },
+        };
+        assert(
+          (await run(store.getOpenAsk(ask.outboxId))) === undefined,
+          "an unrecorded ask is absent",
+        );
+        const recorded = await run(store.recordOpenAsk(ask));
+        const replay = await run(store.recordOpenAsk(ask));
+        assert(
+          recorded.outboxId === ask.outboxId &&
+            replay.createdAt === ask.createdAt &&
+            replay.status === "open",
+          "recording the same ask returns the stored receipt once",
+        );
+        assert(
+          (await run(store.listOpenAsks(key))).length === 1 &&
+            (await run(store.listOpenAsks(key, { threadId: "thread-ask" })))
+              .length === 1 &&
+            (await run(store.listOpenAsks(key, { threadId: "other" })))
+              .length === 0,
+          "open asks are listed by conversation and thread",
+        );
+        const answered = await run(
+          store.completeOpenAsk(
+            ask.outboxId,
+            {
+              eventId: "event-answer",
+              revision: 3,
+              messageId: "message-answer",
+              threadId: "thread-ask",
+              answeredAt: "2026-08-20T08:00:04.000Z",
+            },
+            "2026-08-20T08:00:04.000Z",
+          ),
+        );
+        assert(
+          answered.status === "answered" &&
+            answered.answer?.eventId === "event-answer" &&
+            (await run(store.listOpenAsks(key))).length === 0,
+          "answering an ask closes it for matching",
+        );
+        const late = await run(
+          store.completeOpenAsk(
+            ask.outboxId,
+            {
+              eventId: "event-later",
+              answeredAt: "2026-08-20T08:00:05.000Z",
+            },
+            "2026-08-20T08:00:05.000Z",
+          ),
+        );
+        assert(
+          late.answer?.eventId === "event-answer",
+          "a later answer does not overwrite the first one",
+        );
+        assert(
+          await fails(
+            store.completeOpenAsk(
+              "turn-ask:call:unknown",
+              {
+                eventId: "event-answer",
+                answeredAt: "2026-08-20T08:00:04.000Z",
+              },
+              "2026-08-20T08:00:04.000Z",
+            ),
+          ),
+          "completing an unknown ask fails",
         );
       },
     },
