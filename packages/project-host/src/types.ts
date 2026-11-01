@@ -1,3 +1,4 @@
+import type { JsonValue } from "@openma/matter";
 import type { StoreSnapshot } from "@openma/matter/store";
 export interface ProjectWorkConfig {
   projectId: string;
@@ -40,6 +41,9 @@ export interface ProjectWorkCommand {
   text: string;
   attachments?: ProjectAttachment[];
   workerId?: string;
+  /** Host-supplied message identity carried on the `project.message` payload,
+   * for a project fed by an external conversation. Never model-chosen. */
+  origin?: JsonValue;
 }
 
 export type ProjectAttachment = {
