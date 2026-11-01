@@ -8,7 +8,7 @@
     "node": ">=22.5"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "NODE_OPTIONS=--max-old-space-size=5632 tsdown --concurrency 2",
     "build:projects": "tsdown --filter @openma/matter-project --filter @openma/matter-project-host --filter @openma/matter-project-mcp --filter @openma/matter-store-sqlite --filter @openma/matter-store-mysql --filter @openma/matter-project-worker",
     "check": "pnpm format:check && pnpm test && pnpm typecheck && pnpm build",
     "format": "prettier --write packages tests examples *.json *.ts *.yaml README.md docs/*.md",

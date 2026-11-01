@@ -141,6 +141,126 @@ describe("project host", () => {
       await service.close();
     });
 
+  it("steers the running coordinator Turn from a second message", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "openmatter-project-"));
+    directories.push(directory);
+    const project = { id: "project-steer", name: "Steer" };
+    let started!: () => void;
+    const startedSignal = new Promise<void>((resolve) => (started = resolve));
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const firstTurn: { id?: string } = {};
+    const coordinator = makeMockAgentDriver({
+      id: "coordinator",
+      output: "done",
+      steering: true,
+      beforeEvents: async (input) => {
+        if (firstTurn.id === undefined) {
+          firstTurn.id = input.turnId;
+          started();
+          await released;
+        }
+      },
+    });
+    const service = new ProjectWorkService({
+      directory,
+      eventLeaseMs: 50,
+      getProject: (id) => (id === project.id ? project : null),
+      driver: (id) =>
+        id === "coordinator"
+          ? coordinator.driver
+          : makeMockAgentDriver({ id, output: `done:${id}` }).driver,
+      steerCoordinator: true,
+    });
+    await service.save({ ...configFor(project.id), workspace: "none" });
+    await service.submit({
+      projectId: project.id,
+      commandId: "steer-1",
+      type: "message",
+      text: "Start the coordinator",
+    });
+    const firstDrain = service.drain();
+    await startedSignal;
+    await service.submit({
+      projectId: project.id,
+      commandId: "steer-2",
+      type: "message",
+      text: "Change course",
+    });
+    const secondDrain = service.drain();
+    for (let i = 0; i < 100 && coordinator.steerInputs().length === 0; i++)
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(coordinator.steerInputs()).toHaveLength(1);
+    expect(coordinator.turnInputs()).toHaveLength(1);
+    release();
+    await Promise.all([firstDrain, secondDrain]);
+    expect(coordinator.turnInputs()).toHaveLength(1);
+    expect(coordinator.steerInputs()[0]).toMatchObject({
+      turnId: firstTurn.id,
+      steerId: `${project.id}:message:steer-2`,
+    });
+    const view = await service.view(project.id);
+    expect(view.error).toBeNull();
+    expect(view.pending).toBe(0);
+    const recorded = view.facts.contexts
+      .flatMap((context) => context.items)
+      .find(
+        (item) =>
+          item.kind === "coordinator-steer" &&
+          (item.value as { status?: string }).status === "live",
+      )?.value;
+    expect(recorded).toMatchObject({
+      status: "live",
+      turnId: firstTurn.id,
+    });
+    await service.close();
+  });
+
+  it("runs a normal coordinator Turn when idle and enabled per project", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "openmatter-project-"));
+    directories.push(directory);
+    const project = { id: "project-steer-idle", name: "Steer idle" };
+    const coordinator = makeMockAgentDriver({
+      id: "coordinator",
+      output: "done",
+      steering: true,
+    });
+    const service = new ProjectWorkService({
+      directory,
+      getProject: (id) => (id === project.id ? project : null),
+      driver: (id) =>
+        id === "coordinator"
+          ? coordinator.driver
+          : makeMockAgentDriver({ id, output: `done:${id}` }).driver,
+    });
+    await service.save({
+      ...configFor(project.id),
+      workspace: "none",
+      steerCoordinator: true,
+    });
+    await service.submit({
+      projectId: project.id,
+      commandId: "idle-1",
+      type: "message",
+      text: "Start the coordinator",
+    });
+    await service.drain();
+    expect(coordinator.turnInputs()).toHaveLength(1);
+    expect(coordinator.steerInputs()).toHaveLength(0);
+    const steerItem = coordinator
+      .turnInputs()[0]!
+      .context.items.find((item) => item.kind === "coordinator-steer");
+    expect(steerItem?.value).toMatchObject({
+      status: "queued",
+      reason: "idle",
+    });
+    const view = await service.view(project.id);
+    expect(view.error).toBeNull();
+    expect(view.pending).toBe(0);
+    await service.close();
+  });
+
   it("rejects an unknown workspace mode", async () => {
     const directory = await mkdtemp(join(tmpdir(), "openmatter-project-"));
     directories.push(directory);

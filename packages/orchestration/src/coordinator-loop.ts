@@ -63,6 +63,21 @@ export interface CoordinatorLoopOptions {
    * `live` or `queued`.
    */
   readonly steerSources?: string | readonly string[];
+  /**
+   * Let an Event associated with the coordinator thread steer the coordinator
+   * Session's running Turn instead of waiting for another Turn. When the driver
+   * accepts it (`live`), the instruction joins the running Turn and this Event
+   * starts no new Turn; when the Session is idle (or the driver rejects the
+   * steer), the Event runs as the normal coordinator Turn. Off by default, so
+   * existing deployments keep one Turn per Event.
+   *
+   * Steering reaches the running Turn through the runtime's per-session live
+   * Turn registry (`agent-turn.ts`), not through the store. Therefore a host
+   * must deliver the steering Event while the first `accept` is still in
+   * flight: do not serialize all Events for one project/thread. The project
+   * host already claims and delivers inbox items concurrently for this reason.
+   */
+  readonly steerCoordinator?: boolean;
   /** Event types that request cancellation instead of starting another Turn. */
   readonly cancelSources?: string | readonly string[];
   readonly goal?: JsonValue;
@@ -266,6 +281,9 @@ const makeCoordinatorLoop = (
           ...(steerSources.size === 0
             ? {}
             : { steerSources: [...steerSources] }),
+          ...(options.steerCoordinator === true
+            ? { steerCoordinator: true }
+            : {}),
         },
         context:
           options.context === undefined
@@ -445,18 +463,28 @@ const makeCoordinatorLoop = (
             );
           } else {
             let steerItems: readonly ContextItem[] = [];
-            if (
-              association.thread.kind === "worker" &&
-              steerSources.has(work.event.type)
-            ) {
+            const steerRequested =
+              (association.thread.kind === "worker" &&
+                steerSources.has(work.event.type)) ||
+              (association.thread.kind === "coordinator" &&
+                options.steerCoordinator === true);
+            if (steerRequested) {
               const { context, session } = yield* projectTarget(association);
               const steered = yield* session.steer({ context });
               steerItems = [
                 work.context.value({
-                  id: `${options.id}:worker-steer:${association.thread.id}`,
-                  kind: "coordinator-worker-steer",
+                  id:
+                    association.thread.kind === "worker"
+                      ? `${options.id}:worker-steer:${association.thread.id}`
+                      : `${options.id}:coordinator-steer`,
+                  kind:
+                    association.thread.kind === "worker"
+                      ? "coordinator-worker-steer"
+                      : "coordinator-steer",
                   value: {
-                    workerId: association.thread.id,
+                    ...(association.thread.kind === "worker"
+                      ? { workerId: association.thread.id }
+                      : {}),
                     ...steered,
                   },
                   provenance: [
@@ -464,13 +492,42 @@ const makeCoordinatorLoop = (
                   ],
                 }),
               ];
+              if (
+                association.thread.kind === "coordinator" &&
+                steered.status === "live"
+              ) {
+                // The instruction already reached the running coordinator
+                // Turn. Persist the outcome for observability but start no
+                // Turn: the first Event's handler owns that Turn and its
+                // effects.
+                yield* work.context.project({
+                  scopeId: association.scopeId,
+                  workThreadId: workThreadIdFor(
+                    options.id,
+                    options.continuity,
+                    association,
+                  ),
+                  items: [
+                    work.context.event(),
+                    associationItem(work, options.id, association),
+                    ...steerItems,
+                  ],
+                  grants,
+                });
+                return work.react.none(
+                  "Coordinator steer accepted into the running Turn",
+                );
+              }
             }
             const steeredLive =
               steerItems.length > 0 &&
               (steerItems[0]!.value as { status?: string }).status === "live";
             const first = steeredLive
               ? undefined
-              : yield* runProjectTurn(association);
+              : yield* runProjectTurn(
+                  association,
+                  association.thread.kind === "coordinator" ? steerItems : [],
+                );
             if (first === undefined) {
               completed = yield* runProjectTurn(
                 { ...association, thread: { kind: "coordinator" } },

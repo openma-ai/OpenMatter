@@ -96,6 +96,15 @@ export interface ProjectWorkDeps<
   /** Forwarded to the runtime. A failed attempt holds its Event until this
    * lease expires, which bounds how soon a busy-Session retry can run. */
   eventLeaseMs?: number;
+  /**
+   * Let a message for the coordinator thread steer the coordinator Session's
+   * running Turn instead of starting another Turn afterwards. Off by default;
+   * `ProjectWorkConfig.steerCoordinator` can enable it per project. The inbox
+   * is delivered concurrently, so the steer reaches the live Turn while its
+   * first `accept` is still running. Requires a coordinator driver whose
+   * capabilities declare `steering` and that implements `steer`.
+   */
+  steerCoordinator?: boolean;
 }
 /** Host configuration and durable inbox delivery. All work executes inside OpenMatter. */
 export class ProjectWorkService<TProject extends { id: string; name: string }> {
@@ -188,6 +197,11 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
       !["thread", "none"].includes(config.workspace)
     )
       throw new Error("Invalid workspace mode");
+    if (
+      config.steerCoordinator !== undefined &&
+      typeof config.steerCoordinator !== "boolean"
+    )
+      throw new Error("Invalid coordinator steering mode");
     if (
       !Array.isArray(config.controls) ||
       config.controls.some(
@@ -845,6 +859,9 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
           ],
           cancelSources: ["project.worker.cancel.requested"],
           steerSources: ["project.worker.steered"],
+          ...((config.steerCoordinator ?? this.#deps.steerCoordinator) === true
+            ? { steerCoordinator: true }
+            : {}),
           controls: config.controls,
           associate: associateProjectEvent,
           ...(this.#deps.grants

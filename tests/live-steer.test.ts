@@ -74,6 +74,49 @@ const setup = (steering: boolean) => {
   return { app, store, worker, coordinator, started, release, firstTurn };
 };
 
+const coordinatorSetup = (steering: boolean, steerCoordinator: boolean) => {
+  const store = makeMemoryStore();
+  const started = gate();
+  const release = gate();
+  const firstTurn: { id?: string } = {};
+  const coordinator = makeMockAgentDriver({
+    id: "coordinator",
+    output: "coordinator done",
+    steering,
+    beforeEvents: async (input: AgentTurnInput) => {
+      if (firstTurn.id === undefined) {
+        firstTurn.id = input.turnId;
+        started.open();
+        await release.opened;
+      }
+    },
+  });
+  const app = createOpenMatter({
+    store,
+    integrations: {},
+    eventLeaseMs: 50,
+    agents: { coordinator: coordinator.driver },
+  }).loop(
+    coordinatorLoop({
+      id: "coordinator-steer-test",
+      continuity: "per-scope",
+      agentId: "coordinator",
+      sources: ["project.message"],
+      ...(steerCoordinator ? { steerCoordinator: true } : {}),
+      associate: () => ({
+        scopeId: "scope",
+        thread: { kind: "coordinator" },
+      }),
+    }),
+  );
+  return { app, store, coordinator, started, release, firstTurn };
+};
+
+const coordinatorSteerItem = (inputs: readonly AgentTurnInput[]) =>
+  inputs
+    .flatMap((input) => input.context.items)
+    .find((item) => item.kind === "coordinator-steer")?.value;
+
 const steerItem = (inputs: readonly AgentTurnInput[]) =>
   inputs
     .flatMap((input) => input.context.items)
@@ -167,6 +210,109 @@ describe("live steer", () => {
       status: "queued",
       reason: "idle",
     });
+  });
+});
+
+describe("coordinator steering", () => {
+  it("steers the running coordinator Turn instead of starting another", async () => {
+    const f = coordinatorSetup(true, true);
+    const first = f.app.accept(
+      event("c1", "project.message", "coordinator", "long task"),
+    );
+    await f.started.opened;
+
+    const steered = await f.app.accept(
+      event("c2", "project.message", "coordinator", "change course"),
+    );
+    expect(steered.reaction.status).toBe("completed");
+    // No new coordinator Turn: the instruction reached the running one.
+    expect(f.coordinator.turnInputs()).toHaveLength(1);
+    expect(f.coordinator.steerInputs()).toHaveLength(1);
+    expect(f.coordinator.steerInputs()[0]).toMatchObject({
+      turnId: f.firstTurn.id,
+      steerId: "test:c2",
+    });
+    // The first Event probed an idle Session, so its Turn records `queued`.
+    expect(coordinatorSteerItem(f.coordinator.turnInputs())).toMatchObject({
+      status: "queued",
+      reason: "idle",
+    });
+
+    // The live outcome is recorded even though no follow-up Turn runs.
+    const facts = await import("effect").then(({ Effect }) =>
+      Effect.runPromise(f.store.inspect),
+    );
+    const recorded = facts.contexts
+      .flatMap((context) => context.items)
+      .find(
+        (item) =>
+          item.kind === "coordinator-steer" &&
+          (item.value as { status?: string }).status === "live",
+      )?.value;
+    expect(recorded).toMatchObject({
+      status: "live",
+      turnId: f.firstTurn.id,
+    });
+
+    // A redelivered steer Event is not applied twice.
+    await f.app.accept(
+      event("c2", "project.message", "coordinator", "change course"),
+    );
+    expect(f.coordinator.steerInputs()).toHaveLength(1);
+
+    f.release.open();
+    await first;
+    expect(f.coordinator.turnInputs()).toHaveLength(1);
+    const events = await import("effect").then(({ Effect }) =>
+      Effect.runPromise(f.store.getAgentEvents(f.firstTurn.id!)),
+    );
+    expect(
+      events.map((e) => [e.type, (e.data as { text?: string }).text]),
+    ).toEqual([
+      ["agent.message", "steered:test:c2"],
+      ["agent.message", "coordinator done"],
+      ["turn.completed", undefined],
+    ]);
+  });
+
+  it("runs the normal coordinator Turn when the Session is idle", async () => {
+    const f = coordinatorSetup(true, true);
+    f.release.open();
+    const result = await f.app.accept(
+      event("c0", "project.message", "coordinator", "start"),
+    );
+    expect(result.reaction.status).toBe("completed");
+    expect(f.coordinator.turnInputs()).toHaveLength(1);
+    expect(f.coordinator.steerInputs()).toHaveLength(0);
+    expect(coordinatorSteerItem(f.coordinator.turnInputs())).toMatchObject({
+      status: "queued",
+      reason: "idle",
+    });
+  });
+
+  it("leaves coordinator Events unchanged when the option is off", async () => {
+    const f = coordinatorSetup(true, false);
+    const first = f.app.accept(
+      event("c1", "project.message", "coordinator", "long task"),
+    );
+    await f.started.opened;
+
+    await expect(
+      f.app.accept(
+        event("c2", "project.message", "coordinator", "change course"),
+      ),
+    ).rejects.toThrow(/Agent session is busy/);
+    expect(f.coordinator.steerInputs()).toHaveLength(0);
+
+    f.release.open();
+    await first;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const result = await f.app.accept(
+      event("c2", "project.message", "coordinator", "change course"),
+    );
+    expect(result.reaction.status).toBe("completed");
+    expect(f.coordinator.turnInputs()).toHaveLength(2);
+    expect(coordinatorSteerItem(f.coordinator.turnInputs())).toBeUndefined();
   });
 });
 
