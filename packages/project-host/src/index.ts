@@ -62,6 +62,7 @@ import {
   ProjectControlError,
 } from "@openma/matter-project";
 import type { AgentDriver } from "@openma/matter/agent";
+import type { WorkIntegration } from "@openma/matter/integration";
 import type { WorkEvent, JsonValue, ThreadGoal } from "@openma/matter";
 import type { InboxClaim } from "@openma/matter/inbox";
 import type {
@@ -81,6 +82,20 @@ export interface ProjectWorkDeps<
     role: "coordinator" | "worker",
     config: ProjectWorkConfig,
   ): AgentDriver;
+  /** Integrations a project's Turns may call operations on, beside Project
+   * Control. Their tools reach a Turn only when named by `grants`. */
+  integrations?(
+    project: TProject,
+    config: ProjectWorkConfig,
+  ): Readonly<Record<string, WorkIntegration>>;
+  /** Operations (`integration.operation`) allowed to this project's Turns. */
+  grants?(project: TProject, config: ProjectWorkConfig): readonly string[];
+  /** Maps project events into the project's conversation log, which is what
+   * freshness-guarded tool calls check. Without it nothing is recorded. */
+  observe?: NonNullable<WorkIntegration["observe"]>;
+  /** Forwarded to the runtime. A failed attempt holds its Event until this
+   * lease expires, which bounds how soon a busy-Session retry can run. */
+  eventLeaseMs?: number;
 }
 /** Host configuration and durable inbox delivery. All work executes inside OpenMatter. */
 export class ProjectWorkService<TProject extends { id: string; name: string }> {
@@ -467,6 +482,7 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
             ? { attachments: input.attachments }
             : {}),
           ...(input.runId ? { runId: input.runId } : {}),
+          ...(input.origin === undefined ? {} : { origin: input.origin }),
         },
       };
       await Effect.runPromise(
@@ -789,7 +805,16 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
     if (!config) throw new Error("Project is not configured");
     const app = createOpenMatter({
       store: this.store,
-      integrations: { project: makeProjectIntegration() },
+      ...(this.#deps.eventLeaseMs === undefined
+        ? {}
+        : { eventLeaseMs: this.#deps.eventLeaseMs }),
+      integrations: {
+        ...this.#deps.integrations?.(project, config),
+        project: {
+          ...makeProjectIntegration(),
+          ...(this.#deps.observe ? { observe: this.#deps.observe } : {}),
+        },
+      },
       agents: {
         coordinator: this.#deps.driver(
           config.coordinatorAgent,
@@ -822,6 +847,9 @@ export class ProjectWorkService<TProject extends { id: string; name: string }> {
           steerSources: ["project.worker.steered"],
           controls: config.controls,
           associate: associateProjectEvent,
+          ...(this.#deps.grants
+            ? { grants: this.#deps.grants(project, config) }
+            : {}),
           admit: ({ work }) => this.#admitGoal(work.event),
           onTurnFinished: ({ context, turn }) =>
             this.#goals.afterTurn(context, turn),

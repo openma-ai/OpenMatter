@@ -1,6 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Effect } from "effect";
+import type { WorkIntegration } from "@openma/matter/integration";
 import { makeMockAgentDriver } from "@openma/matter-agent-mock";
 import {
   ProjectWorkService,
@@ -153,6 +155,101 @@ describe("project host", () => {
         workspace: "git" as unknown as "none",
       }),
     ).rejects.toThrow(/workspace mode/);
+    await service.close();
+  });
+  it("runs granted tools of a host integration with freshness over observed project events", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "openmatter-project-"));
+    directories.push(directory);
+    const project = { id: "chat", name: "Chat" };
+    const delivered: unknown[] = [];
+    const reply: WorkIntegration = {
+      manifest: {
+        id: "chat",
+        displayName: "Chat",
+        events: [],
+        operations: ["reply"],
+        tools: {
+          reply: {
+            description: "Reply",
+            inputSchema: { type: "object" },
+            freshness: "best-effort",
+          },
+        },
+      },
+      ingest: () => Effect.succeed([]),
+      deliver: (effect) =>
+        Effect.sync(() => {
+          delivered.push(effect.input);
+          return { providerReceipt: { n: delivered.length } };
+        }),
+    };
+    let service!: ProjectWorkService<typeof project>;
+    let injected = false;
+    const agent = makeMockAgentDriver({
+      id: "agent",
+      output: "done",
+      operationCalls: [
+        {
+          callId: "r1",
+          integrationId: "chat",
+          operation: "reply",
+          input: { text: "hi" },
+        },
+      ],
+      beforeEvents: async () => {
+        if (injected) return;
+        injected = true;
+        // Someone writes while the Turn is thinking: recorded before its reply.
+        await service.submit({
+          projectId: project.id,
+          commandId: "m2",
+          type: "message",
+          text: "correction",
+          origin: { human: true },
+        });
+        for (let i = 0; i < 100; i++) {
+          void service.drain();
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          const entries = await Effect.runPromise(
+            service.store.listConversationEntries(
+              JSON.stringify(["project", "project-host", project.id]),
+              0,
+            ),
+          );
+          if (entries.length === 2) return;
+        }
+        throw new Error("correction was not recorded");
+      },
+    });
+    service = new ProjectWorkService({
+      directory,
+      eventLeaseMs: 50,
+      getProject: (id) => (id === project.id ? project : null),
+      driver: () => agent.driver,
+      integrations: () => ({ chat: reply }),
+      grants: () => ["chat.reply"],
+      observe: (event) => ({
+        conversationId: event.source.conversationId!,
+        kind: "message",
+        threadId: "main",
+        sender: { id: "user", kind: "human" },
+      }),
+    });
+    await service.save({ ...configFor(project.id), workspace: "none" });
+    await service.submit({
+      projectId: project.id,
+      commandId: "m1",
+      type: "message",
+      text: "hello",
+    });
+    await service.drain();
+    expect(agent.turnInputs()[0]?.allow).toEqual(["chat.reply"]);
+    expect(agent.turnInputs()[0]?.tools?.[0]?.name).toBe("chat.reply");
+    expect(agent.callbackResponses()[0]?.result).toMatchObject({
+      status: "conflict",
+      effect: "not-applied",
+    });
+    expect(delivered).toEqual([]);
     await service.close();
   });
 });
