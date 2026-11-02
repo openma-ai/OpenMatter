@@ -1,6 +1,6 @@
 ---
 title: Agent drivers
-description: Keep the agent runtime replaceable without introducing a second event vocabulary.
+description: AgentDriver maps Sessions, Turns, optional steer, and cancellation onto ACP, managed runtimes, in-process SDKs, or custom harnesses.
 ---
 
 Agent Drivers map sessions, turns, streams, permissions, cancellation, and results from a concrete runtime into OpenMatter.
@@ -29,6 +29,18 @@ ACP and Claude managed-runtime events are normalized by `@openma/common` into de
 - Only a typed unavailable remote Session creates a new generation.
 - Partial Turns never continue across an incompatible Session generation.
 - Cancel, permission response, and close operations must be idempotent.
+
+
+## Optional steer
+
+A new message opens a new Turn by default and queues behind a running Turn.
+Drivers that declare `capabilities.steering` and implement `AgentDriver.steer`
+can accept a host-defined steer into the running Turn; drivers without that
+capability keep the queued-Turn fallback. Coordinator hosts use the same
+extension when they steer a worker.
+
+See [Super-agent on any harness](/doc/guides/super-agent/) for how Turn and
+steer fit the broader Loop / Bond / coordinator-worker picture.
 
 ## Bindings
 

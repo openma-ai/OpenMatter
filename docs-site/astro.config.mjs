@@ -12,7 +12,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "OpenMatter",
-      description: "The storage- and deployment-neutral work layer for agents.",
+      description: "Durable agent Loops for work systems — Bond, AgentDriver, Turn, steer, and coordinator/worker outside the harness.",
       favicon: "/doc/favicon.svg",
       logo: {
         light: "./src/assets/openmatter-mark.svg",
@@ -66,6 +66,8 @@ export default defineConfig({
             { label: "Welcome", link: "/doc/" },
             { label: "Quickstart", slug: "quickstart" },
             { label: "Architecture", slug: "architecture" },
+            { label: "Super-agent on any harness", slug: "guides/super-agent" },
+            { label: "Super-agent（中文）", slug: "guides/super-agent-zh" },
           ],
         },
         {

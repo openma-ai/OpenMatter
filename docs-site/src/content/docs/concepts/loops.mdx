@@ -1,6 +1,6 @@
 ---
 title: Loops
-description: Define persistent Agent behavior without adding a workflow runtime.
+description: OpenMatter Loop subscriptions, WorkThread routing, and built-in claudeTag, linearLoop, and coordinatorLoop presets — including coordinator/worker Super-agent-style dispatch.
 ---
 
 import { Aside, Card, CardGrid } from "@astrojs/starlight/components";
@@ -64,6 +64,19 @@ app.loop(issueTriage);
 - the meaning of proactive timer or polling Events.
 
 The Agent still owns reasoning, planning, and its internal tool-use sequence. A timer remains a host/source concern: once it emits a WorkEvent, the Loop handles it exactly like a webhook or user event.
+
+
+## Built-in presets and Super-agent-style dispatch
+
+`@openma/matter-orchestration` ships reusable Loops such as `claudeTag()`,
+`linearLoop()`, and `coordinatorLoop()`. They encode different answers to
+"who owns the next event" and "how sessions split" — the same fork that shows
+up when people compare Claude Tag, Linear Agent Session, Claude Projects, and
+DeepSeek Harness Super-agent Router/Worker designs.
+
+For the short argument that these decisions belong outside the agent (and
+therefore outside any one harness), see
+[Super-agent on any harness](/doc/guides/super-agent/).
 
 ## Use a built-in Loop
 

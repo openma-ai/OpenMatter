@@ -1,0 +1,104 @@
+---
+title: 用 OpenMatter 在任意 harness 上搭 Super-agent
+description: OpenMatter 把 DeepSeek Harness Super-agent 讨论里的派活、唤醒、插话与回复决定写到 Loop、Bond、AgentDriver、Turn、steer、coordinator/worker 里，让 harness 可替换。
+head:
+  - tag: title
+    content: 用 OpenMatter 在任意 harness 上搭 Super-agent
+  - tag: meta
+    attrs:
+      name: keywords
+      content: DeepSeek Harness, Super-agent, dsh Super-agent, OpenMatter Super-agent, Loop, Bond, AgentDriver, Turn, steer, coordinator, worker, 个人 agent, harness, Claude Tag, Linear Agent Session, Claude Projects
+  - tag: meta
+    attrs:
+      property: og:title
+      content: 用 OpenMatter 在任意 harness 上搭 Super-agent
+  - tag: meta
+    attrs:
+      property: og:description
+      content: OpenMatter 把 Loop、Bond、Turn、steer、coordinator/worker 放在 agent 外面，让 Super-agent 式个人 agent 能接在可替换的 harness 上。
+  - tag: meta
+    attrs:
+      property: og:locale
+      content: zh_CN
+---
+
+import { Aside, LinkCard } from "@astrojs/starlight/components";
+
+这是 OpenMatter 文档站上的**短页**，对应长文论点；不重复贴整篇文章。
+
+对照对象是 DeepSeek Harness（dsh）团队的
+[《Super-agent 设计探索》](https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg)
+和公开原型
+[dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype)。
+文中讨论的是用户跨 IM、GitHub 等入口始终面对同一个长期 agent，session 退到系统内部；并讨论 Router/Worker 等模块。其中部分设计出现在公开原型里——按架构讨论来读，不要写成整套产品已完整落地。
+
+这边的代码是 [OpenMatter](https://github.com/openma-ai/OpenMatter)；
+基于它做的个人 agent 是 [pi-bot](https://github.com/openma-ai/pi-bot)。
+
+## 为什么决定要放在 agent 外面
+
+长期跟用户一起干活的 agent，至少要定四件事。现有产品和 dsh 团队的 Super-agent
+文章，差别主要落在怎么定它们：
+
+1. **新事件归哪条工作线、哪个 session**，要不要由 coordinator 再往下派。合得多上下文连续但容易排队；分得多能并发，结果又不通气。
+2. **事件来了要不要叫醒 agent**，还是只记下来。没人 @ 的群消息、CI、定时触发，主动到什么程度看这条。
+3. **人中途改主意时，新消息怎么进正在跑的一轮。**
+4. **结果怎么回到用户**，让用户眼里始终像同一个 agent。
+
+OpenMatter 的做法：
+
+- 前两件由应用写成 **Loop**（和 agent 内部的 ReAct Loop 不是一回事；这里的工作线是「哪些事件共用一个 session」，和 dsh 文中偏事件流的 Thread 也不完全一样）。
+- 后两件由协议给出默认，应用可改：新消息默认开新 **Turn** 排在当前轮后面；**steer** 打进正在跑的 Turn 是可选扩展，前提是 driver 声明 `capabilities.steering` 并实现 `AgentDriver.steer`。
+- 回复是 Turn 里的操作：发送前做新鲜度检查，发送后留回执。
+
+Loop 和回复/steer 协议在 agent 外面，所以同一套编排可以通过 **AgentDriver** 接到 ACP、托管 runtime、进程内 SDK 或自定义 agent。这就是「任意 harness」：换 driver，Loop 还在。
+
+## 核心名词
+
+| 名词 | 作用 |
+| --- | --- |
+| **Loop** | 应用声明订阅、路由到 WorkThread/Session，以及事件是开工还是只记录。 |
+| **Bond** | 工作平台身份 + `SecretRef`；密钥值由 `CredentialResolver` 取。 |
+| **AgentDriver** | OpenMatter Session/Turn 到具体 harness 的可替换桥。 |
+| **Turn** | Session 里的一次调用；人类新消息默认开新 Turn。 |
+| **steer** | driver 支持时，把新话注入正在跑的 Turn。 |
+| **coordinator / worker** | `@openma/matter-project-host` 的 Project：coordinator 派活、改方向、取消 worker。 |
+
+`@openma/matter-orchestration` 内置 `claudeTag()`、`linearLoop()`、`coordinatorLoop()`，差别主要在有没有 coordinator、session 怎么分。可与 Claude Tag、Linear Agent Session、Claude Projects 对照理解，并不宣称 OpenMatter 是这些产品的复制品。
+
+## 继续读
+
+<LinkCard
+  title="长文（GitHub）"
+  href="https://github.com/clash-art/draft/blob/openmatter-super-agent-v6.49/content/openmatter-super-agent/article.zh.md"
+  description="完整中文论证、插图，以及与 dsh Super-agent 设计的对照。"
+/>
+
+<LinkCard
+  title="English landing page"
+  href="/doc/guides/super-agent/"
+  description="Same short argument in English."
+/>
+
+<LinkCard
+  title="OpenMatter README"
+  href="https://github.com/openma-ai/OpenMatter#why-the-decisions-live-outside-the-agent"
+  description="主分支英文 Core concepts / Why the decisions live outside the agent。"
+/>
+
+<LinkCard
+  title="pi-bot — 接入 OpenMatter"
+  href="https://github.com/openma-ai/pi-bot#接入-openmatter"
+  description="个人 agent：Project host、回复新鲜度、Pi AgentDriver steer。"
+/>
+
+<LinkCard
+  title="dsh 《Super-agent 设计探索》"
+  href="https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg"
+  description="DeepSeek Harness 团队微信文章。"
+/>
+
+<Aside type="note" title="本站相关页">
+  [Loops](/doc/concepts/loops/)、[Agent drivers](/doc/agents/drivers/)、
+  [Claude Tag orchestration](/doc/orchestration/claude-tag/) 是 SDK 侧细节。
+</Aside>

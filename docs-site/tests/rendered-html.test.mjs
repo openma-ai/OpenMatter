@@ -57,6 +57,7 @@ test("builds the OpenMatter Starlight home under /doc", async () => {
   );
   assert.match(html, /durable Agent Loop framework/i);
   assert.match(html, /href="\/doc\/quickstart\/"/i);
+  assert.match(html, /href="\/doc\/guides\/super-agent\/"/i);
   assert.match(html, /<site-search/i);
   assert.match(html, /data-theme=/i);
   assert.doesNotMatch(html, /class="(?:flow-grid|principle|next-grid)"/i);
@@ -151,4 +152,25 @@ test("documents built-in and user-defined Loops as the primary composition unit"
   assert.match(html, /app\.loop/i);
   assert.match(html, /built-in Loop/i);
   assert.match(html, /terminal Reaction/i);
+});
+
+test("publishes Super-agent landing pages with SEO titles and outbound links", async () => {
+  const en = await builtPage("guides/super-agent/index.html");
+  assert.match(en, /<title>Super-agent on any harness with OpenMatter/i);
+  assert.match(en, /DeepSeek Harness/i);
+  assert.match(en, /coordinator \/ worker/i);
+  assert.match(en, /AgentDriver/i);
+  assert.match(en, /mp\.weixin\.qq\.com\/s\/zoS7GlReWPhfCjENGxXCdg/i);
+  assert.match(
+    en,
+    /clash-art\/draft\/blob\/openmatter-super-agent-v6\.49\/content\/openmatter-super-agent\/article\.zh\.md/i,
+  );
+  assert.match(en, /href="\/doc\/guides\/super-agent-zh\/"/i);
+  assert.match(en, /github\.com\/openma-ai\/pi-bot/i);
+
+  const zh = await builtPage("guides/super-agent-zh/index.html");
+  assert.match(zh, /用 OpenMatter 在任意 harness 上搭 Super-agent/i);
+  assert.match(zh, /DeepSeek Harness/i);
+  assert.match(zh, /coordinator \/ worker/i);
+  assert.match(zh, /href="\/doc\/guides\/super-agent\/"/i);
 });

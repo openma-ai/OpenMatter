@@ -1,0 +1,126 @@
+---
+title: Super-agent on any harness
+description: Use OpenMatter Loop, Bond, AgentDriver, Turn, steer, and coordinator/worker to place DeepSeek Harness-style Super-agent decisions outside the agent — so the harness stays replaceable.
+head:
+  - tag: title
+    content: Super-agent on any harness with OpenMatter
+  - tag: meta
+    attrs:
+      name: keywords
+      content: DeepSeek Harness, Super-agent, dsh Super-agent, OpenMatter Super-agent, Loop, Bond, AgentDriver, Turn, steer, coordinator, worker, personal agent, harness, Claude Tag, Linear Agent Session, Claude Projects
+  - tag: meta
+    attrs:
+      property: og:title
+      content: Super-agent on any harness with OpenMatter
+  - tag: meta
+    attrs:
+      property: og:description
+      content: OpenMatter keeps Loop, Bond, Turn, steer, and coordinator/worker decisions outside the agent so a Super-agent-style personal agent can run on a replaceable harness.
+---
+
+import { Aside, LinkCard } from "@astrojs/starlight/components";
+
+This page is a short English landing page for the OpenMatter take on
+**Super-agent** orchestration. It summarizes the argument; it does not
+replace the long Chinese walkthrough.
+
+DeepSeek Harness (dsh) published
+[《Super-agent 设计探索》](https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg)
+and a public prototype at
+[dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype).
+That design discusses a long-lived personal agent people meet across IM,
+GitHub, and other work surfaces — with session detail pushed inside the
+system — and sketches modules such as Router/Worker orchestration. Parts of
+that design appear in the public prototype; treat the WeChat post as
+architecture discussion, not a claim that every module shipped as a product.
+
+OpenMatter is the work-side framework in this family:
+[openma-ai/OpenMatter](https://github.com/openma-ai/OpenMatter).
+[pi-bot](https://github.com/openma-ai/pi-bot) is one personal-agent host that
+composes OpenMatter with a Pi harness.
+
+## Why decisions live outside the agent
+
+A long-running agent that a person works with across Slack, GitHub, and other
+tools has to settle four decisions. Existing products and the dsh Super-agent
+design differ mainly in how they settle them:
+
+1. **Which work thread and session a new event goes to**, and whether a
+   coordinator delegates it further. Merging sessions keeps context continuous
+   but queues the work. Splitting them allows concurrency, but the results do
+   not share context.
+2. **Whether an event wakes the agent at all** or is only recorded, so the
+   agent can act on unmentioned events and stay quiet when it is not needed.
+3. **How a new message enters when the person changes their mind mid-Turn.**
+4. **How results reach the user**, so the user keeps seeing one agent.
+
+OpenMatter moves these decisions out of the agent:
+
+- The first two are written by the application as a **Loop** (not the agent's
+  internal ReAct loop).
+- The last two get protocol defaults the application can change: a new message
+  opens a new **Turn** queued behind the running one, and **steer** into the
+  running Turn is an optional `AgentDriver` extension when the driver declares
+  `capabilities.steering` and implements `AgentDriver.steer`.
+- A reply is an operation the agent calls inside its Turn, checked for newer
+  messages before it is sent and recorded with a receipt after.
+
+Because the Loop and the reply/steer protocol sit outside the agent, the same
+orchestration can sit in front of ACP connectors, managed runtimes, in-process
+SDKs, or custom agents through **AgentDriver**. That is what "on any harness"
+means here: swap the driver, keep the Loop.
+
+## Core nouns
+
+| Noun | Role |
+| --- | --- |
+| **Loop** | Application-declared subscriptions, routing to a WorkThread/Session, and whether an event starts work or is only recorded. |
+| **Bond** | Identity plus `SecretRef`s for a work platform. Secret values stay with a `CredentialResolver`. |
+| **AgentDriver** | Replaceable bridge from OpenMatter Sessions/Turns to a concrete harness. |
+| **Turn** | One invocation inside a Session. New human messages open a new Turn by default. |
+| **steer** | Optional live injection into a running Turn when the driver supports it. |
+| **coordinator / worker** | `@openma/matter-project-host` Projects where a coordinator delegates, steers, and cancels worker threads. |
+
+Built-in orchestration presets in `@openma/matter-orchestration` include
+`claudeTag()`, `linearLoop()`, and `coordinatorLoop()`. They differ mainly in
+whether there is a coordinator and how sessions are split — useful comparison
+context next to Claude Tag, Linear Agent Session, and Claude Projects, without
+claiming OpenMatter is a clone of those products.
+
+## Read next
+
+<LinkCard
+  title="用 OpenMatter 在任意 harness 上搭 Super-agent"
+  href="https://github.com/clash-art/draft/blob/openmatter-super-agent-v6.49/content/openmatter-super-agent/article.zh.md"
+  description="Full Chinese argument, figures, and comparison with DeepSeek Harness Super-agent design."
+/>
+
+<LinkCard
+  title="中文短页（本站）"
+  href="/doc/guides/super-agent-zh/"
+  description="Same landing argument in Chinese, with the same outbound links."
+/>
+
+<LinkCard
+  title="OpenMatter README — Why the decisions live outside the agent"
+  href="https://github.com/openma-ai/OpenMatter#why-the-decisions-live-outside-the-agent"
+  description="English core-concepts summary on main."
+/>
+
+<LinkCard
+  title="pi-bot — OpenMatter integration"
+  href="https://github.com/openma-ai/pi-bot#接入-openmatter"
+  description="Personal-agent host that uses coordinator/worker Project host, reply freshness, and Pi AgentDriver steer."
+/>
+
+<LinkCard
+  title="dsh 《Super-agent 设计探索》"
+  href="https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg"
+  description="DeepSeek Harness team WeChat post this page responds to."
+/>
+
+<Aside type="note" title="Related docs on this site">
+  See [Loops](/doc/concepts/loops/), [Agent drivers](/doc/agents/drivers/), and
+  [Claude Tag orchestration](/doc/orchestration/claude-tag/) for the SDK-facing
+  detail behind this landing page.
+</Aside>

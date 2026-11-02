@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: Two replaceable boundaries and one governed work loop.
+description: WorkIntegration and AgentDriver boundaries around an OpenMatter Loop — Bond, Session, Turn, and durable Reactions outside the harness.
 ---
 
 OpenMatter standardizes work-side facts and transitions. It deliberately does not standardize the agent's reasoning, transcript, planner, or private tool state.
@@ -37,3 +37,5 @@ Reaction → authorized WorkEffects → WorkIntegration.deliver
 ## What OpenMatter is not
 
 OpenMatter is not another agent brain, workflow DSL, mandatory Hub, connector marketplace, credential service, or replacement for ACP, MCP, OpenAPI, AsyncAPI, or GraphQL.
+
+For the product-level argument that Super-agent-style routing, wake policy, mid-Turn interruption, and reply ownership belong outside the agent, see [Super-agent on any harness](/doc/guides/super-agent/).
