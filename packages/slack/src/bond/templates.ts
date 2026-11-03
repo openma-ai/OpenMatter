@@ -113,7 +113,9 @@ export const slackAgent = defineLoop(
           default: [],
           title: "Channels",
           description:
-            "Channel ids (C…) the bot answers mentions in. Empty: every channel the bot is in.",
+            "Channel ids (C…) the bot answers mentions in. Empty: every channel the bot is in. Direct messages are not filtered by this list.",
+          "x-oma-widget": "bond-resources",
+          "x-bond-provider": "slack",
         },
         directMessages: {
           type: "boolean",
