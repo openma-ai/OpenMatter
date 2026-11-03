@@ -32,3 +32,5 @@ export type {
   SlackIntegrationOptions,
   SlackThreadContextInput,
 } from "./types.js";
+
+export { slackAgent, slackTemplates } from "./templates.js";

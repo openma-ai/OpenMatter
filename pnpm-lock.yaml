@@ -291,6 +291,9 @@ importers:
       "@openma/matter":
         specifier: workspace:*
         version: link:../matter
+      "@openma/matter-loop":
+        specifier: workspace:*
+        version: link:../loop
 
   packages/store-memory:
     dependencies:

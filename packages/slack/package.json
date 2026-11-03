@@ -1,7 +1,13 @@
 {
   "name": "@openma/matter-slack",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.8",
+  "description": "Slack for OpenMatter: signed Events API and interactivity ingress, event normalization, Web API delivery, thread and history context, file downloads, and the Slack Loop templates.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openma-ai/OpenMatter.git",
+    "directory": "packages/slack"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -13,8 +19,13 @@
       "import": "./dist/bond/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "dependencies": {
-    "@openma/matter": "workspace:*"
+    "@openma/matter": "workspace:*",
+    "@openma/matter-loop": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^3.22.1"
