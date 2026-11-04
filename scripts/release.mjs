@@ -4,7 +4,7 @@
 //   node scripts/release.mjs check [--tag vX.Y.Z]
 //     Every public package has the same version (and it matches the tag),
 //     carries the publish metadata, and depends on no private package.
-//   node scripts/release.mjs publish
+//   node scripts/release.mjs publish [--dist-tag file-resources]
 //     CI: packs every package whose version is not on npm yet and publishes it
 //     with npm trusted publishing and provenance. Re-running is a no-op.
 //   node scripts/release.mjs bootstrap [--dry-run]
@@ -109,6 +109,30 @@ const fail = (problems) => {
   process.exit(1);
 };
 
+const publicationTag = (packages) => {
+  const options = process.argv.filter((arg) => arg === "--dist-tag");
+  const tag = argValue("--dist-tag");
+  // Deliberately narrower than npm's tag syntax: no options, URLs, whitespace,
+  // or semver ranges (including v1) can be mistaken for a distribution tag.
+  if (
+    options.length > 1 ||
+    process.argv.some((arg) => arg.startsWith("--dist-tag=")) ||
+    (options.length === 1 &&
+      (tag === undefined ||
+        !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(tag) ||
+        /^v\d/.test(tag)))
+  ) {
+    fail(["--dist-tag requires one lowercase, non-semver tag"]);
+  }
+  if (
+    packages.some((pkg) => pkg.version.split("+")[0].includes("-")) &&
+    (tag === undefined || tag === "latest")
+  ) {
+    fail(["prerelease publishing requires an explicit non-latest --dist-tag"]);
+  }
+  return tag ?? "latest";
+};
+
 const command = process.argv[2];
 const packages = publicPackages();
 
@@ -119,6 +143,7 @@ if (command === "check") {
 } else if (command === "publish") {
   const problems = versionProblems(packages, process.env.GITHUB_REF_NAME);
   if (problems.length > 0) fail(problems);
+  const distTag = publicationTag(packages);
   for (const pkg of packages) {
     if (published(pkg.name, pkg.version)) {
       console.log(`${pkg.name}@${pkg.version} is already on npm`);
@@ -127,7 +152,15 @@ if (command === "check") {
     const tarball = pack(pkg);
     execFileSync(
       "npm",
-      ["publish", tarball, "--access", "public", "--provenance"],
+      [
+        "publish",
+        tarball,
+        "--access",
+        "public",
+        "--provenance",
+        "--tag",
+        distTag,
+      ],
       {
         stdio: "inherit",
       },
@@ -137,6 +170,7 @@ if (command === "check") {
   const dryRun = process.argv.includes("--dry-run");
   const problems = versionProblems(packages);
   if (problems.length > 0) fail(problems);
+  const distTag = publicationTag(packages);
   const missing = packages.filter((pkg) => !published(pkg.name, pkg.version));
   console.log(
     missing.length === 0
@@ -173,6 +207,8 @@ if (command === "check") {
       "--access",
       "public",
       "--provenance=false",
+      "--tag",
+      distTag,
     ]);
     await withOtp([
       "trust",

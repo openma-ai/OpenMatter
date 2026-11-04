@@ -1,6 +1,6 @@
 {
   "name": "@openma/matter-slack",
-  "version": "0.2.8",
+  "version": "0.2.9-file-resources.0",
   "description": "Slack for OpenMatter: signed Events API and interactivity ingress, event normalization, Web API delivery, thread and history context, file downloads, and the Slack Loop templates.",
   "license": "Apache-2.0",
   "repository": {

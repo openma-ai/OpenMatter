@@ -36,4 +36,11 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: npm install -g npm@^11.5.1
-      - run: node scripts/release.mjs publish
+      - name: Publish
+        run: |
+          case "$GITHUB_REF_NAME" in
+            v*-file-resources.*) dist_tag=file-resources ;;
+            v*-*) dist_tag=next ;;
+            *) dist_tag=latest ;;
+          esac
+          node scripts/release.mjs publish --dist-tag "$dist_tag"

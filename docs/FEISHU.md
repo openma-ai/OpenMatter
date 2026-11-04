@@ -218,10 +218,10 @@ export type FeishuEffectOperation = (typeof FEISHU_OPERATIONS)[number];
 ```
 
 **Implemented in v1** (`makeFeishuIntegration`, `makeFeishuDelivery`):
-`message.send` `{ chatId, text | card }`, `message.reply`
-`{ messageId, text | card, inThread? }`, `reaction.add`
-`{ messageId, emoji }`, and `card.update` `{ messageId, card }`. A send or
-reply takes exactly one of `text` and `card`, so `card.send` and
+`message.send` `{ chatId, text | card | file }`, `message.reply`
+`{ messageId, text | card | file, inThread? }`, `file.upload` `{ resourceId }`,
+`reaction.add` `{ messageId, emoji }`, and `card.update` `{ messageId, card }`. A send or
+reply takes exactly one of `text`, `card`, and `file`, so `card.send` and
 `card.reply` are not separate operations; `feishuMarkdownCard(markdown)`
 wraps an Agent reply in a Card JSON 2.0 markdown card. The uuid is the first
 32 hex digits of SHA-256 of the idempotency key. Ids are checked against
@@ -259,10 +259,82 @@ lets a user token send as the user **(verify)**, which makes Agent output
 look human-authored. That would need `allowUserPrincipalOutput`
 (`docs/BONDS.md`, "Principal selection").
 
-Not Effects in v1: file and image upload (`POST /im/v1/images`,
-`POST /im/v1/files`, multipart; an Effect input must be portable JSON, so
-this needs a blob-reference convention first), ephemeral cards, CardKit
-streaming cards.
+### Trusted file resources (implemented)
+
+`file.upload` is an ordinary operation with portable input
+`{ authority, resourceId }`. Configure `makeFeishuIntegration({ credentials,
+files: { resolve }, fetch? })`, or `makeFeishuDelivery(client, { resolve })`.
+The trusted host's `resolve({ authority, resourceId, effect })` authorizes the
+Effect and returns immutable `{ authority, filename, mimeType, bytes }` (a
+value, Promise, or Effect). Matter accepts a single-level `.html` / `.zip`
+filename, matching `text/html` / `application/zip`, and non-empty `Uint8Array`
+bytes up to 5 MiB. It rejects a mismatched authority. Resource IDs are opaque
+host identities, **not URLs or paths for Matter to fetch**. The host must not
+implement an arbitrary-URL/file-system resolver for Agent-controlled IDs.
+
+The operation uploads multipart to `/im/v1/files` as `file_type=stream`, with
+the existing authority credential resolver and injected fetch. It returns
+`{ authority, fileKey }`, never a public URL. Responses are limited to 64 KiB;
+uploads use a 45-second timeout. `message.send` / `message.reply` accept
+`file: { authority, fileKey }` instead of text/card and use the same target
+validation and SHA-256 UUID as other messages. Their receipt includes actual
+`messageId`, optional `threadId`, and `fileKey`; missing provider keys/IDs fail
+as unknown, never success. A file key is host-attested to its authority;
+Matter cannot remotely prove its provenance. Bind and authorize any exposed
+tool in the host, rather than letting an Agent choose authority/key/target.
+The stock markdown-only `message.reply` tool is unchanged; file operations
+are not added to its Agent schema or Bond permissions automatically.
+
+For a native Agent callback, reuse the existing operation grants, pending
+record and uncertain result. Prefer separate `file.upload` then
+`message.send/reply` calls when that fits the host. Uploads have **no provider
+idempotency**, so transport loss or an unrecorded receipt is unknown and must
+not be blindly retried. HTTP/Feishu failures retain `IntegrationError` retry
+classification, but `retryable` alone is not permission to replay a write.
+
+A host needing one logical upload-and-send across different callback IDs may
+use the optional `makeFeishuFileDelivery({ credentials, fetch?, resolve,
+checkpoints, now? })`. Call it with `{ effect, resourceId, checkpointKey,
+file? }`, where `effect` is a host-bound `message.send/reply` Effect containing
+only authority and target fields; `file?` is a previously attested
+`{ authority, fileKey }` (skip upload). When migrating an already-attempted
+reply, also supply `replyStartedAt` (epoch milliseconds); never reset its UUID
+window. It composes the **same operations and delivery**, not a second
+provider implementation. `checkpoints.load(key)` and
+`save(key, state)` persist portable `FeishuFileCheckpoint` in the host's
+existing store. The host must durably finish saves, serialize each key, and
+keep resourceId immutable. Matter pins resource/authority/target and the
+initial idempotency key, saves pending before upload and the fileKey before
+reply, and caches a confirmed receipt. Unknown uploads remain stopped after
+restart. Cached delivery requires a valid authority-bound file and a matching
+messageId/fileKey receipt; `isFeishuFileReceipt(receipt, file, authority)`
+applies the same validation when migrating a host's legacy receipts.
+Explicit reply resumes reuse the original UUID only for less than
+one hour from the first attempt; after that or on clock rollback, return
+unknown for operator reconciliation. No internal retries or in-memory ledger
+are installed. A failed checkpoint save must not be treated as delivery.
+
+```ts
+const deliverFile = makeFeishuFileDelivery({
+  credentials,
+  resolve: ({ authority, resourceId, effect }) =>
+    trustedArtifacts.readAuthorized({ authority, resourceId, effect }),
+  checkpoints: hostCheckpointStore, // durable load/save; serialized by host
+});
+const result = await Effect.runPromise(
+  deliverFile({
+    effect: hostBoundReplyEffect, // same WorkEffect/UUID delivery contract
+    resourceId: immutableArtifactId,
+    checkpointKey: logicalDeliveryId,
+  }),
+);
+```
+
+No live-tenant upload/reply validation is implied by the local tests. App
+resource scopes, actual HTML/ZIP acceptance, file-key ownership/expiry, and
+Feishu's one-hour UUID behavior still require tenant acceptance testing.
+Image upload (`POST /im/v1/images`), ephemeral cards, and CardKit streaming
+remain outside this implementation.
 
 ### 4.2 Context reads (Integration `context` reader, like `SlackContextReader`)
 
@@ -873,8 +945,8 @@ member, and the reason for any fallback.
 ## 12. Out of scope
 
 Bitable, Sheets, approval, calendar, task, OKR and meeting events and write
-APIs; drive file events beyond passthrough; file/image upload Effects until a
-blob-reference convention exists; ephemeral and CardKit streaming cards;
+APIs; drive file events beyond passthrough; image upload Effects;
+ephemeral and CardKit streaming cards;
 mini-program and web-app identities; contact sync; message search; the marketplace app (model 1: ISV listing, `app_ticket`, shared webhook,
 lifecycle events); and the Lark SDK's long-connection wire
 format.

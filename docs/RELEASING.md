@@ -32,6 +32,37 @@ remove `"private": true`, add the same `license`, `repository`, and
 `pnpm pack` rewrites `workspace:*` dependencies to the exact sibling version,
 so one release is always installed as a consistent set.
 
+## A prerelease
+
+Use one prerelease version across all 13 public packages, for example
+`0.2.9-file-resources.0`, then push the matching tag
+`v0.2.9-file-resources.0` after committing and reviewing the changes. The same
+release workflow runs all checks and publishes with provenance, but chooses
+`file-resources` for `v*-file-resources.*` refs, `next` for other prerelease
+refs, and `latest` only for stable refs. Prereleases do not move `latest`.
+
+The publish CLI requires an explicit non-`latest` distribution tag for a
+prerelease (including `bootstrap`). The equivalent CI command is:
+
+```bash
+node scripts/release.mjs check --tag v0.2.9-file-resources.0
+node scripts/release.mjs publish --dist-tag file-resources
+```
+
+Use the two-argument `--dist-tag NAME` form. Tags must start with a lowercase
+letter and contain only lowercase letters, digits, and single hyphen-separated
+segments; semver-like tags such as `v1`, duplicate options, and missing values
+are rejected before contacting npm. Stable versions still default to `latest`
+when `--dist-tag` is omitted. `pnpm pack` continues to replace `workspace:*`
+with the exact prerelease sibling versions; private package versions need no
+bump. Consumers can opt in with, for example:
+
+```bash
+npm install @openma/matter-feishu@file-resources
+# Or pin the exact version:
+npm install @openma/matter-feishu@0.2.9-file-resources.0
+```
+
 ## A new package
 
 npm attaches a trusted publisher only to a package that already exists, so

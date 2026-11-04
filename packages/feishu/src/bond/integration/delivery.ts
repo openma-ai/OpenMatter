@@ -5,12 +5,20 @@ import {
 } from "@openma/matter/integration";
 import { Effect } from "effect";
 import type { FeishuClient } from "./client.js";
+import {
+  fileFailure,
+  fileString,
+  uploadFeishuFileResource,
+  validFileReference,
+  type FeishuFileResolver,
+} from "./file-upload.js";
 import { isRecord, nonEmptyString } from "./shared.js";
 
 /** Every Effect operation `deliver` accepts. */
 export const FEISHU_OPERATIONS = [
   "message.send",
   "message.reply",
+  "file.upload",
   "reaction.add",
   "card.update",
 ] as const;
@@ -21,8 +29,7 @@ export type FeishuEffectOperation = (typeof FEISHU_OPERATIONS)[number];
 const MAX_TEXT_BYTES = 150 * 1024;
 const MAX_CARD_BYTES = 30 * 1024;
 
-const fail = (message: string) =>
-  Effect.fail(new IntegrationError({ message, retryable: false }));
+const fail = (message: string) => Effect.fail(fileFailure(message));
 
 const utf8Length = (value: string) => new TextEncoder().encode(value).length;
 
@@ -68,16 +75,30 @@ const feishuUuid = (idempotencyKey: string): Effect.Effect<string> =>
 
 type Content =
   | { readonly msgType: "text"; readonly content: string }
-  | { readonly msgType: "interactive"; readonly content: string };
+  | { readonly msgType: "interactive"; readonly content: string }
+  | {
+      readonly msgType: "file";
+      readonly content: string;
+      readonly fileKey: string;
+    };
 
-/** Exactly one of `text` and `card`. */
+/** Exactly one of `text`, `card`, and host-attested `file`. */
 const messageContent = (
   operation: string,
   input: Record<string, unknown>,
 ): Content | string => {
-  const { text, card } = input;
-  if ((text === undefined) === (card === undefined)) {
-    return `Feishu ${operation} requires exactly one of text and card`;
+  const { text, card, file } = input;
+  if ([text, card, file].filter((value) => value !== undefined).length !== 1) {
+    return `Feishu ${operation} requires exactly one of text and card, or file`;
+  }
+  if (file !== undefined) {
+    if (!validFileReference(file, String(input.authority)))
+      return `Feishu ${operation} file requires an authority-matched fileKey`;
+    return {
+      msgType: "file",
+      content: JSON.stringify({ file_key: file.fileKey }),
+      fileKey: file.fileKey,
+    };
   }
   if (text !== undefined) {
     if (!nonEmptyString(text) || text.trim() === "") {
@@ -111,8 +132,9 @@ const messageReceipt = (data: JsonValue) =>
  * Delivers Feishu Effects as the authority's bot. Every input names the
  * `authority` whose tenant token posts:
  *
- * - `message.send` `{ chatId, text | card }` posts to a chat.
- * - `message.reply` `{ messageId, text | card, inThread? }` replies to a
+ * - `file.upload` `{ resourceId }` uploads trusted host-resolved bytes.
+ * - `message.send` `{ chatId, text | card | file }` posts to a chat.
+ * - `message.reply` `{ messageId, text | card | file, inThread? }` replies to a
  *   message; `inThread` replies in its topic thread.
  * - `reaction.add` `{ messageId, emoji }` adds a reaction such as `THUMBSUP`.
  * - `card.update` `{ messageId, card }` replaces a card the bot sent; the
@@ -121,7 +143,10 @@ const messageReceipt = (data: JsonValue) =>
  * Sends and replies carry a uuid derived from the Effect idempotency key.
  */
 export const makeFeishuDelivery =
-  (client: Pick<FeishuClient, "request">): WorkIntegration["deliver"] =>
+  (
+    client: Pick<FeishuClient, "request">,
+    files?: { readonly resolve: FeishuFileResolver },
+  ): WorkIntegration["deliver"] =>
   (effect) => {
     const operation = FEISHU_OPERATIONS.find(
       (name) => name === effect.operation,
@@ -130,11 +155,24 @@ export const makeFeishuDelivery =
       return fail(`Feishu does not support the operation ${effect.operation}`);
     }
     const input = effect.input;
-    if (!isRecord(input) || !nonEmptyString(input.authority)) {
+    if (!isRecord(input) || !fileString(input.authority)) {
       return fail(`Feishu ${operation} requires an object with an authority`);
     }
     const authority = input.authority;
+    if (
+      input.file !== undefined &&
+      ["message.send", "message.reply"].includes(operation) &&
+      (!fileString(effect.idempotencyKey) ||
+        input.chatId === "oc_" ||
+        input.messageId === "om_")
+    ) {
+      return fail(
+        "Feishu file delivery requires a complete target and non-empty idempotencyKey",
+      );
+    }
     switch (operation) {
+      case "file.upload":
+        return uploadFeishuFileResource(client, files?.resolve, effect);
       case "message.send": {
         if (!isId(input.chatId, "oc_")) {
           return fail("Feishu message.send requires a chatId (oc_…)");
@@ -157,7 +195,29 @@ export const makeFeishuDelivery =
               },
             }),
           ),
-          Effect.map((data) => ({ providerReceipt: messageReceipt(data) })),
+          Effect.flatMap((data) => {
+            const receipt = messageReceipt(data);
+            if (
+              content.msgType === "file" &&
+              (receipt === null ||
+                !isId(receipt.messageId, "om_") ||
+                receipt.messageId === "om_")
+            ) {
+              return Effect.fail(
+                new IntegrationError({
+                  message: `Feishu ${operation} returned no message_id`,
+                  retryable: false,
+                  effectState: "unknown",
+                }),
+              );
+            }
+            return Effect.succeed({
+              providerReceipt:
+                content.msgType === "file"
+                  ? { ...receipt!, fileKey: content.fileKey }
+                  : receipt,
+            });
+          }),
         );
       }
       case "message.reply": {
@@ -188,7 +248,29 @@ export const makeFeishuDelivery =
               },
             }),
           ),
-          Effect.map((data) => ({ providerReceipt: messageReceipt(data) })),
+          Effect.flatMap((data) => {
+            const receipt = messageReceipt(data);
+            if (
+              content.msgType === "file" &&
+              (receipt === null ||
+                !isId(receipt.messageId, "om_") ||
+                receipt.messageId === "om_")
+            ) {
+              return Effect.fail(
+                new IntegrationError({
+                  message: `Feishu ${operation} returned no message_id`,
+                  retryable: false,
+                  effectState: "unknown",
+                }),
+              );
+            }
+            return Effect.succeed({
+              providerReceipt:
+                content.msgType === "file"
+                  ? { ...receipt!, fileKey: content.fileKey }
+                  : receipt,
+            });
+          }),
         );
       }
       case "reaction.add": {

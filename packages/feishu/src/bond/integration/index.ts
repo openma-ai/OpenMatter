@@ -47,6 +47,19 @@ export {
   type FeishuIntegrationOptions,
 } from "./integration.js";
 export { withoutFeishuCredentials } from "./shared.js";
+export type {
+  FeishuFileResource,
+  FeishuFileRequest,
+  FeishuFileResolver,
+  FeishuFileReference,
+} from "./file-upload.js";
+export {
+  makeFeishuFileDelivery,
+  isFeishuFileReceipt,
+  type FeishuFileCheckpoint,
+  type FeishuFileCheckpoints,
+  type FeishuFileDeliveryInput,
+} from "./file-delivery.js";
 export {
   FEISHU_TOOLS,
   bindFeishuToolInput,

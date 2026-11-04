@@ -123,7 +123,9 @@ export const makeFeishuClient = (input: {
     readonly method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
     readonly path: string;
     readonly query?: Readonly<Record<string, string>>;
-    readonly body?: Readonly<Record<string, unknown>>;
+    readonly body?: Readonly<Record<string, unknown>> | FormData;
+    readonly maxResponseBytes?: number;
+    readonly signal?: AbortSignal;
   }): Effect.Effect<JsonValue, IntegrationError> => {
     const label = `Feishu ${options.method} ${options.path}`;
     return input.credentialsFor(options.authority).pipe(
@@ -137,34 +139,73 @@ export const makeFeishuClient = (input: {
             input.fetch(url, {
               method: options.method,
               redirect: "manual",
+              ...(options.signal === undefined
+                ? {}
+                : { signal: options.signal }),
               headers: {
                 accept: "application/json",
                 authorization: `Bearer ${token}`,
-                ...(options.body === undefined
+                ...(options.body === undefined ||
+                options.body instanceof FormData
                   ? {}
                   : { "content-type": "application/json; charset=utf-8" }),
               },
               ...(options.body === undefined
                 ? {}
-                : { body: JSON.stringify(options.body) }),
+                : {
+                    body:
+                      options.body instanceof FormData
+                        ? options.body
+                        : JSON.stringify(options.body),
+                  }),
             }),
-          catch: (cause) =>
+          catch: () =>
             new IntegrationError({
               message: `${label} request failed`,
               retryable: true,
-              cause,
+              effectState: "unknown",
             }),
         });
       }),
       Effect.flatMap((response) =>
         Effect.tryPromise({
-          try: () => response.text(),
+          try: async () => {
+            if (options.maxResponseBytes === undefined) return response.text();
+            const max = options.maxResponseBytes;
+            if (Number(response.headers.get("content-length")) > max) {
+              void response.body?.cancel().catch(() => undefined);
+              throw invalid(`${label} response exceeds ${max} bytes`);
+            }
+            if (response.body === null) return "";
+            const reader = response.body.getReader();
+            const bytes = new Uint8Array(max);
+            let size = 0;
+            let complete = false;
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                  complete = true;
+                  return new TextDecoder().decode(bytes.subarray(0, size));
+                }
+                if (value.byteLength > max - size)
+                  throw invalid(`${label} response exceeds ${max} bytes`);
+                bytes.set(value, size);
+                size += value.byteLength;
+              }
+            } finally {
+              if (!complete) void reader.cancel().catch(() => undefined);
+              reader.releaseLock();
+            }
+          },
           catch: (cause) =>
-            new IntegrationError({
-              message: `${label} response could not be read`,
-              retryable: true,
-              cause,
-            }),
+            cause instanceof IntegrationError
+              ? cause
+              : new IntegrationError({
+                  message: `${label} response could not be read`,
+                  retryable: true,
+                  effectState: "unknown",
+                }),
         }).pipe(
           Effect.flatMap((text) => {
             let payload: unknown = undefined;

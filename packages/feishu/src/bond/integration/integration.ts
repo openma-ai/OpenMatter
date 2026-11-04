@@ -6,6 +6,7 @@ import {
 } from "./client.js";
 import { FEISHU_OPERATIONS, makeFeishuDelivery } from "./delivery.js";
 import { FEISHU_EVENT_TYPES, normalizeFeishuEvents } from "./events.js";
+import type { FeishuFileResolver } from "./file-upload.js";
 import {
   FEISHU_TOOLS,
   bindFeishuToolInput,
@@ -19,6 +20,8 @@ export interface FeishuIntegrationOptions {
    * tenant token).
    */
   readonly credentials: FeishuCredentialOption;
+  /** Trusted host-owned file bytes. Not exposed as an Agent tool. */
+  readonly files?: { readonly resolve: FeishuFileResolver };
   readonly fetch?: typeof globalThis.fetch;
   readonly clock?: () => string;
 }
@@ -47,7 +50,7 @@ export const makeFeishuIntegration = (
       tools: FEISHU_TOOLS,
     },
     ingest: (input) => normalizeFeishuEvents(input, clock),
-    deliver: makeFeishuDelivery(client),
+    deliver: makeFeishuDelivery(client, options.files),
     observe: observeFeishuEvent,
     bindToolInput: bindFeishuToolInput,
   };
